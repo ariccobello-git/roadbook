@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   var RB = window.RB = window.RB || {};
-  RB.RELEASE = '3.2.4';
+  RB.RELEASE = '3.3.0';
 
   /* ---------- DOM sicuro: i testi sono sempre nodi di testo, mai HTML ---------- */
   function add(el, kids) {
@@ -234,7 +234,7 @@
       phone: 'M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2z', cam: 'M4 8h3l2-3h6l2 3h3v11H4zM12 17a4 4 0 100-8 4 4 0 000 8z',
       check: 'M5 12l5 5 9-10', out: 'M10 4H5v16h5M15 8l4 4-4 4M19 12H9', x: 'M6 6l12 12M18 6L6 18', share: 'M12 15V3M8 7l4-4 4 4M5 12v8h14v-8', trash: 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13', edit: 'M4 20h4L19 9l-4-4L4 16z',
       search: 'M11 18a7 7 0 100-14 7 7 0 000 14zM21 21l-5-5', file: 'M7 3h7l5 5v13H7zM14 3v5h5', copy: 'M9 9h11v11H9zM5 15V4h11', user: 'M12 12a4 4 0 100-8 4 4 0 000 8zM4 21a8 8 0 0116 0',
-      clock: 'M12 21a9 9 0 100-18 9 9 0 000 18zM12 7v5l3 2', chart: 'M4 20V10M10 20V4M16 20v-7M22 20H2', moto: 'M5 17a3 3 0 100-6 3 3 0 000 6zM19 17a3 3 0 100-6 3 3 0 000 6zM8 14h5l3-5h3M10 9h3'
+      clock: 'M12 21a9 9 0 100-18 9 9 0 000 18zM12 7v5l3 2', chat: 'M4 5h16v11H10l-5 4v-4H4z', mail: 'M3 6h18v12H3zM3 7l9 7 9-7', globe: 'M12 21a9 9 0 100-18 9 9 0 000 18zM3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18', store: 'M4 9l1-5h14l1 5M4 9v11h16V9M4 9h16M10 20v-6h4v6', chart: 'M4 20V10M10 20V4M16 20v-7M22 20H2', moto: 'M5 17a3 3 0 100-6 3 3 0 000 6zM19 17a3 3 0 100-6 3 3 0 000 6zM8 14h5l3-5h3M10 9h3'
     };
     var s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('class', 'ic'); s.setAttribute('aria-hidden', 'true');

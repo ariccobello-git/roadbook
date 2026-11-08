@@ -353,4 +353,45 @@
         RB.act(ctl.right, function () { return RB.write('rc_settings_save', { p_key: 'payment_info', p_value: v }); }, t('saved')).then(function (x) { if (x && x.ok) ctl.close(true); });
       } } });
   };
+
+  /* ---------- concessionaria ---------- */
+  var DL_FIELDS = ['name', 'address', 'phone', 'whatsapp', 'email', 'web', 'facebook', 'instagram', 'hours'];
+  function dealer() { return (RB.S.d && RB.S.d.settings && RB.S.d.settings.dealer) || {}; }
+  function digits(s) { return String(s || '').replace(/[^\d]/g, ''); }
+  function telHref(s) { var p = String(s || '').replace(/[^\d+]/g, ''); return p ? 'tel:' + p : null; }
+  RB.dealerName = function () { return dealer().name || t('dealer'); };
+  RB.dealerSheet = function () {
+    var d = dealer(), list = h('div', { class: 'list' });
+    function ext(o) { var r = RB.row(o); if (/^(tel|mailto):/.test(o.href || '')) r.removeAttribute('target'); return r; }
+    if (d.phone && telHref(d.phone)) list.appendChild(ext({ lead: RB.icon('phone'), title: t('dl_call'), sub: d.phone, href: telHref(d.phone), go: false }));
+    if (digits(d.whatsapp).length >= 8) list.appendChild(ext({ lead: RB.icon('chat'), title: 'WhatsApp', sub: d.whatsapp, href: 'https://wa.me/' + digits(d.whatsapp), go: false }));
+    if (d.email) list.appendChild(ext({ lead: RB.icon('mail'), title: t('dl_mail'), sub: d.email, href: 'mailto:' + d.email, go: false }));
+    if (d.address) list.appendChild(ext({ lead: RB.icon('pin'), title: t('dl_addr'), sub: d.address, href: RB.mapsUrl(d.name ? d.name + ', ' + d.address : d.address) }));
+    if (d.hours) list.appendChild(RB.row({ lead: RB.icon('clock'), title: t('dl_hours'), sub: d.hours, go: false }));
+    var soc = h('div', { class: 'list', style: 'margin-top:12px' });
+    [['web', 'globe', 'dl_web'], ['facebook', 'share', 'Facebook'], ['instagram', 'cam', 'Instagram']].forEach(function (x) {
+      var u = RB.safeUrl(d[x[0]]); if (u) soc.appendChild(ext({ lead: RB.icon(x[1]), title: x[2].indexOf('dl_') === 0 ? t(x[2]) : x[2], sub: u.replace(/^https?:\/\/(www\.)?/, '').replace(/[?#].*$/, '').replace(/\/$/, ''), href: u }));
+    });
+    var box = h('div', null, h('h2', { style: 'margin:2px 4px 12px;font-size:21px;font-weight:700;letter-spacing:-.02em' }, RB.dealerName()), list.children.length ? list : h('div', { class: 'empty', style: 'padding:22px' }, t('dl_empty')), soc.children.length ? soc : null);
+    var ctl = RB.sheet({ title: t('dealer'), content: box, full: true, leftLabel: t('close'), right: RB.can('settings_edit') ? { label: t('edit'), fn: function () { ctl.close(true); RB.dealerForm(); } } : null });
+  };
+  RB.dealerForm = function () {
+    var d = dealer();
+    function f(k, label, o) { return RB.field(label, RB.input('dl-' + k, d[k] || '', o || { max: 200 })); }
+    var box = h('div', null,
+      h('div', { class: 'list' }, f('name', t('dl_name'), { max: 80 }), f('address', t('dl_addr'), { max: 160 }), f('hours', t('dl_hours'), { max: 200 })),
+      RB.secT(t('dl_contacts')),
+      h('div', { class: 'list' }, f('phone', t('dl_call'), { type: 'tel', max: 30 }), f('whatsapp', 'WhatsApp', { type: 'tel', max: 30 }), f('email', t('dl_mail'), { type: 'email', max: 120 })),
+      RB.secT(t('dl_social')),
+      h('div', { class: 'list' }, f('web', t('dl_web'), { max: 200, ph: 'https://' }), f('facebook', 'Facebook', { max: 200, ph: 'https://' }), f('instagram', 'Instagram', { max: 200, ph: 'https://' })),
+      h('p', { class: 'sm' }, t('dl_help')));
+    var ctl = RB.sheet({ title: t('dealer'), content: box, full: true, leftLabel: t('cancel'),
+      right: { label: t('save'), fn: function () {
+        var v = {}, bad = false;
+        DL_FIELDS.forEach(function (k) { var x = RB.val('dl-' + k); if (['web', 'facebook', 'instagram'].indexOf(k) >= 0 && x && !/^https:\/\//i.test(x)) bad = true; if (x) v[k] = x; });
+        if (bad) { RB.toast(t('e_https'), 'err'); return; }
+        if (v.whatsapp && digits(v.whatsapp).length < 8) { RB.toast(t('e_dati_mancanti'), 'err'); return; }
+        RB.act(ctl.right, function () { return RB.write('rc_settings_save', { p_key: 'dealer', p_value: v }); }, t('saved')).then(function (x) { if (x && x.ok) ctl.close(true); });
+      } } });
+  };
 })();

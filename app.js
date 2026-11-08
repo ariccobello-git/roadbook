@@ -132,6 +132,8 @@
       shown = !shown; var c = RB.S.code; csub.textContent = shown ? c.slice(0, 4) + '-' + c.slice(4) : '••••-••••'; csub.className = shown ? 'iban' : ''; this.textContent = shown ? t('hide') : t('show');
     } }, t('show')));
     root.appendChild(h('div', { class: 'list' }, codeRow));
+    root.appendChild(RB.secT(t('dealer')));
+    root.appendChild(h('div', { class: 'list', id: 'dealer-list' }, RB.row({ lead: RB.icon('store'), title: RB.dealerName(), sub: t('dealer_sub'), onclick: function () { RB.dealerSheet(); } })));
 
     if (anyTool) {
       root.appendChild(RB.secT(t('area_staff')));
