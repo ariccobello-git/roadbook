@@ -431,7 +431,10 @@ select{border:0;background:var(--fill);border-radius:10px;padding:9px 10px;color
 @media(prefers-reduced-motion:reduce){.wxs *{animation:none!important}.wx-rain i{opacity:.6}}
 
 /* profilo in uso, sempre visibile */
-.who{position:sticky;top:max(6px,env(safe-area-inset-top));z-index:30;display:flex;align-items:center;gap:8px;margin:0 0 10px auto;padding:4px 12px 4px 4px;border-radius:99px;background:var(--gl);border:1px solid var(--gb);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);font:inherit;font-size:13px;color:inherit;cursor:pointer;max-width:100%}
+.whobar{position:sticky;top:max(6px,env(safe-area-inset-top));z-index:30;display:flex;align-items:center;justify-content:flex-end;gap:6px;margin:0 0 10px auto;max-width:100%}
+.who-out{width:34px;height:34px;flex:none;display:grid;place-items:center;border-radius:50%;background:var(--gl);border:1px solid var(--gb);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);color:inherit;cursor:pointer;padding:0}
+.who-out .ic{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.who{position:static;display:flex;align-items:center;gap:8px;margin:0;min-width:0;padding:4px 12px 4px 4px;border-radius:99px;background:var(--gl);border:1px solid var(--gb);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);font:inherit;font-size:13px;color:inherit;cursor:pointer;max-width:100%}
 .who-dot{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,var(--g1),var(--g2));color:#fff;font-size:11px;font-weight:700}
 .who-n{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .who-p{padding:2px 8px;border-radius:99px;background:rgba(127,127,127,.16);font-size:12px;white-space:nowrap}
