@@ -1,5 +1,5 @@
 /* Roadbook · service worker: l'app si apre anche senza rete (rete prima, copia salvata come riserva) */
-var CACHE = 'roadbook-v9';
+var CACHE = 'roadbook-v10';
 var FILES = ['./', 'index.html', 'style.css', 'logic.js', 'ui.js', 'i18n.js', 'api.js', 'common.js', 'xls.js', 'places.js', 'views-run.js', 'views-people.js', 'views-admin.js', 'views-weather.js', 'views-meteo.js', 'views-report.js', 'app.js', 'manifest.webmanifest', 'icon-180.png', 'icon-512.png'];
 
 self.addEventListener('install', function (e) {

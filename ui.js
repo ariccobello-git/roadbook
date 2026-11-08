@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   var RB = window.RB = window.RB || {};
-  RB.RELEASE = '2.7.0';
+  RB.RELEASE = '2.8.0';
 
   /* ---------- DOM sicuro: i testi sono sempre nodi di testo, mai HTML ---------- */
   function add(el, kids) {
@@ -31,7 +31,7 @@
   RB.clear = function (el) { while (el.firstChild) el.removeChild(el.firstChild); return el; };
 
   /* ---------- preferenze ---------- */
-  var DEF = { lang: '', theme: 'arancio', ap: 'auto', sound: true };
+  var DEF = { lang: '', theme: 'blu', ap: 'auto', sound: true };
   RB.pref = (function () {
     var p = {}, k;
     try { p = JSON.parse(localStorage.getItem('rb.pref') || '{}') || {}; } catch (e) { p = {}; }

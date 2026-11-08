@@ -47,7 +47,7 @@
     if (r.formation_published) chips.appendChild(RB.chip(t('formation'), '', 'moto'));
     var me = null;
     if (!off && !past && r.status === 'programmato') me = h('div', { class: 'me', onclick: function (e) { e.stopPropagation(); } }, respSeg(r));
-    var card = h('div', { class: 'run' + (off ? ' off' : ''), role: 'button', tabindex: '0', style: 'animation-delay:' + Math.min(i, 8) * 40 + 'ms',
+    var card = h('div', { class: 'run' + (off ? ' off' : '') + (i === 0 && !off && !past ? ' hero' : ''), role: 'button', tabindex: '0', style: 'animation-delay:' + Math.min(i, 8) * 40 + 'ms',
       onclick: function () { RB.feel('tap'); RB.openRun(r.id); }, onkeydown: function (e) { if (e.key === 'Enter') RB.openRun(r.id); } },
       h('div', { class: 'dbox' }, h('b', null, dt.getDate()), h('span', null, RB.fmt.month(dt))),
       h('div', { class: 'bd' }, h('h3', null, r.title), h('div', { class: 'wh' }, RB.fmt.time(dt) + (r.meeting_point ? ' · ' + r.meeting_point : '')), chips, me));
