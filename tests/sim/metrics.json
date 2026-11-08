@@ -1,0 +1,368 @@
+{
+ "tasks": {
+  "primo accesso (codice 8 caratteri)": {
+   "level": "socio",
+   "taps": 2,
+   "chars": 8,
+   "screens": 1
+  },
+  "rispondere \"Ci sono\" a un Run": {
+   "level": "socio",
+   "taps": 2,
+   "chars": 0,
+   "screens": 1
+  },
+  "aggiungere un passeggero": {
+   "level": "socio",
+   "taps": 1,
+   "chars": 0,
+   "screens": 0
+  },
+  "vedere il meteo": {
+   "level": "socio",
+   "taps": 1,
+   "chars": 0,
+   "screens": 1
+  },
+  "mostrare la tessera QR": {
+   "level": "socio",
+   "taps": 2,
+   "chars": 0,
+   "screens": 2
+  },
+  "compilare i dati di emergenza (prima volta)": {
+   "level": "socio",
+   "taps": 2,
+   "chars": 1,
+   "screens": 1,
+   "fields": 7
+  },
+  "inviare una segnalazione SOS (con accesso)": {
+   "level": "socio",
+   "taps": 3,
+   "chars": 0,
+   "screens": 2
+  },
+  "leggere gli avvisi": {
+   "level": "socio",
+   "taps": 0,
+   "chars": 0,
+   "screens": 0
+  },
+  "vedere le proprie statistiche": {
+   "level": "socio",
+   "taps": 1,
+   "chars": 0,
+   "screens": 1
+  },
+  "check-in manuale di 4 partecipanti": {
+   "level": "staff",
+   "taps": 4,
+   "chars": 0,
+   "screens": 0
+  },
+  "check-in con QR (4 partecipanti)": {
+   "level": "staff",
+   "taps": 1,
+   "chars": 0,
+   "screens": 1
+  },
+  "esportare l'elenco in Excel": {
+   "level": "staff",
+   "taps": 1,
+   "chars": 0,
+   "screens": 0
+  },
+  "pubblicare un avviso": {
+   "level": "staff",
+   "taps": 5,
+   "chars": 15,
+   "screens": 3
+  },
+  "importare Run da Excel (fino alla scelta file)": {
+   "level": "staff",
+   "taps": 2,
+   "chars": 0,
+   "screens": 1
+  },
+  "aprire il modulo \"nuovo Run\"": {
+   "level": "staff",
+   "taps": 0,
+   "chars": 0,
+   "screens": 1,
+   "fields": 0,
+   "rows": 0
+  }
+ },
+ "screens": {
+  "login": {
+   "cls": {
+    "input.code[Codice di acce]": 1,
+    "button.on": 1,
+    "button.-": 2
+   },
+   "small": 2,
+   "texts": 10,
+   "tiny": 1,
+   "tapSmall": 4,
+   "taps": 6,
+   "minTap": 40,
+   "ex": [
+    "Release 3.6.0 11px"
+   ]
+  },
+  "elenco Run": {
+   "cls": {
+    "button.who[Profilo in uso]": 1,
+    "button.who-out[Esci]": 1,
+    "button.on": 1,
+    "button.-": 4
+   },
+   "small": 7,
+   "texts": 20,
+   "tiny": 1,
+   "tapSmall": 7,
+   "taps": 9,
+   "minTap": 34.00848388671875,
+   "ex": [
+    "PN 11px"
+   ]
+  },
+  "barra delle schede": {
+   "cls": {},
+   "small": 6,
+   "texts": 6,
+   "tiny": 6,
+   "tapSmall": 0,
+   "taps": 6,
+   "minTap": 53.171875,
+   "ex": [
+    "Run 10.5px",
+    "Meteo 10.5px",
+    "Soci 10.5px",
+    "Direttivo 10.5px"
+   ]
+  },
+  "scheda Run": {
+   "cls": {
+    "button.sb": 1,
+    "button.btn": 2,
+    "button.on": 1,
+    "button.-": 2,
+    "button.sw": 1,
+    "div.av": 5,
+    "b.-": 5
+   },
+   "small": 11,
+   "texts": 47,
+   "tiny": 0,
+   "tapSmall": 17,
+   "taps": 22,
+   "minTap": 22.9375,
+   "ex": []
+  },
+  "Meteo": {
+   "cls": {
+    "button.who[Profilo in uso]": 1,
+    "button.who-out[Esci]": 1,
+    "input.-": 1,
+    "div.-": 1
+   },
+   "small": 6,
+   "texts": 13,
+   "tiny": 1,
+   "tapSmall": 4,
+   "taps": 7,
+   "minTap": 22.893829345703125,
+   "ex": [
+    "PN 11px"
+   ]
+  },
+  "tessera": {
+   "cls": {
+    "button.sb": 1
+   },
+   "small": 0,
+   "texts": 9,
+   "tiny": 0,
+   "tapSmall": 1,
+   "taps": 1,
+   "minTap": 22.9375,
+   "ex": []
+  },
+  "Altro": {
+   "cls": {
+    "button.who[Profilo in uso]": 1,
+    "button.who-out[Esci]": 1,
+    "button.btn": 1,
+    "button.on": 2,
+    "button.-": 4,
+    "button.-[Arancio]": 1,
+    "button.-[Rosso]": 1,
+    "button.-[Rosa]": 1,
+    "button.-[Viola]": 1,
+    "button.-[Indaco]": 1,
+    "button.on[Blu]": 1,
+    "button.-[Verde]": 1,
+    "button.-[Grafite]": 1,
+    "button.-[Garage]": 1,
+    "button.sw": 1
+   },
+   "small": 12,
+   "texts": 37,
+   "tiny": 1,
+   "tapSmall": 19,
+   "taps": 27,
+   "minTap": 31,
+   "ex": [
+    "PN 11px"
+   ]
+  },
+  "dati emergenza": {
+   "cls": {
+    "button.sb": 1,
+    "input.-": 8,
+    "button.on": 2,
+    "button.-": 11,
+    "button.sw": 1
+   },
+   "small": 15,
+   "texts": 40,
+   "tiny": 0,
+   "tapSmall": 23,
+   "taps": 24,
+   "minTap": 22.9375,
+   "ex": []
+  },
+  "SOS": {
+   "cls": {
+    "button.sb": 1,
+    "button.btn": 1,
+    "input.-": 1
+   },
+   "small": 4,
+   "texts": 22,
+   "tiny": 0,
+   "tapSmall": 3,
+   "taps": 8,
+   "minTap": 22.9375,
+   "ex": []
+  },
+  "statistiche": {
+   "cls": {
+    "button.sb": 1
+   },
+   "small": 5,
+   "texts": 12,
+   "tiny": 0,
+   "tapSmall": 1,
+   "taps": 1,
+   "minTap": 22.9375,
+   "ex": []
+  },
+  "elenco Run (staff)": {
+   "cls": {
+    "button.who[Profilo in uso]": 1,
+    "button.who-out[Esci]": 1,
+    "button.ib[Nuovo Run]": 1,
+    "button.on": 1,
+    "button.-": 4
+   },
+   "small": 7,
+   "texts": 20,
+   "tiny": 1,
+   "tapSmall": 8,
+   "taps": 10,
+   "minTap": 34.00848388671875,
+   "ex": [
+    "MB 11px"
+   ]
+  },
+  "scheda Run (staff)": {
+   "cls": {
+    "button.sb": 1,
+    "button.btn": 3,
+    "button.-": 3,
+    "div.av": 4,
+    "b.-": 4,
+    "button.sw": 4
+   },
+   "small": 12,
+   "texts": 63,
+   "tiny": 0,
+   "tapSmall": 19,
+   "taps": 33,
+   "minTap": 22.9375,
+   "ex": []
+  },
+  "avvisi": {
+   "cls": {
+    "button.sb": 1,
+    "button.btn[Elimina]": 1
+   },
+   "small": 0,
+   "texts": 5,
+   "tiny": 0,
+   "tapSmall": 2,
+   "taps": 4,
+   "minTap": 22.9375,
+   "ex": []
+  },
+  "import Run": {
+   "cls": {
+    "button.sb": 1
+   },
+   "small": 0,
+   "texts": 5,
+   "tiny": 0,
+   "tapSmall": 1,
+   "taps": 3,
+   "minTap": 22.9375,
+   "ex": []
+  },
+  "nuovo Run": {
+   "cls": {
+    "button.sb": 2,
+    "input.-": 4,
+    "button.ib[-]": 1,
+    "button.ib[+]": 1,
+    "button.btn": 3,
+    "button.sw": 1
+   },
+   "small": 7,
+   "texts": 29,
+   "tiny": 0,
+   "tapSmall": 12,
+   "taps": 16,
+   "minTap": 22.9375,
+   "ex": []
+  }
+ },
+ "smallTapAgg": {
+  "input.code[Codice di acce]": 1,
+  "button.on": 8,
+  "button.-": 30,
+  "button.who[Profilo in uso]": 4,
+  "button.who-out[Esci]": 4,
+  "button.sb": 10,
+  "button.btn": 10,
+  "button.sw": 8,
+  "div.av": 9,
+  "b.-": 9,
+  "input.-": 14,
+  "div.-": 1,
+  "button.-[Arancio]": 1,
+  "button.-[Rosso]": 1,
+  "button.-[Rosa]": 1,
+  "button.-[Viola]": 1,
+  "button.-[Indaco]": 1,
+  "button.on[Blu]": 1,
+  "button.-[Verde]": 1,
+  "button.-[Grafite]": 1,
+  "button.-[Garage]": 1,
+  "button.ib[Nuovo Run]": 1,
+  "button.btn[Elimina]": 1,
+  "button.ib[-]": 1,
+  "button.ib[+]": 1
+ }
+}

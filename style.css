@@ -519,3 +519,12 @@ html.bg *,html.bg *:before,html.bg *:after{animation-play-state:paused!important
 .xbar{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;font-size:11px}
 .xbar i{width:100%;max-width:22px;border-radius:6px 6px 2px 2px;background:linear-gradient(180deg,#5ac8fa,#0a84ff);animation:gaugeIn .8s cubic-bezier(.2,.8,.2,1) both;transform-origin:bottom}
 .xbar span{color:var(--mu)}
+
+/* 3.6.1 – leggibilità e bersagli di tocco (minimo 44px, tab 12px) */
+.tab{font-size:12px}
+.sb{min-height:44px;min-width:44px;display:inline-flex;align-items:center;justify-content:center;padding:0 8px}
+.btn.sm2{min-height:44px;font-size:16px}
+.who-out{width:44px;height:44px}
+.who{min-height:44px}
+.seg button,.seg .sg,.sg{min-height:44px}
+input,select,textarea{min-height:44px}
