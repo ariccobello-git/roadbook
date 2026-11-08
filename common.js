@@ -6,11 +6,10 @@
   RB.views = {};
   RB.counts = RBL.counts;
 
-  RB.titleName = function (t) { return RB.t('title_' + t); };
+  RB.titleName = function (key) { var p = RB.profile(key); return p && !p.builtin ? p.name : (RB.has('title_' + key) ? RB.t('title_' + key) : (p ? p.name : key)); };
   RB.errMsg = function (code) { return RB.has('e_' + code) ? RB.t('e_' + code) : RB.t('e_generic'); };
   RB.refresh = function () { if (RB.render) RB.render(); };
-  RB.isStaff = function () { return RB.myLevel() >= 2; };
-  RB.isAdmin = function () { return RB.myLevel() >= 3; };
+  RB.isStaff = function () { return RB.can('runs_edit') || RB.can('formation_edit') || RB.can('signups_manage'); };
   RB.chapterName = function () { var s = RB.S.d && RB.S.d.settings && RB.S.d.settings.chapter; return (s && s.name) || 'Roma Chapter'; };
   RB.appUrl = function () { return location.origin + location.pathname.replace(/index\.html$/, ''); };
 

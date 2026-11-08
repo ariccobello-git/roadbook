@@ -11,6 +11,7 @@
     if (/^3\d{8,9}$/.test(d)) return '39' + d;
     return d;
   }
+  RB.waDigits = waDigits;
   function payInfo() { return (RB.S.d.settings && RB.S.d.settings.payment_info) || {}; }
   function paymentsOf(memberId, year) { return (RB.S.d.payments || []).filter(function (p) { return p.member_id === memberId && p.year === year; }); }
   function isPaid(memberId, year) { return paymentsOf(memberId, year).length > 0; }
@@ -18,7 +19,7 @@
 
   /* ================= SOCI ================= */
   RB.views.soci = function (root) {
-    var list = h('div'), admin = RB.isAdmin();
+    var list = h('div'), admin = RB.can('members_edit'), seePay = RB.can('payments_view');
     var total = RB.members().filter(function (m) { return m.active; }).length;
     var right = admin ? [RB.iconBtn('plus', t('add_member'), function () { RB.memberForm(null); }, true), RB.iconBtn('altro', t('more'), function () { RB.memberTools(); })] : null;
     root.appendChild(RB.title(t('tab_soci'), total + ' ' + t('members_n'), right));
@@ -41,7 +42,7 @@
       src.forEach(function (m) {
         var right = [];
         if (!m.active) right.push(RB.chip(t('inactive'), 'wa'));
-        if (admin && m.active) right.push(RB.chip(isPaid(m.id, RB.ui.year) ? t('paid') : t('unpaid'), isPaid(m.id, RB.ui.year) ? 'ok' : 'er'));
+        if (seePay && m.active) right.push(RB.chip(isPaid(m.id, RB.ui.year) ? t('paid') : t('unpaid'), isPaid(m.id, RB.ui.year) ? 'ok' : 'er'));
         box.appendChild(RB.row({ lead: RB.av(m, ''), title: RB.fullName(m), sub: RB.titleName(m.title) + (m.bike ? ' · ' + m.bike : ''), onclick: function () { RB.memberDetail(m.id); },
           right: right.length ? h('span', { class: 'chips', style: 'margin:0' }, right) : null }));
       });
@@ -55,6 +56,7 @@
       { label: t('add_member'), fn: function () { RB.memberForm(null); } },
       { label: t('import_xls'), fn: function () { RB.importSheet(); } },
       { label: t('export_xls'), fn: function () { RB.xls.exportMembers().catch(function () { RB.toast(t('e_xls'), 'err'); }); } },
+      { label: t('export_codes'), fn: function () { RB.xls.exportCodes().catch(function () { RB.toast(t('e_xls'), 'err'); }); } },
       { label: t('download_template'), fn: function () { RB.xls.template().catch(function () { RB.toast(t('e_xls'), 'err'); }); } }]);
   };
 
@@ -62,29 +64,31 @@
     var ctl = RB.sheet({ title: '', full: true });
     function build() {
       var m = RB.mem(id); if (!m) { ctl.close(true); return; }
-      var lv = RB.myLevel(), admin = lv >= 3, f = h('div'), st = ctl.body.scrollTop;
+      var edit = RB.can('members_edit') && RB.covers(m.title), seePay = RB.can('payments_view'), payEdit = RB.can('payments_edit'), f = h('div'), st = ctl.body.scrollTop;
       ctl.setTitle(RB.fullName(m));
       f.appendChild(h('div', { style: 'text-align:center;padding:8px 0 14px' }, h('div', { style: 'display:flex;justify-content:center' }, RB.av(m, 'xl')),
         h('h2', { style: 'margin:10px 0 2px' }, RB.fullName(m)), h('div', { class: 'chips', style: 'justify-content:center' }, RB.chip(RB.titleName(m.title), 'acc'), m.active ? null : RB.chip(t('inactive'), 'wa'))));
       var info = h('div', { class: 'list' });
       if (m.bike) info.appendChild(RB.row({ lead: RB.icon('moto'), title: t('bike'), value: m.bike, go: false }));
-      if (lv >= 2 && m.phone) {
+      if (m.phone) {
         info.appendChild(RB.row({ lead: RB.icon('phone'), title: t('phone'), value: m.phone, href: 'tel:' + m.phone.replace(/[^\d+]/g, '') }));
         if (waDigits(m.phone)) info.appendChild(RB.row({ title: 'WhatsApp', href: 'https://wa.me/' + waDigits(m.phone) }));
       }
-      if (admin) {
+      {
         if (m.email) info.appendChild(RB.row({ title: 'Email', value: m.email, href: 'mailto:' + m.email }));
         if (m.tessera) info.appendChild(RB.row({ title: t('tessera'), value: m.tessera, go: false }));
         if (m.joined_on) info.appendChild(RB.row({ title: t('joined'), value: RB.fmt.full(m.joined_on), go: false }));
         if (m.birth_date) info.appendChild(RB.row({ title: t('birth'), value: RB.fmt.full(m.birth_date), go: false }));
       }
       if (info.children.length) f.appendChild(info);
-      if (admin && m.notes) f.appendChild(h('div', { class: 'card', style: 'white-space:pre-wrap' }, m.notes));
-      if (admin) {
+      if (m.notes) f.appendChild(h('div', { class: 'card', style: 'white-space:pre-wrap' }, m.notes));
+      if (seePay) {
         var py = RB.ui.year, pays = paymentsOf(m.id, py);
         f.appendChild(RB.secT(t('fee') + ' ' + py));
-        f.appendChild(h('div', { class: 'list' }, RB.row({ title: pays.length ? t('paid') : t('unpaid'), sub: pays.length ? pays.map(function (p) { return RB.fmt.money(p.amount) + ' · ' + t('m_' + p.method); }).join(', ') : '', go: true,
-          right: RB.chip(pays.length ? t('paid') : t('unpaid'), pays.length ? 'ok' : 'er'), onclick: function () { RB.paymentSheet(m.id, py); } })));
+        f.appendChild(h('div', { class: 'list' }, RB.row({ title: pays.length ? t('paid') : t('unpaid'), sub: pays.length ? pays.map(function (p) { return RB.fmt.money(p.amount) + ' · ' + t('m_' + p.method); }).join(', ') : '', go: payEdit,
+          right: RB.chip(pays.length ? t('paid') : t('unpaid'), pays.length ? 'ok' : 'er'), onclick: payEdit ? function () { RB.paymentSheet(m.id, py); } : null })));
+      }
+      if (edit && m.access_code) {
         f.appendChild(RB.secT(t('invite')));
         var codeRow = RB.row({ title: m.access_code.slice(0, 4) + '-' + m.access_code.slice(4), cls: 'iban', go: false });
         f.appendChild(h('div', { class: 'list' }, codeRow,
@@ -105,6 +109,7 @@
   function inviteText(m) {
     return t('invite_text', m.first_name, RB.chapterName(), RB.inviteLink(m.access_code), m.access_code.slice(0, 4) + '-' + m.access_code.slice(4));
   }
+  RB.inviteText = inviteText;
   function sendInvite(m) {
     var txt = inviteText(m);
     var url = 'https://wa.me/' + (waDigits(m.phone) || '') + '?text=' + encodeURIComponent(txt);
@@ -113,7 +118,8 @@
 
   RB.memberForm = function (id) {
     var m = id ? RB.mem(id) : null, title = m ? m.title : 'socio', active = m ? m.active : true;
-    var sel = h('select', { id: 'mf-title' }, RBL.TITLES.slice().reverse().map(function (x) { return h('option', { value: x, selected: x === title ? true : null }, RB.titleName(x)); }));
+    var opts = RB.profiles().filter(function (p) { return p.key === title || RB.covers(p.key); }).reverse();
+    var sel = h('select', { id: 'mf-title' }, opts.map(function (p) { return h('option', { value: p.key, selected: p.key === title ? true : null }, RB.titleName(p.key)); }));
     sel.value = title; sel.addEventListener('change', function () { title = sel.value; });
     var box = h('div', null, h('div', { class: 'list' },
       RB.field(t('first_name'), RB.input('mf-fn', m ? m.first_name : '', { max: 60 })), RB.field(t('last_name'), RB.input('mf-ln', m ? m.last_name : '', { max: 60 })),
@@ -170,7 +176,7 @@
         var inp = h('input', { type: 'file', accept: '.xlsx,.xls,.csv', style: 'display:none', onchange: function () {
           var f = inp.files && inp.files[0]; if (inp.parentNode) inp.parentNode.removeChild(inp); if (!f) return;
           RB.toast(t('reading'));
-          RB.xls.read(f).then(function (matrix) { step2(RBL.rowsFromMatrix(matrix)); }, function () { RB.toast(t('e_xls'), 'err'); });
+          RB.xls.read(f).then(function (matrix) { step2(RBL.rowsFromMatrix(matrix, RB.profiles().filter(function (p) { return RB.covers(p.key); }))); }, function () { RB.toast(t('e_xls'), 'err'); });
         } });
         document.body.appendChild(inp); inp.click();
       } }, RB.icon('file'), t('choose_file')));
@@ -187,7 +193,7 @@
         h('tbody', null, res.rows.slice(0, 8).map(function (r) { return h('tr', null, [r.first_name, r.last_name, r.phone, RB.titleName(r.title), r.tessera].map(function (x) { return h('td', null, x || ''); })); })));
       box.appendChild(h('div', { class: 'tbl' }, tbl));
       if (res.rows.length > 8) box.appendChild(h('p', { class: 'sm' }, t('imp_more', res.rows.length - 8)));
-      if (res.invalid.length) box.appendChild(h('p', { class: 'sm' }, t('imp_invalid') + ' ' + res.invalid.slice(0, 12).map(function (x) { return t('row') + ' ' + x.row + ' (' + t('ie_' + x.reason) + ')'; }).join(', ') + (res.invalid.length > 12 ? '…' : '')));
+      if (res.invalid.length) box.appendChild(h('p', { class: 'sm' }, t('imp_invalid') + ' ' + res.invalid.slice(0, 12).map(function (x) { return t('row') + ' ' + x.row + ' (' + t('ie_' + x.reason) + (x.value ? ': ' + x.value : '') + ')'; }).join(', ') + (res.invalid.length > 12 ? '…' : '')));
       box.appendChild(h('p', { class: 'sm' }, t('imp_merge')));
       var go = h('button', { type: 'button', class: 'btn pri', onclick: function () { run(res.rows, go); } }, t('import_n', res.rows.length));
       if (!res.rows.length) go.disabled = true;
@@ -211,6 +217,7 @@
         if (failed) { box.appendChild(h('div', { class: 'banner er' }, RB.errMsg(failed))); RB.sound('err'); }
         else { RB.sound('ok'); }
         box.appendChild(h('div', { class: 'stat' }, h('div', null, h('b', null, ins), h('span', null, t('imp_added'))), h('div', null, h('b', null, upd), h('span', null, t('imp_updated'))), h('div', null, h('b', null, skip), h('span', null, t('imp_skipped')))));
+        if (ins) box.appendChild(h('button', { type: 'button', class: 'btn ghost', onclick: function () { RB.xls.exportCodes().catch(function () { RB.toast(t('e_xls'), 'err'); }); } }, RB.icon('file'), t('export_codes')));
         box.appendChild(h('button', { type: 'button', class: 'btn pri', onclick: function () { ctl.close(); } }, t('done')));
       }
     }
@@ -222,14 +229,14 @@
   RB.views.dir = function (root) {
     root.appendChild(RB.title(t('tab_dir'), RB.chapterName()));
     var any = false;
-    RBL.ORG_TITLES.forEach(function (ti) {
-      var ms = RB.members().filter(function (m) { return m.active && m.title === ti; });
+    RB.profiles().filter(function (p) { return p.in_direttivo; }).forEach(function (pr) {
+      var ti = pr.key, ms = RB.members().filter(function (m) { return m.active && m.title === ti; });
       if (!ms.length) return;
       any = true;
       root.appendChild(RB.secT(RB.titleName(ti)));
       var g = h('div', { class: 'org' });
       ms.forEach(function (m, i) {
-        var can = RB.isAdmin() || m.id === RB.S.me.id;
+        var can = RB.can('members_edit') || m.id === RB.S.me.id;
         var av = RB.av(m, 'lg');
         if (can) av.appendChild(h('span', { class: 'cam', role: 'button', 'aria-label': t('change_photo'), onclick: function (e) { e.stopPropagation(); RB.photoMenu(m); } }, RB.icon('cam')));
         g.appendChild(h('div', { class: 'oc b', role: 'button', tabindex: '0', style: 'animation-delay:' + Math.min(i, 8) * 40 + 'ms', onclick: function () { RB.feel('tap'); RB.memberDetail(m.id); } },
@@ -237,18 +244,18 @@
       });
       root.appendChild(g);
     });
-    if (!any) root.appendChild(RB.empty('dir', t('no_org'), RB.isAdmin() ? t('no_org_admin') : ''));
+    if (!any) root.appendChild(RB.empty('dir', t('no_org'), RB.can('members_edit') ? t('no_org_admin') : ''));
   };
 
   /* ================= QUOTE ================= */
   RB.views.quote = function (root) {
-    var info = payInfo(), me = RB.S.me, admin = RB.isAdmin(), year = RB.ui.year;
+    var info = payInfo(), me = RB.S.me, seeAll = RB.can('payments_view'), editPay = RB.can('payments_edit'), year = RB.ui.year;
     var yr = h('div', { class: 'rb' }, RB.iconBtn('chev', '-', function () { RB.ui.year--; RB.refresh(); }), h('b', { style: 'align-self:center;min-width:44px;text-align:center' }, year), RB.iconBtn('chev', '+', function () { RB.ui.year++; RB.refresh(); }));
     yr.firstChild.querySelector('svg').style.transform = 'rotate(180deg)';
     root.appendChild(RB.title(t('tab_quote'), t('fee') + ' ' + year, yr));
 
     /* come pagare */
-    root.appendChild(RB.secT(t('how_to_pay'), admin ? h('button', { type: 'button', class: 'btn ghost sm2', onclick: function () { RB.payInfoForm(); } }, t('edit')) : null));
+    root.appendChild(RB.secT(t('how_to_pay'), RB.can('settings_edit') ? h('button', { type: 'button', class: 'btn ghost sm2', onclick: function () { RB.payInfoForm(); } }, t('edit')) : null));
     var methods = info.methods || [], c = h('div', { class: 'list' });
     if (info.annual_fee) c.appendChild(RB.row({ title: t('annual_fee'), value: RB.fmt.money(info.annual_fee), go: false }));
     if (info.deadline) c.appendChild(RB.row({ title: t('deadline'), value: RB.fmt.full(info.deadline), go: false }));
@@ -270,7 +277,7 @@
       sub: mine.length ? mine.map(function (p) { return RB.fmt.money(p.amount) + ' · ' + t('m_' + p.method) + (p.paid_on ? ' · ' + RB.fmt.full(p.paid_on) : ''); }).join(', ') : t('not_registered'),
       right: RB.chip(mine.length ? t('paid') : t('unpaid'), mine.length ? 'ok' : 'er') })));
 
-    if (!admin) return;
+    if (!seeAll) return;
 
     /* registro (officer) */
     var act = RB.members().filter(function (m) { return m.active; }), paid = act.filter(function (m) { return isPaid(m.id, year); });
@@ -285,7 +292,7 @@
       if ((RB.ui.payFilter === 'unpaid' && p) || (RB.ui.payFilter === 'paid' && !p)) return;
       n++;
       box.appendChild(RB.row({ lead: RB.av(m, 'sm'), title: RB.fullName(m), sub: p ? paymentsOf(m.id, year).map(function (x) { return RB.fmt.money(x.amount) + ' · ' + t('m_' + x.method); }).join(', ') : RB.titleName(m.title),
-        right: RB.chip(p ? t('paid') : t('unpaid'), p ? 'ok' : 'er'), onclick: function () { RB.paymentSheet(m.id, year); } }));
+        right: RB.chip(p ? t('paid') : t('unpaid'), p ? 'ok' : 'er'), onclick: editPay ? function () { RB.paymentSheet(m.id, year); } : null }));
     });
     if (!n) box.appendChild(h('div', { class: 'empty', style: 'padding:22px' }, t('no_results')));
     root.appendChild(box);

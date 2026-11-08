@@ -3,7 +3,9 @@
   'use strict';
   var RB = window.RB, h = RB.h, t = RB.t, app = document.getElementById('app');
   var TABS = [['run', 'run', 'tab_run'], ['soci', 'soci', 'tab_soci'], ['dir', 'dir', 'tab_dir'], ['quote', 'quote', 'tab_quote'], ['altro', 'altro', 'tab_altro']];
-  var lastSig = '', pending = false, installEvt = null;
+  var lastSig = '', pending = false, installEvt = null, shellKey = '';
+  /* Soci e Direttivo servono solo a chi può vedere l'elenco dei soci */
+  function visibleTabs() { return TABS.filter(function (x) { return (x[0] !== 'soci' && x[0] !== 'dir') || RB.can('members_view'); }); }
 
   window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); installEvt = e; if (RB.S.code) RB.render(); });
 
@@ -54,7 +56,8 @@
   function shell() {
     RB.clear(app);
     var tabs = h('nav', { class: 'tabs', 'aria-label': 'Roadbook' }, h('div', { class: 'brand' }, h('img', { id: 'brand-logo', src: RB.logoSrc(), alt: '' }), 'Roadbook'));
-    TABS.forEach(function (x) {
+    var vt = visibleTabs(); shellKey = vt.map(function (x) { return x[0]; }).join();
+    vt.forEach(function (x) {
       tabs.appendChild(h('button', { type: 'button', class: 'tab', 'data-tab': x[0], onclick: function () {
         if (RB.ui.tab !== x[0]) { RB.ui.tab = x[0]; RB.feel('tap'); } window.scrollTo(0, 0); RB.render();
       } }, RB.icon(x[1]), h('span', null, t(x[2]))));
@@ -76,7 +79,8 @@
 
   RB.render = function () {
     if (!RB.S.code) { return; }
-    if (!document.getElementById('view')) shell();
+    if (!document.getElementById('view') || shellKey !== visibleTabs().map(function (x) { return x[0]; }).join()) shell();
+    if (!visibleTabs().some(function (x) { return x[0] === RB.ui.tab; })) RB.ui.tab = 'run';
     var main = document.getElementById('view'), y = window.scrollY;
     document.querySelectorAll('.tab').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-tab') === RB.ui.tab); var s = b.querySelector('span'); var x = TABS.filter(function (q) { return q[0] === b.getAttribute('data-tab'); })[0]; if (s && x) s.textContent = t(x[2]); });
     var bl = document.getElementById('brand-logo'); if (bl) bl.src = RB.logoSrc();
@@ -90,7 +94,7 @@
 
   /* ---------- eventi dati ---------- */
   RB.on('data', function (r) {
-    var sig = JSON.stringify([r.me, r.members, r.runs, r.signups, r.payments, r.settings]);
+    var sig = JSON.stringify([r.me, r.profiles, r.members, r.runs, r.signups, r.payments, r.settings]);
     try { var c = r.settings && r.settings.chapter; if (c && c.logo) localStorage.setItem('rb.logo', c.logo); else localStorage.removeItem('rb.logo'); } catch (e) {}
     if (sig === lastSig) return;
     lastSig = sig;
@@ -104,13 +108,13 @@
 
   /* ---------- sezione Altro ---------- */
   RB.views.altro = function (root) {
-    var me = RB.S.me, m = RB.mem(me.id) || me, admin = RB.isAdmin(), staff = RB.isStaff();
+    var me = RB.S.me, m = RB.mem(me.id) || me, staff = RB.isStaff(), anyTool = staff || RB.can('members_edit') || RB.can('settings_edit') || RB.can('profiles_manage');
     root.appendChild(RB.title(t('tab_altro')));
 
     var av = RB.av(RB.mem(me.id), 'lg');
     root.appendChild(h('div', { class: 'card', style: 'display:flex;align-items:center;gap:14px' },
       h('button', { type: 'button', 'aria-label': t('change_photo'), onclick: function () { if (RB.mem(me.id)) RB.photoMenu(RB.mem(me.id)); } }, av),
-      h('div', { style: 'min-width:0' }, h('b', { style: 'font-size:19px' }, RB.fullName(m)), h('div', { class: 'chips', style: 'margin-top:4px' }, RB.chip(RB.titleName(me.title), 'acc'), RB.chip(staff ? t('area_staff') : t('area_member'), '')))));
+      h('div', { style: 'min-width:0' }, h('b', { style: 'font-size:19px' }, RB.fullName(m)), h('div', { class: 'chips', style: 'margin-top:4px' }, RB.chip(RB.titleName(me.title), 'acc'), RB.chip(anyTool ? t('area_staff') : t('area_member'), '')))));
 
     var shown = false, codeRow = RB.row({ lead: RB.icon('user'), title: t('my_code'), sub: '••••-••••', go: false });
     var csub = codeRow.querySelector('.rt span');
@@ -119,19 +123,21 @@
     } }, t('show')));
     root.appendChild(h('div', { class: 'list' }, codeRow));
 
-    if (staff) {
+    if (anyTool) {
       root.appendChild(RB.secT(t('area_staff')));
       var sl = h('div', { class: 'list' });
-      sl.appendChild(RB.row({ lead: RB.icon('plus'), title: t('new_run'), onclick: function () { RB.runForm(null); } }));
+      if (RB.can('runs_edit')) sl.appendChild(RB.row({ lead: RB.icon('plus'), title: t('new_run'), onclick: function () { RB.runForm(null); } }));
       var nx = RB.runs().filter(function (r) { return r.status === 'programmato' && new Date(r.run_date) > Date.now() - 6 * 3600 * 1000; }).sort(function (a, b) { return new Date(a.run_date) - new Date(b.run_date); })[0];
-      if (nx) {
-        sl.appendChild(RB.row({ lead: RB.icon('moto'), title: t('formation'), sub: nx.title, onclick: function () { RB.formationEditor(nx.id); } }));
-        sl.appendChild(RB.row({ lead: RB.icon('check'), title: t('checkin'), sub: nx.title, onclick: function () { RB.openRun(nx.id); } }));
-      }
-      if (admin) {
+      if (nx && RB.can('formation_edit')) sl.appendChild(RB.row({ lead: RB.icon('moto'), title: t('formation'), sub: nx.title, onclick: function () { RB.formationEditor(nx.id); } }));
+      if (nx && RB.can('signups_manage')) sl.appendChild(RB.row({ lead: RB.icon('check'), title: t('checkin'), sub: nx.title, onclick: function () { RB.openRun(nx.id); } }));
+      if (RB.can('members_edit')) {
         sl.appendChild(RB.row({ lead: RB.icon('soci'), title: t('add_member'), onclick: function () { RB.memberForm(null); } }));
         sl.appendChild(RB.row({ lead: RB.icon('file'), title: t('import_xls'), onclick: function () { RB.importSheet(); } }));
         sl.appendChild(RB.row({ lead: RB.icon('file'), title: t('export_xls'), go: false, onclick: function () { RB.xls.exportMembers().catch(function () { RB.toast(t('e_xls'), 'err'); }); } }));
+        sl.appendChild(RB.row({ lead: RB.icon('file'), title: t('export_codes'), go: false, onclick: function () { RB.xls.exportCodes().catch(function () { RB.toast(t('e_xls'), 'err'); }); } }));
+      }
+      if (RB.can('profiles_manage')) sl.appendChild(RB.row({ lead: RB.icon('dir'), title: t('profiles'), sub: t('profiles_sub'), onclick: function () { RB.profilesSheet(); } }));
+      if (RB.can('settings_edit')) {
         sl.appendChild(RB.row({ lead: RB.icon('quote'), title: t('how_to_pay'), onclick: function () { RB.payInfoForm(); } }));
         sl.appendChild(RB.row({ lead: RB.icon('edit'), title: t('chapter_settings'), onclick: function () { chapterForm(); } }));
       }

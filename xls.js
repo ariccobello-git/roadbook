@@ -44,10 +44,15 @@
       var ws = X.utils.aoa_to_sheet([head]);
       ws['!cols'] = head.map(function (h) { return { wch: Math.max(14, h.length + 2) }; });
       X.utils.book_append_sheet(wb, ws, 'Soci');
-      var info = [[RB.t('xls_help_title')], [RB.t('xls_help_1')], [RB.t('xls_help_2')], [RB.t('xls_help_3')], [''],
-        [RB.t('xls_help_roles')]].concat(RBL.TITLES.map(function (t) { return [RB.t('title_' + t)]; }));
-      var w2 = X.utils.aoa_to_sheet(info); w2['!cols'] = [{ wch: 90 }];
+      var roles = RB.profiles().filter(function (p) { return RB.covers(p.key); });
+      var info = [[RB.t('xls_help_title')], [RB.t('xls_help_1')], [RB.t('xls_help_2')], [RB.t('xls_help_3')], [RB.t('xls_help_4')]];
+      var w2 = X.utils.aoa_to_sheet(info); w2['!cols'] = [{ wch: 100 }];
       X.utils.book_append_sheet(wb, w2, RB.t('xls_help_sheet'));
+      var rr = [[RB.t('role'), RB.t('xls_roles_perms')]].concat(roles.map(function (p) {
+        return [RB.titleName(p.key), p.perms.map(function (k) { return RB.t('perm_' + k); }).join(', ')];
+      }));
+      var w3 = X.utils.aoa_to_sheet(rr); w3['!cols'] = [{ wch: 26 }, { wch: 110 }];
+      X.utils.book_append_sheet(wb, w3, RB.t('xls_roles_sheet'));
       save(X, wb, 'roadbook-modello-soci.xlsx');
     });
   }
@@ -56,12 +61,31 @@
     return lib().then(function (X) {
       var rows = [['Nome', 'Cognome', 'Telefono', 'Email', 'Data di nascita', 'N. Tessera', 'Moto', 'Ruolo', 'Data iscrizione', 'Attivo', 'Note']];
       RB.members().forEach(function (m) {
-        rows.push([m.first_name, m.last_name, m.phone || '', m.email || '', m.birth_date || '', m.tessera || '', m.bike || '', RB.t('title_' + m.title), m.joined_on || '', m.active ? 'Si' : 'No', m.notes || '']);
+        rows.push([m.first_name, m.last_name, m.phone || '', m.email || '', m.birth_date || '', m.tessera || '', m.bike || '', RB.titleName(m.title), m.joined_on || '', m.active ? 'Si' : 'No', m.notes || '']);
       });
       var wb = X.utils.book_new(), ws = X.utils.aoa_to_sheet(rows);
       ws['!cols'] = [14, 16, 16, 26, 14, 12, 18, 18, 14, 8, 30].map(function (w) { return { wch: w }; });
       X.utils.book_append_sheet(wb, ws, 'Soci');
       save(X, wb, 'roadbook-soci.xlsx');
+    });
+  }
+
+  /* elenco con codice e link di invito per ogni persona (da usare per inviare gli accessi) */
+  function exportCodes() {
+    return lib().then(function (X) {
+      var head = [RB.t('last_name'), RB.t('first_name'), RB.t('role'), RB.t('phone'), 'Email', RB.t('xc_code'), RB.t('xc_link'), 'WhatsApp'];
+      var rows = [head], link = [], wa = [];
+      RB.members().filter(function (m) { return m.active && m.access_code; }).forEach(function (m, i) {
+        var d = RB.waDigits(m.phone);
+        rows.push([m.last_name, m.first_name, RB.titleName(m.title), m.phone || '', m.email || '', m.access_code.slice(0, 4) + '-' + m.access_code.slice(4), RB.inviteLink(m.access_code), d ? 'WhatsApp' : '']);
+        link.push(i + 1); if (d) wa.push([i + 1, 'https://wa.me/' + d + '?text=' + encodeURIComponent(RB.inviteText(m))]);
+      });
+      var ws = X.utils.aoa_to_sheet(rows);
+      link.forEach(function (r) { var c = ws['G' + (r + 1)]; if (c) c.l = { Target: c.v }; });
+      wa.forEach(function (x) { var c = ws['H' + (x[0] + 1)]; if (c) c.l = { Target: x[1] }; });
+      ws['!cols'] = [18, 16, 18, 16, 26, 12, 48, 12].map(function (w) { return { wch: w }; });
+      var wb = X.utils.book_new(); X.utils.book_append_sheet(wb, ws, RB.t('xc_sheet'));
+      save(X, wb, 'roadbook-codici-accesso.xlsx');
     });
   }
 
@@ -81,5 +105,5 @@
     });
   }
 
-  RB.xls = { read: read, template: template, exportMembers: exportMembers, exportPayments: exportPayments };
+  RB.xls = { read: read, template: template, exportMembers: exportMembers, exportCodes: exportCodes, exportPayments: exportPayments };
 })();

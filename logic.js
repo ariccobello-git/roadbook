@@ -3,12 +3,30 @@
   'use strict';
   var L = {};
 
-  L.TITLES = ['presidente', 'direttore', 'vice_direttore', 'head_road_captain', 'road_captain', 'officer', 'socio'];
-  L.ORG_TITLES = L.TITLES.slice(0, 6);
-  L.level = function (t) {
-    if (t === 'presidente' || t === 'direttore' || t === 'vice_direttore' || t === 'head_road_captain' || t === 'officer') return 3;
-    if (t === 'road_captain') return 2;
-    return 1;
+  /* permessi dei profili di accesso (stessi nomi e stesse dipendenze del database) */
+  L.PERMS = ['members_view', 'phones_view', 'personal_view', 'route_view', 'formation_draft_view', 'runs_edit', 'formation_edit', 'signups_manage', 'photos_moderate', 'members_edit', 'payments_view', 'payments_edit', 'settings_edit', 'profiles_manage'];
+  L.PERM_DEPS = {
+    runs_edit: ['route_view'], formation_edit: ['formation_draft_view', 'members_view'], signups_manage: ['members_view'],
+    members_edit: ['members_view', 'phones_view', 'personal_view'], payments_edit: ['payments_view', 'members_view'], payments_view: ['members_view'],
+    phones_view: ['members_view'], personal_view: ['members_view'], profiles_manage: ['members_view']
+  };
+  L.closePerms = function (list) {
+    var set = {}, out = [];
+    (list || []).forEach(function (p) { set[p] = true; (L.PERM_DEPS[p] || []).forEach(function (d) { set[d] = true; }); });
+    L.PERMS.forEach(function (p) { if (set[p]) out.push(p); });
+    return out;
+  };
+  /* attiva/disattiva un permesso mantenendo coerenti quelli collegati */
+  L.setPerm = function (list, key, on) {
+    var set = {}, k, changed;
+    (list || []).forEach(function (p) { set[p] = true; });
+    if (on) { set[key] = true; return L.closePerms(Object.keys(set)); }
+    delete set[key];
+    do {
+      changed = false;
+      for (k in set) if ((L.PERM_DEPS[k] || []).some(function (d) { return !set[d]; })) { delete set[k]; changed = true; }
+    } while (changed);
+    return L.PERMS.filter(function (p) { return set[p]; });
   };
 
   function norm(s) {
@@ -16,18 +34,35 @@
   }
   L.norm = norm;
 
-  /* testo libero (anche da Excel) -> titolo valido */
-  L.titleFromText = function (s) {
-    var n = norm(s);
-    if (!n) return 'socio';
-    if (/\bvice\b|\bvicedirettore\b|\bvicepresidente\b/.test(n) && /(diret|direct)/.test(n)) return 'vice_direttore';
-    if (n === 'vicedirettore' || n === 'vice direttore') return 'vice_direttore';
-    if (/head/.test(n) && /(road|rc|cap)/.test(n)) return 'head_road_captain';
-    if (/\brc\b/.test(n) || /road ?cap/.test(n) || /capo strada/.test(n)) return 'road_captain';
-    if (/president/.test(n)) return 'presidente';
-    if (/(diret|direct)/.test(n)) return 'direttore';
-    if (/officer|ufficial|officier/.test(n)) return 'officer';
-    return 'socio';
+  /* testo libero dei ruoli predefiniti (italiano, inglese, francese) */
+  var ROLE_SYN = {
+    socio: ['socio', 'soci', 'member', 'membre', 'membro', 'tesserato', 'ordinario'],
+    admin: ['admin', 'amministratore', 'administrator', 'administrateur'],
+    presidente: ['presidente', 'president'],
+    direttore: ['direttore', 'direttrice', 'director', 'directeur'],
+    vice_direttore: ['vice direttore', 'vicedirettore', 'vice direttrice', 'vice director', 'vice directeur'],
+    head_road_captain: ['head road captain', 'head road capitain', 'head road capitan', 'head roadcaptain', 'head road cap', 'head rc', 'hrc', 'capo road captain'],
+    road_captain: ['road captain', 'road capitain', 'road capitan', 'roadcaptain', 'road cap', 'rc', 'capo strada'],
+    officer: ['officer', 'officers', 'ufficiale', 'officier']
+  };
+  /* testo libero (anche da Excel) -> chiave del profilo, oppure null se non riconosciuto.
+     Cella vuota = socio. `profiles` (facoltativo) aggiunge i profili personalizzati e limita ai profili esistenti. */
+  L.resolveRole = function (s, profiles) {
+    var raw = String(s == null ? '' : s).trim();
+    if (!norm(raw)) return 'socio';
+    var forms = [raw, raw.replace(/\(.*?\)/g, '')], i, j, k, n, p;
+    for (i = 0; i < forms.length; i++) {
+      n = norm(forms[i]); if (!n) continue;
+      if (profiles) {
+        for (j = 0; j < profiles.length; j++) if (norm(profiles[j].name) === n || norm(profiles[j].key) === n) return profiles[j].key;
+      }
+      for (k in ROLE_SYN) {
+        if (ROLE_SYN[k].indexOf(n) < 0) continue;
+        if (profiles) { for (p = 0; p < profiles.length; p++) if (profiles[p].key === k) return k; return null; }
+        return k;
+      }
+    }
+    return null;
   };
 
   /* intestazioni colonna riconosciute (italiano, inglese, francese) */
@@ -100,7 +135,7 @@
   }
 
   /* matrice (righe di celle, prima riga = intestazioni) -> righe pronte per il database */
-  L.rowsFromMatrix = function (matrix) {
+  L.rowsFromMatrix = function (matrix, profiles) {
     var out = { rows: [], invalid: [], mapping: {}, missing: [], total: 0 };
     if (!matrix || !matrix.length) { out.missing = ['first_name', 'last_name']; return out; }
     var hi = 0;
@@ -120,11 +155,12 @@
         first_name: text(cell(row, map.first_name)), last_name: text(cell(row, map.last_name)),
         phone: text(cell(row, map.phone)), email: text(cell(row, map.email)), tessera: text(cell(row, map.tessera)),
         bike: text(cell(row, map.bike)), notes: text(cell(row, map.notes)),
-        title: L.titleFromText(text(cell(row, map.title))),
+        title: L.resolveRole(text(cell(row, map.title)), profiles),
         birth_date: L.parseDate(cell(row, map.birth_date)), joined_on: L.parseDate(cell(row, map.joined_on))
       };
       var bd = map.birth_date !== undefined ? cell(row, map.birth_date) : '', jd = map.joined_on !== undefined ? cell(row, map.joined_on) : '';
       if (!o.first_name || !o.last_name) { out.invalid.push({ row: r + 1, reason: 'nome_mancante' }); continue; }
+      if (o.title === null) { out.invalid.push({ row: r + 1, reason: 'ruolo_sconosciuto', value: text(cell(row, map.title)) }); continue; }
       if (o.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(o.email)) { out.invalid.push({ row: r + 1, reason: 'email_non_valida' }); continue; }
       if ((bd !== '' && !o.birth_date) || (jd !== '' && !o.joined_on)) { out.invalid.push({ row: r + 1, reason: 'data_non_valida' }); continue; }
       var key = o.tessera ? 't:' + o.tessera.toLowerCase() : 'n:' + norm(o.first_name) + '|' + norm(o.last_name);
@@ -173,6 +209,37 @@
     out.forEach(function (x) { res.push(x); });
     res.push({ kind: 'scopa', member_id: scopa ? scopa.id : null });
     return res;
+  };
+
+  /* navigazione: ritrovo -> tappe con indirizzo -> destinazione (consecutivi uguali uniti) */
+  L.navPoints = function (run) {
+    var pts = [], last = null;
+    function add(v) {
+      v = String(v == null ? '' : v).trim();
+      if (!v) return;
+      var k = norm(v);
+      if (k && k === last) return;
+      last = k; pts.push(v);
+    }
+    add(run && run.meeting_point);
+    ((run && run.stops) || []).forEach(function (s) { add(s && s.addr); });
+    add(run && run.destination);
+    return pts;
+  };
+  L.NAV_MAX_WAYPOINTS = 9;
+  L.googleNav = function (pts) {
+    if (!pts || !pts.length) return null;
+    var e = encodeURIComponent, base = 'https://www.google.com/maps/dir/?api=1&travelmode=driving';
+    if (pts.length === 1) return { url: base + '&destination=' + e(pts[0]), dropped: 0 };
+    var mid = pts.slice(1, -1), dropped = Math.max(0, mid.length - L.NAV_MAX_WAYPOINTS);
+    mid = mid.slice(0, L.NAV_MAX_WAYPOINTS);
+    return { url: base + '&origin=' + e(pts[0]) + '&destination=' + e(pts[pts.length - 1]) + (mid.length ? '&waypoints=' + mid.map(e).join('%7C') : ''), dropped: dropped };
+  };
+  L.appleNav = function (pts) {
+    if (!pts || !pts.length) return null;
+    var e = encodeURIComponent;
+    if (pts.length === 1) return 'https://maps.apple.com/?daddr=' + e(pts[0]) + '&dirflg=d';
+    return 'https://maps.apple.com/?saddr=' + e(pts[0]) + '&daddr=' + pts.slice(1).map(e).join('+to:') + '&dirflg=d';
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = L; else root.RBL = L;

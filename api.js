@@ -89,7 +89,15 @@
   RB.runs = function () { return (RB.S.d && RB.S.d.runs) || []; };
   RB.run = function (id) { var a = RB.runs(), i; for (i = 0; i < a.length; i++) if (a[i].id === id) return a[i]; return null; };
   RB.signupsOf = function (runId) { return ((RB.S.d && RB.S.d.signups) || []).filter(function (s) { return s.run_id === runId; }); };
-  RB.myLevel = function () { return RB.S.me ? RB.S.me.level : 0; };
+  RB.profiles = function () { return (RB.S.d && RB.S.d.profiles) || []; };
+  RB.profile = function (key) { var a = RB.profiles(), i; for (i = 0; i < a.length; i++) if (a[i].key === key) return a[i]; return null; };
+  /* il profilo dell'utente decide cosa può vedere e fare */
+  RB.can = function (perm) { var me = RB.S.me; return !!(me && me.perms && me.perms.indexOf(perm) >= 0); };
+  /* si può assegnare o modificare solo un profilo che non concede più permessi dei propri */
+  RB.covers = function (key) {
+    var p = RB.profile(key), me = RB.S.me;
+    return !!(p && me && me.perms && p.perms.every(function (x) { return me.perms.indexOf(x) >= 0; }));
+  };
   RB.fullName = function (m) { return m ? (m.first_name + ' ' + m.last_name).trim() : '—'; };
 
   /* esegue una scrittura, poi riallinea i dati; restituisce la risposta */

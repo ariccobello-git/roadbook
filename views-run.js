@@ -57,10 +57,10 @@
     var runs = RB.runs().slice(), next, past;
     next = runs.filter(function (r) { return !isPast(r); }).sort(function (a, b) { return new Date(a.run_date) - new Date(b.run_date); });
     past = runs.filter(isPast).sort(function (a, b) { return new Date(b.run_date) - new Date(a.run_date); });
-    root.appendChild(RB.title(t('tab_run'), RB.chapterName(), RB.isStaff() ? RB.iconBtn('plus', t('new_run'), function () { RB.runForm(null); }, true) : null));
+    root.appendChild(RB.title(t('tab_run'), RB.chapterName(), RB.can('runs_edit') ? RB.iconBtn('plus', t('new_run'), function () { RB.runForm(null); }, true) : null));
     root.appendChild(RB.seg([{ v: 'next', label: t('upcoming') + (next.length ? ' (' + next.length + ')' : '') }, { v: 'past', label: t('past') }], RB.ui.runTab, function (v) { RB.ui.runTab = v; RB.refresh(); }));
     var list = RB.ui.runTab === 'next' ? next : past;
-    if (!list.length) root.appendChild(RB.empty('run', RB.ui.runTab === 'next' ? t('no_runs') : t('no_past'), RB.ui.runTab === 'next' && RB.isStaff() ? t('no_runs_staff') : (RB.ui.runTab === 'next' ? t('no_runs_member') : '')));
+    if (!list.length) root.appendChild(RB.empty('run', RB.ui.runTab === 'next' ? t('no_runs') : t('no_past'), RB.ui.runTab === 'next' && RB.can('runs_edit') ? t('no_runs_staff') : (RB.ui.runTab === 'next' ? t('no_runs_member') : '')));
     list.forEach(function (r, i) { root.appendChild(runCard(r, i)); });
   };
 
@@ -89,8 +89,26 @@
     RB.copy(txt).then(function (ok) { RB.toast(ok ? t('copied') : t('e_generic'), ok ? '' : 'err'); });
   }
 
+  /* pulsanti di navigazione: i soci vedono solo lo strumento scelto da chi ha creato il percorso */
+  var NAV_OPEN = { apple: 'nav_open_apple', google: 'nav_open_google' };
+  function navSection(r, f) {
+    var pts = RBL.navPoints(r), edit = RB.can('runs_edit'), tool = r.nav_tool || 'both';
+    if (!pts.length || !RB.can('route_view')) return;
+    var tools = edit || tool === 'both' ? ['apple', 'google'] : (tool === 'none' ? [] : [tool]);
+    if (!tools.length) return;
+    if (RB.isApple) tools.sort(function (a, b) { return a === 'apple' ? -1 : b === 'apple' ? 1 : 0; });
+    var l = h('div', { class: 'list' });
+    tools.forEach(function (k) {
+      if (k === 'apple') l.appendChild(RB.row({ lead: RB.icon('route'), title: t(NAV_OPEN.apple), sub: t('nav_points_n', pts.length), href: RBL.appleNav(pts) }));
+      else { var g = RBL.googleNav(pts); l.appendChild(RB.row({ lead: RB.icon('route'), title: t(NAV_OPEN.google), sub: g.dropped ? t('nav_dropped', g.dropped) : t('nav_points_n', pts.length), href: g.url })); }
+    });
+    f.appendChild(RB.secT(t('nav_title')));
+    f.appendChild(l);
+    if (edit) f.appendChild(h('p', { class: 'sm', style: 'padding:0 6px' }, t('nav_staff_note', t('nav_' + tool))));
+  }
+
   function buildRun(r, ctl, state) {
-    var f = h('div', null), dt = new Date(r.run_date), past = isPast(r), me = RB.S.me, staff = RB.isStaff();
+    var f = h('div', null), dt = new Date(r.run_date), past = isPast(r), me = RB.S.me, cRun = RB.can('runs_edit'), cFm = RB.can('formation_edit'), cSign = RB.can('signups_manage'), cDraft = RB.can('formation_draft_view');
     var signups = RB.signupsOf(r.id), c = RB.counts(signups), mine = mySignup(r.id);
     if (r.status === 'annullato') f.appendChild(h('div', { class: 'banner er' }, t('run_cancelled')));
     if (r.status === 'concluso') f.appendChild(h('div', { class: 'banner acc' }, t('run_done')));
@@ -109,10 +127,14 @@
 
     if (r.stops && r.stops.length) {
       var tl = h('ul', { class: 'tl' });
-      r.stops.forEach(function (s) { tl.appendChild(h('li', null, h('i'), h('div', null, s.time ? h('b', null, s.time + ' ') : null, s.name || ''))); });
+      r.stops.forEach(function (s) {
+        tl.appendChild(h('li', null, h('i'), h('div', null, s.time ? h('b', null, s.time + ' ') : null, s.name || s.addr || '',
+          s.name && s.addr ? h('a', { class: 'sm', href: RB.mapsUrl(s.addr), target: '_blank', rel: 'noopener', style: 'display:block;margin:0' }, s.addr) : null)));
+      });
       f.appendChild(RB.secT(t('stops')));
       f.appendChild(h('div', { class: 'card', style: 'margin-top:0' }, tl));
     }
+    navSection(r, f);
 
     /* la mia risposta */
     if (r.status === 'programmato' && !past) {
@@ -127,17 +149,17 @@
 
     /* formazione */
     var fm = r.formation || [];
-    if (fm.length || staff) {
-      f.appendChild(RB.secT(t('formation'), staff ? h('button', { type: 'button', class: 'btn ghost sm2', onclick: function () { RB.formationEditor(r.id); } }, fm.length ? t('edit') : t('create')) : null));
+    if (fm.length || cFm) {
+      f.appendChild(RB.secT(t('formation'), cFm ? h('button', { type: 'button', class: 'btn ghost sm2', onclick: function () { RB.formationEditor(r.id); } }, fm.length ? t('edit') : t('create')) : null));
       if (fm.length) {
         RB.ui.fmRun = r.id;
-        if (staff && !r.formation_published) f.appendChild(h('div', { class: 'banner wa' }, t('fm_hidden')));
+        if ((cFm || cDraft) && !r.formation_published) f.appendChild(h('div', { class: 'banner wa' }, t('fm_hidden')));
         f.appendChild(h('div', { class: 'list' }, RB.formationView(fm)));
       } else f.appendChild(h('div', { class: 'sm', style: 'padding:0 6px' }, t('fm_none')));
     }
 
     /* partecipanti */
-    f.appendChild(RB.secT(t('participants') + ' · ' + c.total, staff ? h('span', null, c.checked + '/' + c.si + ' ' + t('present')) : null));
+    f.appendChild(RB.secT(t('participants') + ' · ' + c.total, cSign ? h('span', null, c.checked + '/' + c.si + ' ' + t('present')) : null));
     var order = { si: 0, forse: 1, no: 2 };
     var sorted = signups.slice().sort(function (a, b) { return order[a.status] - order[b.status] || RB.fullName(RB.mem(a.member_id)).localeCompare(RB.fullName(RB.mem(b.member_id))); });
     var pl2 = h('div', { class: 'list' });
@@ -146,7 +168,7 @@
       var right = [];
       if (s.passengers) right.push(RB.chip('+1', 'acc'));
       if (s.status === 'forse') right.push(RB.chip(t('maybe'), 'wa')); else if (s.status === 'no') right.push(RB.chip(t('no_go'), 'er'));
-      if (staff && s.status === 'si') right.push(RB.toggle(!!s.checked_in, function (on) {
+      if (cSign && s.status === 'si') right.push(RB.toggle(!!s.checked_in, function (on) {
         s.checked_in = on;
         RB.write('rc_checkin', { p_run: r.id, p_member: m.id, p_value: on }).then(function (x) { if (!x.ok) { RB.toast(RB.errMsg(x.error), 'err'); RB.sync(); } });
       }));
@@ -155,7 +177,7 @@
     });
     if (!sorted.length) pl2.appendChild(h('div', { class: 'empty', style: 'padding:22px' }, t('no_participants')));
     f.appendChild(pl2);
-    if (staff && r.status === 'programmato') {
+    if (cSign && r.status === 'programmato') {
       f.appendChild(h('button', { type: 'button', class: 'btn ghost', onclick: function () {
         RB.pickMember({ title: t('add_participant'), list: function () { return RB.members().filter(function (m) { return m.active && !RB.signupsOf(r.id).some(function (s) { return s.member_id === m.id && s.status === 'si'; }); }); },
           onPick: function (m) { RB.write('rc_signup', { p_run: r.id, p_status: 'si', p_passengers: 0, p_member: m.id }).then(function (x) { if (!x.ok) RB.toast(RB.errMsg(x.error), 'err'); else RB.sound('ok'); }); } });
@@ -173,7 +195,7 @@
     /* azioni */
     var acts = h('div', { class: 'list', style: 'margin-top:22px' });
     acts.appendChild(RB.row({ lead: RB.icon('share'), title: t('share'), onclick: function () { shareRun(r); } }));
-    if (staff) {
+    if (cRun) {
       acts.appendChild(RB.row({ lead: RB.icon('edit'), title: t('edit_run'), onclick: function () { RB.runForm(r.id); } }));
       if (r.status === 'programmato') acts.appendChild(RB.row({ title: t('mark_done'), go: false, onclick: function () { setStatus(r, 'concluso'); } }));
       if (r.status !== 'annullato') acts.appendChild(RB.row({ title: t('cancel_run'), go: false, cls: 'dng', onclick: function () { RB.ask({ title: t('cancel_run'), msg: t('cancel_run_msg'), ok: t('cancel_run'), danger: true }).then(function (ok) { if (ok) setStatus(r, 'annullato'); }); } }));
@@ -193,7 +215,7 @@
   }
   function runPayload(r, over) {
     var o = { id: r.id, title: r.title, run_date: r.run_date, meeting_point: r.meeting_point || '', destination: r.destination || '', description: r.description || '', km: r.km == null ? '' : String(r.km),
-      difficulty: r.difficulty, route_url: r.route_url || '', stops: r.stops || [], status: r.status, max_participants: r.max_participants == null ? '' : String(r.max_participants) }, k;
+      difficulty: r.difficulty, route_url: r.route_url || '', stops: r.stops || [], nav_tool: r.nav_tool || 'both', status: r.status, max_participants: r.max_participants == null ? '' : String(r.max_participants) }, k;
     for (k in over) o[k] = over[k];
     return o;
   }
@@ -215,7 +237,7 @@
     });
   }
   function viewPhoto(p, runId, state, parent) {
-    var canDel = RB.isStaff() || p.member_id === RB.S.me.id;
+    var canDel = RB.can('photos_moderate') || p.member_id === RB.S.me.id;
     var box = h('div', null, h('img', { class: 'bigph', src: p.data, alt: p.caption || '' }),
       p.member_id && RB.mem(p.member_id) ? h('p', { class: 'sm', style: 'text-align:center' }, RB.fullName(RB.mem(p.member_id)) + ' · ' + RB.fmt.full(p.created_at)) : null,
       canDel ? h('button', { type: 'button', class: 'btn dng', onclick: function () {
@@ -237,16 +259,18 @@
     var d = new Date(); d.setDate(d.getDate() + ((7 - d.getDay()) % 7 || 7)); d.setHours(9, 0, 0, 0); return d.toISOString();
   }
   RB.runForm = function (id) {
-    var r = id ? RB.run(id) : null, stops = r && r.stops ? r.stops.map(function (s) { return { time: s.time || '', name: s.name || '' }; }) : [];
-    var diff = r ? r.difficulty : 'media', status = r ? r.status : 'programmato';
+    var r = id ? RB.run(id) : null, stops = r && r.stops ? r.stops.map(function (s) { return { time: s.time || '', name: s.name || '', addr: s.addr || '' }; }) : [];
+    var diff = r ? r.difficulty : 'media', status = r ? r.status : 'programmato', nav = r ? r.nav_tool || 'both' : 'both';
     var box = h('div', null), stopsBox = h('div', { class: 'list' });
     function drawStops() {
       RB.clear(stopsBox);
       stops.forEach(function (s, i) {
-        stopsBox.appendChild(h('div', { class: 'row', style: 'gap:8px' },
-          h('input', { type: 'time', '.value': s.time, style: 'width:96px;border:0;background:var(--fill);border-radius:9px;padding:7px', oninput: function (e) { s.time = e.target.value; } }),
-          h('input', { type: 'text', '.value': s.name, placeholder: t('stop_name'), maxlength: 80, style: 'flex:1;min-width:0;border:0;background:transparent;outline:0', oninput: function (e) { s.name = e.target.value; } }),
-          h('button', { type: 'button', class: 'ib', 'aria-label': t('delete'), onclick: function () { stops.splice(i, 1); drawStops(); } }, RB.icon('x'))));
+        stopsBox.appendChild(h('div', { class: 'row', style: 'flex-direction:column;align-items:stretch;gap:6px' },
+          h('div', { style: 'display:flex;gap:8px;align-items:center' },
+            h('input', { type: 'time', '.value': s.time, style: 'width:96px;border:0;background:var(--fill);border-radius:9px;padding:7px', oninput: function (e) { s.time = e.target.value; } }),
+            h('input', { type: 'text', '.value': s.name, placeholder: t('stop_name'), maxlength: 80, style: 'flex:1;min-width:0;border:0;background:transparent;outline:0', oninput: function (e) { s.name = e.target.value; } }),
+            h('button', { type: 'button', class: 'ib', 'aria-label': t('delete'), onclick: function () { stops.splice(i, 1); drawStops(); } }, RB.icon('x'))),
+          h('input', { type: 'text', '.value': s.addr, placeholder: t('stop_addr'), maxlength: 200, 'aria-label': t('stop_addr'), style: 'border:0;background:var(--fill);border-radius:9px;padding:8px 10px;outline:0;min-width:0', oninput: function (e) { s.addr = e.target.value; } })));
       });
     }
     drawStops();
@@ -262,7 +286,10 @@
     box.appendChild(RB.secT(t('difficulty')));
     box.appendChild(RB.seg([{ v: 'facile', label: t('diff_facile') }, { v: 'media', label: t('diff_media') }, { v: 'impegnativa', label: t('diff_impegnativa') }], diff, function (v) { diff = v; }));
     if (r) { box.appendChild(RB.secT(t('status'))); box.appendChild(RB.seg([{ v: 'programmato', label: t('st_programmato') }, { v: 'annullato', label: t('st_annullato') }, { v: 'concluso', label: t('st_concluso') }], status, function (v) { status = v; })); }
-    box.appendChild(RB.secT(t('stops'), h('button', { type: 'button', class: 'btn ghost sm2', onclick: function () { if (stops.length < 30) { stops.push({ time: '', name: '' }); drawStops(); } } }, RB.icon('plus'), t('add'))));
+    box.appendChild(RB.secT(t('nav_tool')));
+    box.appendChild(RB.seg([{ v: 'apple', label: t('nav_apple') }, { v: 'google', label: t('nav_google') }, { v: 'both', label: t('nav_both') }, { v: 'none', label: t('nav_none') }], nav, function (v) { nav = v; }));
+    box.appendChild(h('p', { class: 'sm', style: 'padding:0 6px' }, t('nav_help')));
+    box.appendChild(RB.secT(t('stops'), h('button', { type: 'button', class: 'btn ghost sm2', onclick: function () { if (stops.length < 30) { stops.push({ time: '', name: '', addr: '' }); drawStops(); } } }, RB.icon('plus'), t('add'))));
     box.appendChild(stopsBox);
     box.appendChild(h('div', { class: 'list', style: 'margin-top:14px' }, RB.field(t('f_notes'), h('textarea', { id: 'rf-desc', maxlength: 1500, '.value': r ? r.description || '' : '' }))));
     var ctl = RB.sheet({ title: r ? t('edit_run') : t('new_run'), content: box, full: true, leftLabel: t('cancel'),
@@ -272,8 +299,8 @@
         var url = RB.val('rf-url');
         if (url && !RB.safeUrl(url)) { RB.toast(t('e_link_non_valido'), 'err'); return; }
         var p = { id: r ? r.id : null, title: title, run_date: new Date(dtv).toISOString(), meeting_point: RB.val('rf-meet'), destination: RB.val('rf-dest'), description: RB.val('rf-desc'),
-          km: RB.val('rf-km'), difficulty: diff, route_url: url, status: status, max_participants: RB.val('rf-max'),
-          stops: stops.filter(function (s) { return s.name.trim(); }).map(function (s) { return { time: s.time, name: s.name.trim() }; }) };
+          km: RB.val('rf-km'), difficulty: diff, route_url: url, nav_tool: nav, status: status, max_participants: RB.val('rf-max'),
+          stops: stops.filter(function (s) { return s.name.trim() || s.addr.trim(); }).map(function (s) { return { time: s.time, name: s.name.trim(), addr: s.addr.trim() }; }) };
         RB.act(ctl.right, function () { return RB.write('rc_run_save', { p: p }); }, t('saved')).then(function (x) { if (x && x.ok) ctl.close(true); });
       } } });
     return ctl;
