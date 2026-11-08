@@ -174,7 +174,35 @@
   /* conteggi iscritti di un run */
   /* quote per Run: quota a persona; chi porta passeggeri paga anche per loro */
   L.runFee = function (r) { var f = r && r.fee != null ? parseFloat(r.fee) : 0; return isFinite(f) && f > 0 ? f : 0; };
-  L.dueOf = function (r, signup) { return Math.round(L.runFee(r) * (1 + ((signup && signup.passengers) || 0)) * 100) / 100; };
+  L.rooms = function (r) { return ((r && r.rooms) || []).filter(function (x) { return x && x.id && x.name; }); };
+  L.roomOf = function (r, id) { return id ? L.rooms(r).filter(function (x) { return x.id === id; })[0] || null : null; };
+  /* spese extra (pranzi, cene, merchandising): per Run, quantità per persona decisa dall'organizzazione */
+  L.extras = function (r) { return ((r && r.extras) || []).filter(function (x) { return x && x.id && x.name; }); };
+  L.extrasOf = function (r, signup) {
+    var q = (signup && signup.extras) || {};
+    return Math.round(L.extras(r).reduce(function (a, x) { var n = Math.floor(+q[x.id] || 0); return a + (n > 0 ? n * Math.max(0, +x.price || 0) : 0); }, 0) * 100) / 100;
+  };
+  L.hasFee = function (r) { return L.runFee(r) > 0 || L.rooms(r).concat(L.extras(r)).some(function (x) { return +x.price > 0; }); };
+  /* quota a persona: se ha scelto una sistemazione vale il suo prezzo, altrimenti la quota base */
+  L.unitOf = function (r, signup) { var rm = L.roomOf(r, signup && signup.room); return rm ? Math.max(0, +rm.price || 0) : L.runFee(r); };
+  L.dueOf = function (r, signup) { return Math.round((L.unitOf(r, signup) * (1 + ((signup && signup.passengers) || 0)) + L.extrasOf(r, signup)) * 100) / 100; };
+  /* rate: percentuali con scadenza; l'ultima assorbe gli arrotondamenti. Senza rate = unica soluzione */
+  L.plan = function (r, due) {
+    var ins = ((r && r.installments) || []).filter(function (x) { return x && x.due_on && +x.pct > 0; }).sort(function (a, b) { return String(a.due_on).localeCompare(String(b.due_on)); });
+    if (!ins.length || !due) return [{ due_on: null, amount: due, cum: due }];
+    var cum = 0, out = [];
+    ins.forEach(function (x, i) {
+      var amt = i === ins.length - 1 ? Math.round((due - cum) * 100) / 100 : Math.round(due * x.pct) / 100;
+      cum = Math.round((cum + amt) * 100) / 100; out.push({ due_on: String(x.due_on).slice(0, 10), amount: amt, cum: cum });
+    });
+    return out;
+  };
+  /* stato rata per rata di una persona: i pagamenti coprono le rate in ordine di scadenza */
+  L.planState = function (r, signup, payments, today) {
+    var due = L.dueOf(r, signup), got = L.paidSum(payments, r.id, signup.member_id), rows = L.plan(r, due).map(function (x) { return { due_on: x.due_on, amount: x.amount, cum: x.cum, paid: got >= x.cum - 0.005 }; });
+    var next = rows.filter(function (x) { return !x.paid; })[0] || null, ref = today || new Date().toISOString().slice(0, 10);
+    return { due: due, got: got, rows: rows, next: next, left: next ? Math.round((next.cum - got) * 100) / 100 : 0, late: !!(next && next.due_on && next.due_on < ref) };
+  };
   L.paidSum = function (payments, runId, memberId) { return Math.round((payments || []).filter(function (p) { return p.run_id === runId && p.member_id === memberId; }).reduce(function (a, p) { return a + (+p.amount || 0); }, 0) * 100) / 100; };
   /* 'none' = nessuna quota, 'unpaid' | 'partial' | 'paid' */
   L.feeState = function (r, signup, payments) {

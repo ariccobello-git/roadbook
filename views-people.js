@@ -306,7 +306,7 @@
   function stChip(st) { return RB.chip(t('fs_' + st), st === 'paid' ? 'ok' : st === 'partial' ? 'wa' : 'er'); }
   function feeRuns() {
     var pays = RB.S.d.payments || [];
-    return (RB.S.d.runs || []).filter(function (r) { return r.status !== 'annullato' && (RBL.runFee(r) || pays.some(function (p) { return p.run_id === r.id; })); })
+    return (RB.S.d.runs || []).filter(function (r) { return r.status !== 'annullato' && (RBL.hasFee(r) || pays.some(function (p) { return p.run_id === r.id; })); })
       .sort(function (a, b) { return new Date(b.run_date) - new Date(a.run_date); });
   }
   RB.views.quote = function (root) {
@@ -318,7 +318,7 @@
     var mineBox = h('div', { class: 'list' }), nm = 0;
     feeRuns().forEach(function (r) {
       var sg = RB.signupsOf(r.id).filter(function (x) { return x.member_id === me.id && x.status === 'si'; })[0];
-      if (!sg || !RBL.runFee(r)) return;
+      if (!sg || !RBL.dueOf(r, sg)) return;
       var st = RBL.feeState(r, sg, pays), got = RBL.paidSum(pays, r.id, me.id); nm++;
       mineBox.appendChild(RB.row({ title: r.title, sub: RB.fmt.day(new Date(r.run_date)) + ' · ' + RB.fmt.money(got) + ' / ' + RB.fmt.money(RBL.dueOf(r, sg)), right: stChip(st), onclick: function () { RB.openRun(r.id); } }));
     });
@@ -367,7 +367,7 @@
         if (p.run_id === r.id && !rows.some(function (x) { return x.member_id === p.member_id; })) rows.push({ member_id: p.member_id, due: 0, got: RBL.paidSum(pays, r.id, p.member_id), state: 'paid' });
       });
       var cash = 0, bank = 0; pays.forEach(function (p) { if (p.run_id !== r.id) return; if (p.method === 'contanti') cash += Number(p.amount); else bank += Number(p.amount); });
-      box.appendChild(h('div', { style: 'margin:4px 0 8px' }, h('b', null, r.title), h('div', { class: 'sm', style: 'margin:0' }, RB.fmt.day(new Date(r.run_date)) + ' · ' + (RBL.runFee(r) ? RB.fmt.money(RBL.runFee(r)) + ' ' + t('per_person') : t('no_fee')))));
+      box.appendChild(h('div', { style: 'margin:4px 0 8px' }, h('b', null, r.title), h('div', { class: 'sm', style: 'margin:0' }, RB.fmt.day(new Date(r.run_date)) + ' · ' + (RBL.hasFee(r) ? RB.planText(r) : t('no_fee')))));
       box.appendChild(h('div', { class: 'stat' }, h('div', null, h('b', null, F.paid + '/' + F.total), h('span', null, t('paid'))), h('div', null, h('b', null, RB.fmt.money(cash)), h('span', null, t('m_contanti'))), h('div', null, h('b', null, RB.fmt.money(bank)), h('span', null, t('m_bonifico')))));
       box.appendChild(RB.seg([{ v: 'all', label: t('f_all') }, { v: 'unpaid', label: t('to_collect') }, { v: 'paid', label: t('paid') }], filter, function (v) { filter = v; build(); }));
       var l = h('div', { class: 'list', style: 'margin-top:12px' }), n = 0;
@@ -375,7 +375,9 @@
         var m = RB.mem(x.member_id); if (!m) return;
         if ((filter === 'unpaid' && x.state === 'paid') || (filter === 'paid' && x.state !== 'paid')) return;
         n++;
-        l.appendChild(RB.row({ lead: RB.av(m, 'sm'), title: RB.fullName(m), sub: RB.fmt.money(x.got) + (x.due ? ' / ' + RB.fmt.money(x.due) : ''), right: x.state === 'none' ? null : stChip(x.state),
+        var rmx = x.signup ? RBL.roomOf(r, x.signup.room) : null, psx = x.signup && x.due ? RBL.planState(r, x.signup, pays) : null;
+        l.appendChild(RB.row({ lead: RB.av(m, 'sm'), title: RB.fullName(m), sub: (rmx ? rmx.name + ' · ' : '') + RB.fmt.money(x.got) + (x.due ? ' / ' + RB.fmt.money(x.due) : '') + (psx && psx.next && psx.next.due_on && x.state !== 'paid' ? ' · ' + RB.fmt.full(psx.next.due_on) : ''),
+          right: x.state === 'none' ? null : stChip(psx && psx.late ? 'unpaid' : x.state),
           go: editPay, onclick: editPay ? function () { RB.paymentSheet(x.member_id, r.id); } : null }));
       });
       if (!n) l.appendChild(h('div', { class: 'empty', style: 'padding:22px' }, t('no_results')));
@@ -392,8 +394,13 @@
     function build() {
       RB.clear(box);
       var pays = (RB.S.d.payments || []).filter(function (p) { return p.member_id === memberId && p.run_id === runId; }), sg = RB.signupsOf(runId).filter(function (x) { return x.member_id === memberId; })[0];
-      var due = sg ? RBL.dueOf(r, sg) : RBL.runFee(r), got = RBL.paidSum(RB.S.d.payments, runId, memberId), rest = Math.max(0, Math.round((due - got) * 100) / 100);
+      var due = sg ? RBL.dueOf(r, sg) : RBL.runFee(r), got = RBL.paidSum(RB.S.d.payments, runId, memberId), rest = Math.max(0, Math.round((due - got) * 100) / 100), ps = sg ? RBL.planState(r, sg, RB.S.d.payments) : null, suggest = ps && ps.next ? ps.left : rest;
       box.appendChild(h('div', { style: 'display:flex;align-items:center;gap:12px;margin:4px 0 8px' }, RB.av(m, ''), h('div', null, h('b', null, RB.fullName(m)), h('div', { class: 'sm', style: 'margin:0' }, r.title + (due ? ' · ' + t('my_due', RB.fmt.money(due)) : '')))));
+      if (ps && ps.rows.length > 1) {
+        var pl = h('div', { class: 'list' });
+        ps.rows.forEach(function (x) { pl.appendChild(RB.row({ title: RB.fmt.money(x.amount), sub: x.due_on ? RB.fmt.full(x.due_on) : '', go: false, right: RB.chip(x.paid ? t('fs_paid') : t('fs_unpaid'), x.paid ? 'ok' : 'er') })); });
+        box.appendChild(RB.secT(t('pay_plan'))); box.appendChild(pl);
+      }
       if (pays.length) {
         var l = h('div', { class: 'list' });
         pays.forEach(function (p) {
@@ -406,7 +413,7 @@
       }
       box.appendChild(RB.secT(pays.length ? t('add_payment') : t('register_payment')));
       var today = new Date(); today = today.getFullYear() + '-' + ('0' + (today.getMonth() + 1)).slice(-2) + '-' + ('0' + today.getDate()).slice(-2);
-      box.appendChild(h('div', { class: 'list' }, RB.field(t('amount') + ' (€)', RB.input('pf-amt', pays.length ? (rest || '') : (due || ''), { type: 'number', mode: 'decimal', step: '0.01', min: 0 })),
+      box.appendChild(h('div', { class: 'list' }, RB.field(t('amount') + ' (€)', RB.input('pf-amt', pays.length || (ps && ps.rows.length > 1) ? (suggest || '') : (due || ''), { type: 'number', mode: 'decimal', step: '0.01', min: 0 })),
         RB.field(t('x_date'), RB.input('pf-date', today, { type: 'date' })), RB.field(t('f_notes'), RB.input('pf-note', '', { max: 120 }))));
       box.appendChild(h('div', { style: 'margin-top:12px' }, RB.seg([{ v: 'contanti', label: t('m_contanti') }, { v: 'bonifico', label: t('m_bonifico') }], method, function (v) { method = v; })));
       var b = h('button', { type: 'button', class: 'btn pri', onclick: function () {

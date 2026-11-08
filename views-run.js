@@ -175,12 +175,20 @@
     if (r.km) info.appendChild(RB.row({ title: t('distance'), value: r.km + ' km', go: false }));
     info.appendChild(RB.row({ title: t('difficulty'), value: t(DIFF[r.difficulty] || 'diff_media'), go: false }));
     if (r.max_participants) info.appendChild(RB.row({ title: t('max_places'), value: String(r.max_participants), go: false }));
-    if (RBL.runFee(r)) {
-      var pays = RB.S.d.payments || [], fst = mine && mine.status === 'si' ? RBL.feeState(r, mine, pays) : 'none';
-      info.appendChild(RB.row({ title: t('run_fee'), sub: fst !== 'none' ? t('my_due', RB.fmt.money(RBL.dueOf(r, mine))) : t('per_person'), value: RB.fmt.money(RBL.runFee(r)), go: false,
-        right: fst !== 'none' ? RB.chip(t('fs_' + fst), fst === 'paid' ? 'ok' : fst === 'partial' ? 'wa' : 'er') : null }));
+    if (RBL.hasFee(r)) {
+      var pays = RB.S.d.payments || [], rms = RBL.rooms(r), si = mine && mine.status === 'si';
+      info.appendChild(RB.row({ title: t('run_fee'), sub: rms.length ? rms.map(function (x) { return x.name + ' ' + RB.fmt.money(x.price); }).join(' · ') + (RBL.runFee(r) ? ' · ' + t('base_fee') + ' ' + RB.fmt.money(RBL.runFee(r)) : '') : t('per_person'),
+        value: rms.length ? '' : RB.fmt.money(RBL.runFee(r)), go: false }));
+      if (RBL.extras(r).length) info.appendChild(RB.row({ title: t('extras_title'), sub: RBL.extras(r).map(function (x) { return x.name + ' ' + RB.fmt.money(x.price); }).join(' · '), go: false }));
+      info.appendChild(RB.row({ title: t('pay_plan'), sub: RB.planText(r), go: false }));
+      if (si && RBL.dueOf(r, mine)) {
+        var ps = RBL.planState(r, mine, pays), fst = RBL.feeState(r, mine, pays), rm = RBL.roomOf(r, mine.room);
+        info.appendChild(RB.row({ title: t('my_quota') + (rm ? ' · ' + rm.name : ''), go: false,
+          sub: ps.next ? t('next_rate', RB.fmt.money(ps.left), ps.next.due_on ? RB.fmt.full(ps.next.due_on) : '—') : RB.fmt.money(ps.got) + ' / ' + RB.fmt.money(ps.due),
+          right: RB.chip(ps.late ? t('late') : t('fs_' + fst), fst === 'paid' ? 'ok' : ps.late ? 'er' : fst === 'partial' ? 'wa' : 'er') }));
+      }
     }
-    if (RB.can('payments_view') && (RBL.runFee(r) || (RB.S.d.payments || []).some(function (p) { return p.run_id === r.id; }))) {
+    if (RB.can('payments_view') && (RBL.hasFee(r) || (RB.S.d.payments || []).some(function (p) { return p.run_id === r.id; }))) {
       var F = RBL.runFees(r, signups, RB.S.d.payments || []);
       info.appendChild(RB.row({ lead: RB.icon('quote'), title: t('run_fees'), sub: F.paid + '/' + F.total + ' · ' + RB.fmt.money(F.collected) + (F.expected ? ' / ' + RB.fmt.money(F.expected) : ''), onclick: function () { RB.runFees(r.id); } }));
     }
@@ -224,6 +232,13 @@
       var m = RB.mem(s.member_id); if (!m) return;
       var right = [];
       if (s.passengers) right.push(RB.chip('+1', 'acc'));
+      var srm = RBL.roomOf(r, s.room), canRoom = cSign && s.status === 'si' && (RBL.rooms(r).length || RBL.extras(r).length), nx = Object.keys(s.extras || {}).reduce(function (a, k) { return a + (RBL.extras(r).some(function (x) { return x.id === k; }) ? Math.floor(+s.extras[k] || 0) : 0); }, 0);
+      if (nx && !canRoom) right.push(RB.chip('+' + nx + ' ' + t('extra_short'), 'acc'));
+      if (srm || canRoom) {
+        var rc = RB.chip((srm ? srm.name : t('room_assign')) + (nx ? ' +' + nx : ''), srm || nx ? 'acc' : 'wa');
+        if (canRoom) { rc.setAttribute('role', 'button'); rc.style.cursor = 'pointer'; rc.addEventListener('click', function (e) { e.stopPropagation(); RB.roomPicker(r, m, s); }); }
+        right.push(rc);
+      }
       if (s.status === 'forse') right.push(RB.chip(t('maybe'), 'wa')); else if (s.status === 'no') right.push(RB.chip(t('no_go'), 'er'));
       if (cSign && s.status === 'si') right.push(RB.toggle(!!s.checked_in, function (on) {
         s.checked_in = on;
@@ -273,7 +288,7 @@
   }
   function runPayload(r, over) {
     var o = { id: r.id, title: r.title, run_date: r.run_date, meeting_point: r.meeting_point || '', destination: r.destination || '', description: r.description || '', km: r.km == null ? '' : String(r.km),
-      difficulty: r.difficulty, route_url: r.route_url || '', stops: r.stops || [], meeting: r.meeting || null, dest: r.dest || null, days: RBL.runDays(r), route_public: !!r.route_public, nav_tool: r.nav_tool || 'both', status: r.status, fee: r.fee == null ? '' : String(r.fee), max_participants: r.max_participants == null ? '' : String(r.max_participants) }, k;
+      difficulty: r.difficulty, route_url: r.route_url || '', stops: r.stops || [], meeting: r.meeting || null, dest: r.dest || null, days: RBL.runDays(r), route_public: !!r.route_public, nav_tool: r.nav_tool || 'both', status: r.status, fee: r.fee == null ? '' : String(r.fee), rooms: r.rooms || [], extras: r.extras || [], installments: r.installments || [], max_participants: r.max_participants == null ? '' : String(r.max_participants) }, k;
     for (k in over) o[k] = over[k];
     return o;
   }
@@ -324,10 +339,141 @@
       { label: t('nr_scratch'), fn: function () { RB.runForm(null); } },
       { label: t('nr_copy', last.title), fn: function () { RB.runForm(last.id, { clone: true }); } }]);
   };
+  /* l'organizzazione assegna sistemazione ed extra di ogni partecipante */
+  RB.roomPicker = function (r, m, s) {
+    var ctl, box = h('div');
+    function mineS() { return RB.signupsOf(r.id).filter(function (x) { return x.member_id === m.id; })[0] || s; }
+    function save(room, extras) {
+      var q = { p_run: r.id, p_status: mineS().status, p_passengers: mineS().passengers || 0, p_member: m.id };
+      if (room !== undefined) q.p_room = room; if (extras !== undefined) q.p_extras = extras;
+      return RB.write('rc_signup', q).then(function (x) { if (!x.ok) RB.toast(RB.errMsg(x.error), 'err'); else RB.sound('tap'); });
+    }
+    function build() {
+      var cs = mineS(); RB.clear(box);
+      if (RBL.rooms(r).length) {
+        box.appendChild(RB.secT(t('rooms_title')));
+        var l = h('div', { class: 'list' });
+        RBL.rooms(r).forEach(function (x) { l.appendChild(RB.row({ title: x.name, value: RB.fmt.money(x.price), go: false, right: cs.room === x.id ? RB.icon('check') : null, onclick: function () { cs.room = x.id; save(x.id).then(build); build(); } })); });
+        l.appendChild(RB.row({ title: t('room_none'), sub: RBL.runFee(r) ? t('base_fee') + ' ' + RB.fmt.money(RBL.runFee(r)) : '', go: false, right: !cs.room ? RB.icon('check') : null, onclick: function () { cs.room = null; save('').then(build); build(); } }));
+        box.appendChild(l);
+      }
+      if (RBL.extras(r).length) {
+        box.appendChild(RB.secT(t('extras_title')));
+        var xl = h('div', { class: 'list' }), q = Object.assign({}, cs.extras || {});
+        RBL.extras(r).forEach(function (x) {
+          var n = Math.floor(+q[x.id] || 0);
+          function set(v) { v = Math.max(0, Math.min(20, v)); var o = Object.assign({}, q); if (v) o[x.id] = v; else delete o[x.id]; cs.extras = o; save(undefined, o).then(build); build(); }
+          xl.appendChild(h('div', { class: 'row' }, h('span', { class: 'rt' }, h('b', null, x.name), h('span', null, RB.fmt.money(x.price))),
+            h('button', { type: 'button', class: 'ib', 'aria-label': '-', onclick: function () { set(n - 1); } }, '−'),
+            h('b', { class: 'xq', style: 'min-width:24px;text-align:center' }, String(n)),
+            h('button', { type: 'button', class: 'ib', 'aria-label': '+', onclick: function () { set(n + 1); } }, '+')));
+        });
+        box.appendChild(xl);
+      }
+      box.appendChild(h('p', { class: 'sm', style: 'text-align:center' }, t('my_due', RB.fmt.money(RBL.dueOf(r, cs)))));
+    }
+    ctl = RB.sheet({ title: RB.fullName(m), content: box, full: true });
+    ctl.refresh = build; build();
+  };
+
+  /* sistemazioni (prezzi per persona) e piano di pagamento: tutto deciso dall'organizzazione */
+  RB.planText = function (r) {
+    var ins = (r.installments || []);
+    if (!ins.length) return t('plan_single');
+    return ins.map(function (x) { return t('plan_row', +x.pct, RB.fmt.full(String(x.due_on).slice(0, 10))); }).join(' · ');
+  };
+  var PRESETS = ['rp_1', 'rp_2', 'rp_3', 'rp_4'];
+  function newRoomId() { return 'r' + Math.random().toString(36).slice(2, 8); }
+  RB.payEditor = function (ST, done) {
+    var rooms = ST.rooms.map(function (x) { return Object.assign({}, x); }), extras = ST.extras.map(function (x) { return Object.assign({}, x); }), inst = ST.inst.map(function (x) { return Object.assign({}, x); }), box = h('div'), ctl;
+    function sum() { return Math.round(inst.reduce(function (a, x) { return a + (parseFloat(String(x.pct).replace(',', '.')) || 0); }, 0) * 100) / 100; }
+    function even() {
+      var n = inst.length, base = Math.floor(10000 / n) / 100, i, acc = 0;
+      for (i = 0; i < n; i++) { var v = i === n - 1 ? Math.round((100 - acc) * 100) / 100 : base; acc += v; inst[i].pct = String(v); }
+    }
+    function build() {
+      RB.clear(box);
+      box.appendChild(RB.secT(t('rooms_title')));
+      box.appendChild(h('p', { class: 'sm', style: 'padding:0 6px' }, t('rooms_help')));
+      var l = h('div', { class: 'list' });
+      rooms.forEach(function (x, i) {
+        l.appendChild(h('div', { class: 'row pe-room' },
+          h('input', { class: 'pe-name', type: 'text', maxlength: 30, value: x.name, 'aria-label': t('room_name'), placeholder: t('room_name'), oninput: function (e) { x.name = e.target.value; } }),
+          h('input', { class: 'pe-price', type: 'number', inputmode: 'decimal', step: '0.01', min: 0, value: x.price, 'aria-label': t('room_price'), placeholder: '€', oninput: function (e) { x.price = e.target.value; } }),
+          h('button', { type: 'button', class: 'ib', 'aria-label': t('delete'), onclick: function () { rooms.splice(i, 1); build(); } }, RB.icon('trash'))));
+      });
+      if (rooms.length) box.appendChild(l);
+      var chips = h('div', { class: 'chips', style: 'margin:8px 0' });
+      if (rooms.length < 8) {
+        PRESETS.forEach(function (k) { if (!rooms.some(function (x) { return x.name === t(k); })) chips.appendChild(h('button', { type: 'button', class: 'kchip pe-preset', onclick: function () { rooms.push({ id: newRoomId(), name: t(k), price: '' }); build(); } }, '+ ' + t(k))); });
+        chips.appendChild(h('button', { type: 'button', class: 'kchip pe-other', onclick: function () { rooms.push({ id: newRoomId(), name: '', price: '' }); build(); } }, '+ ' + t('room_other')));
+      }
+      box.appendChild(chips);
+
+      box.appendChild(RB.secT(t('extras_title')));
+      box.appendChild(h('p', { class: 'sm', style: 'padding:0 6px' }, t('extras_help')));
+      var el = h('div', { class: 'list' });
+      extras.forEach(function (x, i) {
+        el.appendChild(h('div', { class: 'row pe-extra' },
+          h('input', { class: 'pe-ename', type: 'text', maxlength: 30, value: x.name, 'aria-label': t('room_name'), placeholder: t('room_name'), oninput: function (e) { x.name = e.target.value; } }),
+          h('input', { class: 'pe-eprice', type: 'number', inputmode: 'decimal', step: '0.01', min: 0, value: x.price, 'aria-label': t('room_price'), placeholder: '€', oninput: function (e) { x.price = e.target.value; } }),
+          h('button', { type: 'button', class: 'ib', 'aria-label': t('delete'), onclick: function () { extras.splice(i, 1); build(); } }, RB.icon('trash'))));
+      });
+      if (extras.length) box.appendChild(el);
+      var echips = h('div', { class: 'chips', style: 'margin:8px 0' });
+      if (extras.length < 8) {
+        ['xp_1', 'xp_2', 'xp_3'].forEach(function (k) { if (!extras.some(function (x) { return x.name === t(k); })) echips.appendChild(h('button', { type: 'button', class: 'kchip pe-xpreset', onclick: function () { extras.push({ id: newRoomId(), name: t(k), price: '' }); build(); } }, '+ ' + t(k))); });
+        echips.appendChild(h('button', { type: 'button', class: 'kchip pe-xother', onclick: function () { extras.push({ id: newRoomId(), name: '', price: '' }); build(); } }, '+ ' + t('room_other')));
+      }
+      box.appendChild(echips);
+
+      box.appendChild(RB.secT(t('pay_plan')));
+      box.appendChild(RB.seg([{ v: 'one', label: t('pay_one') }, { v: 'rates', label: t('pay_rates') }], inst.length ? 'rates' : 'one', function (v) {
+        if (v === 'one') inst = []; else if (!inst.length) { inst = [{ due_on: '', pct: '50' }, { due_on: '', pct: '50' }]; }
+        build();
+      }));
+      if (inst.length) {
+        var rl = h('div', { class: 'list', style: 'margin-top:12px' });
+        inst.forEach(function (x, i) {
+          rl.appendChild(h('div', { class: 'row pe-rate' },
+            h('input', { class: 'pe-date', type: 'date', value: x.due_on, 'aria-label': t('rate_date'), oninput: function (e) { x.due_on = e.target.value; } }),
+            h('input', { class: 'pe-pct', type: 'number', inputmode: 'decimal', step: '0.01', min: 0, max: 100, value: x.pct, 'aria-label': '%', oninput: function (e) { x.pct = e.target.value; tot.textContent = t('rates_sum', sum()); tot.className = 'sm' + (Math.abs(sum() - 100) > 0.01 ? ' err-t' : ''); } }),
+            h('span', null, '%'),
+            inst.length > 2 ? h('button', { type: 'button', class: 'ib', 'aria-label': t('delete'), onclick: function () { inst.splice(i, 1); build(); } }, RB.icon('trash')) : null));
+        });
+        box.appendChild(rl);
+        var tot = h('div', { class: 'sm' + (Math.abs(sum() - 100) > 0.01 ? ' err-t' : ''), style: 'padding:6px 8px' }, t('rates_sum', sum()));
+        box.appendChild(tot);
+        var row = h('div', { class: 'chips' });
+        if (inst.length < 6) row.appendChild(h('button', { type: 'button', class: 'kchip pe-addrate', onclick: function () { inst.push({ due_on: '', pct: '' }); even(); build(); } }, '+ ' + t('add_rate')));
+        row.appendChild(h('button', { type: 'button', class: 'kchip pe-even', onclick: function () { even(); build(); } }, t('rate_even')));
+        box.appendChild(row);
+      }
+    }
+    ctl = RB.sheet({ title: t('pay_setup'), content: box, full: true, leftLabel: t('cancel'),
+      right: { label: t('done'), fn: function () {
+        var seen = {};
+        for (var i = 0; i < rooms.length; i++) {
+          var pr = parseFloat(String(rooms[i].price).replace(',', '.'));
+          if (!rooms[i].name.trim() || !isFinite(pr) || pr < 0 || pr > 9999 || seen[rooms[i].name.trim().toLowerCase()]) { RB.toast(t('e_rooms'), 'err'); return; }
+          seen[rooms[i].name.trim().toLowerCase()] = 1;
+        }
+        var seenX = {};
+        for (var j = 0; j < extras.length; j++) {
+          var xp = parseFloat(String(extras[j].price).replace(',', '.')), nm = extras[j].name.trim().toLowerCase();
+          if (!nm || !isFinite(xp) || xp < 0 || xp > 9999 || seenX[nm]) { RB.toast(t('e_rooms'), 'err'); return; }
+          seenX[nm] = 1;
+        }
+        if (inst.length && (Math.abs(sum() - 100) > 0.01 || inst.some(function (x) { return !x.due_on || !(parseFloat(String(x.pct).replace(',', '.')) > 0); }))) { RB.toast(t('e_rates'), 'err'); return; }
+        ST.rooms = rooms; ST.extras = extras; ST.inst = inst; ctl.close(true); if (done) done();
+      } } });
+    ctl.refresh = null; build();
+  };
+
   RB.runForm = function (id, opts) {
     var r = id ? RB.run(id) : null;
     if (r && opts && opts.clone) r = Object.assign({}, r, { id: null, status: 'programmato', run_date: nextSunday9(), km: r.km, formation: [], formation_published: false, title: r.title });
-    var ST = { days: r ? RBL.runDays(r) : 1, day: 1, dismissed: {}, dismissedOver: {}, kmTouched: !!(r && r.km), pub: !!(r && r.route_public) };
+    var ST = { rooms: r ? RBL.rooms(r).map(function (x) { return { id: x.id, name: x.name, price: String(x.price) }; }) : [], extras: r ? RBL.extras(r).map(function (x) { return { id: x.id, name: x.name, price: String(x.price) }; }) : [], inst: r && !(opts && opts.clone) ? (r.installments || []).map(function (x) { return { due_on: String(x.due_on).slice(0, 10), pct: String(x.pct) }; }) : [], days: r ? RBL.runDays(r) : 1, day: 1, dismissed: {}, dismissedOver: {}, kmTouched: !!(r && r.km), pub: !!(r && r.route_public) };
     var meeting = r ? (r.meeting || (r.meeting_point ? { name: '', addr: r.meeting_point, kind: 'altro' } : null)) : null;
     var dest = r ? (r.dest || (r.destination ? { name: '', addr: r.destination, kind: 'altro' } : null)) : null;
     var stops = r && r.stops ? r.stops.map(function (s) { return { time: s.time || '', name: s.name || '', addr: s.addr || '', kind: s.kind || 'altro', lat: s.lat, lng: s.lng, day: parseInt(s.day, 10) || 1, end: !!s.end }; }) : [];
@@ -451,11 +597,22 @@
 
     var kmInput = RB.input('rf-km', r && r.km != null ? r.km : '', { type: 'number', mode: 'numeric', min: 0 });
     kmInput.addEventListener('input', function () { ST.kmTouched = true; });
+    var payHold = h('div');
+    function drawPay() {
+      RB.clear(payHold);
+      var bits = [];
+      if (ST.rooms.length) bits.push(ST.rooms.length + ' ' + t('rooms_n'));
+      if (ST.extras.length) bits.push(ST.extras.length + ' ' + t('extras_n'));
+      bits.push(ST.inst.length ? ST.inst.length + ' ' + t('rates_n') : t('plan_single'));
+      payHold.appendChild(RB.row({ title: t('pay_setup'), sub: bits.join(' · '), id: 'rf-pay', onclick: function () { RB.payEditor(ST, drawPay); } }));
+    }
     var fields = h('div', { class: 'list' },
       RB.field(t('f_title'), RB.input('rf-title', r ? r.title : '', { ph: t('f_title_ph'), max: 80 })),
       RB.field(t('f_datetime'), RB.input('rf-dt', RB.localInput(r ? r.run_date : nextSunday9()), { type: 'datetime-local' })),
       RB.field(t('distance') + ' (km)', kmInput),
-      RB.field(t('run_fee') + ' (€)', RB.input('rf-fee', r && r.fee != null ? r.fee : '', { type: 'number', mode: 'decimal', step: '0.01', min: 0, ph: t('run_fee_ph') })));
+      RB.field(t('run_fee') + ' (€)', RB.input('rf-fee', r && r.fee != null ? r.fee : '', { type: 'number', mode: 'decimal', step: '0.01', min: 0, ph: t('run_fee_ph') })),
+      payHold);
+    drawPay();
     var more = h('div', { class: 'more' }), moreOpen = !!(r && r.id) || !!(opts && opts.clone);
     more.appendChild(h('div', { class: 'list' },
       RB.field(t('max_places'), RB.input('rf-max', r && r.max_participants != null ? r.max_participants : '', { type: 'number', mode: 'numeric', min: 1, ph: t('no_limit') })),
@@ -488,7 +645,7 @@
           var e = endStop(d); if (d < ST.days && e && (e.name || e.addr)) out.push(stopOut(e));
         }
         var p = { id: r ? r.id : null, title: title, run_date: new Date(dtv).toISOString(), meeting_point: '', destination: '', meeting: meeting, dest: dest, days: ST.days, route_public: ST.pub,
-          description: RB.val('rf-desc'), km: RB.val('rf-km'), difficulty: diff, route_url: url, nav_tool: nav, status: status, max_participants: RB.val('rf-max'), fee: RB.val('rf-fee').replace(',', '.'), stops: out };
+          description: RB.val('rf-desc'), km: RB.val('rf-km'), difficulty: diff, route_url: url, nav_tool: nav, status: status, max_participants: RB.val('rf-max'), fee: RB.val('rf-fee').replace(',', '.'), rooms: ST.rooms.map(function (x) { return { id: x.id, name: x.name.trim(), price: String(x.price).replace(',', '.') }; }), extras: ST.extras.map(function (x) { return { id: x.id, name: x.name.trim(), price: String(x.price).replace(',', '.') }; }), installments: ST.inst.map(function (x) { return { due_on: x.due_on, pct: String(x.pct).replace(',', '.') }; }), stops: out };
         RB.act(ctl.right, function () { return RB.geo.withTimes(p).then(function (q) { return RB.write('rc_run_save', { p: q }); }); }, t('saved')).then(function (x) { if (x && x.ok) ctl.close(true); });
       } } });
     return ctl;
