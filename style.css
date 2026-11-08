@@ -484,3 +484,16 @@ html.bg *,html.bg *:before,html.bg *:after{animation-play-state:paused!important
 .sb-r span{opacity:.65;flex:none}
 .sb-r b{text-align:right;word-break:break-word}
 .sos-voice audio{max-width:100%}
+/* Meteo: riquadri e ritocchi in stile Snug Save */
+#mt-tiles{margin:10px 0 0}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.tile{background:var(--glass);border:1px solid rgba(255,255,255,.45);box-shadow:var(--sh);border-radius:22px;padding:14px 8px;text-align:center;-webkit-backdrop-filter:blur(22px);backdrop-filter:blur(22px);animation:tileIn .5s cubic-bezier(.2,.8,.2,1) both}
+.tile:nth-child(2){animation-delay:.07s}.tile:nth-child(3){animation-delay:.14s}
+.tile .ic{width:26px;height:26px;stroke:var(--acc,currentColor)}
+.tile b{display:block;font:800 24px ui-rounded,-apple-system,sans-serif;margin:4px 0 2px;letter-spacing:-.02em}
+.tile span{display:block;font-size:12.5px;color:var(--mu);line-height:1.25}
+.gauge{height:8px;border-radius:99px;background:var(--fill);margin:8px 6px 4px;overflow:hidden}
+.gauge i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#5ac8fa,#0a84ff);transform-origin:left;animation:gaugeIn .9s cubic-bezier(.2,.8,.2,1) both}
+@keyframes tileIn{from{opacity:0;transform:translateY(14px) scale(.97)}}
+@keyframes gaugeIn{from{transform:scaleX(0)}}
+@media (prefers-reduced-motion:reduce){.tile,.gauge i{animation:none}}

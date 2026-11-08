@@ -24,6 +24,17 @@
           h('div', null, '💨 ' + (rec.wind !== null ? Math.round(rec.wind) : '—') + (rec.gust !== null ? ' · ' + Math.round(rec.gust) : '') + ' km/h'), h('div', null, '💧 ' + (rec.pop !== null ? rec.pop + '%' : '—'))))));
     return el;
   }
+  /* tre riquadri in stile Snug Save: percepita, vento, pioggia */
+  function tiles(rec) {
+    var d = rec.feels !== null && rec.temp !== null ? rec.feels - rec.temp : 0, w = rec.wind, p = rec.pop;
+    function tile(ic, val, gauge, txt) {
+      return h('div', { class: 'tile' }, RB.icon(ic), h('b', { class: 'tn' }, val), gauge === null ? null : h('div', { class: 'gauge' }, h('i', { style: 'width:' + Math.max(4, Math.min(100, gauge)) + '%' })), h('span', null, txt));
+    }
+    return h('div', { class: 'tiles', id: 'mt-tiles' },
+      tile('sun', rec.feels !== null ? Math.round(rec.feels) + '\u00b0' : '\u2014', null, d >= 2 ? t('mt_t_hotter') : d <= -2 ? t('mt_t_colder') : t('mt_t_same')),
+      tile('wind', w !== null ? Math.round(w) : '\u2014', w !== null ? w * 2 : null, w === null ? t('mt_t_wind') : w >= 40 ? t('mt_t_wind_hi') : w >= 20 ? t('mt_t_wind_mid') : t('mt_t_wind_lo')),
+      tile('drop', p !== null ? p + '%' : '\u2014', p, p === null ? t('mt_t_rain') : p >= 60 ? t('mt_t_rain_hi') : p >= 30 ? t('mt_t_rain_mid') : t('mt_t_rain_lo')));
+  }
   /* verdetto per chi va in moto */
   function rideCard(rd, next) {
     var c = h('div', { class: 'ride l' + rd.level, id: 'mt-ride' }, h('div', { class: 'rd-dot' }, ['🏍️', '⚠️', '⛔'][rd.level]),
@@ -58,6 +69,7 @@
       if (!cur) { box.appendChild(h('div', { class: 'card sm' }, t('wx_nodata'))); return; }
       var rd = L.wxRide(next, d);
       box.appendChild(heroBox(pl.n, d, cur, false));
+      box.appendChild(tiles(cur.rec));
       box.appendChild(h('div', { class: 'wx-head', style: 'margin-bottom:0' }, h('span', { class: 'sm', id: 'mt-upd' }, t('mt_upd', RB.wxHm(new Date(d.at || now).getTime())))));
       if (r.cached || !RB.S.online) box.appendChild(h('div', { class: 'banner wa', id: 'mt-stale' }, t('wx_stale', RB.wxHm(new Date(d.at || now).getTime()))));
       box.appendChild(rideCard(rd, next));
@@ -104,7 +116,7 @@
     var hh = h('div', { id: 'mt-last', style: 'margin-top:8px;cursor:pointer', role: 'button', tabindex: '0', onclick: function () { RB.placeWeather(lastP); } });
     root.appendChild(hh);
     RB.geo.forecast(lastP.lat, lastP.lng).then(function (r) {
-      var cur = L.wxNext(r.data, Date.now(), 1)[0]; if (cur && hh.isConnected !== false) { var big = heroBox(lastP.n, r.data, cur, false); big.id = 'mt-top'; hh.appendChild(big); }
+      var cur = L.wxNext(r.data, Date.now(), 1)[0]; if (cur && hh.isConnected !== false) { var big = heroBox(lastP.n, r.data, cur, false); big.id = 'mt-top'; hh.appendChild(big); hh.appendChild(tiles(cur.rec)); }
     }, function () {});
     var res = h('div', { id: 'mt-res', style: 'margin-top:8px' });
     var q = RB.input('mt-q', '', { ph: t('mt_ph'), max: 80 });
