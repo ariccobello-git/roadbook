@@ -50,7 +50,7 @@ async function run(devName) {
   const browser = await engine.launch(launch), errors = [], log = [], res = [];
   const ok = n => res.push(n);
   const ctx = await browser.newContext(Object.assign({}, opts, { locale: 'it-IT', timezoneId: 'Europe/Rome', permissions: NATIVE ? [] : ['camera'], acceptDownloads: true }));
-  const page = await ctx.newPage();
+  const page = await ctx.newPage(); await page.addInitScript(() => { try { localStorage.setItem('rb.tour', '1'); } catch (e) {} });
   page.on('pageerror', e => errors.push(devName + ' pageerror: ' + e.message));
   page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource|favicon|net::ERR/.test(m.text())) errors.push(devName + ' console: ' + m.text()); });
   await page.route('**/cdnjs.cloudflare.com/**/xlsx.full.min.js', r => r.fulfill({ contentType: 'application/javascript', body: fs.readFileSync(path.join(__dirname, 'node_modules/xlsx/dist/xlsx.full.min.js')) }));

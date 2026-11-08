@@ -26,14 +26,22 @@
       var ep = s.endpoint; return s.unsubscribe().then(function () { return RB.rpc('rc_push_delete', { p_code: RB.S.code, p_endpoint: ep }); });
     }).catch(function () { return { ok: false, error: 'generic' }; });
   };
+  /* notifica di prova a questo solo dispositivo: dimostra che arriva anche ad app chiusa */
+  RB.pushTest = function () {
+    return navigator.serviceWorker.ready.then(function (reg) { return reg.pushManager.getSubscription(); }).then(function (s) {
+      return s ? RB.rpc('rc_push_test', { p_code: RB.S.code, p_endpoint: s.endpoint }) : { ok: false, error: 'not_found' };
+    }).catch(function () { return { ok: false, error: 'generic' }; });
+  };
   /* riga in Altro → Emergenze: attiva o disattiva */
   RB.pushRow = function () {
     var row = RB.row({ lead: RB.icon('alert'), title: t('push_title'), sub: t('push_checking'), go: false, cls: 'push-row' }), sub = row.querySelector('.rt span');
     var btn = h('button', { type: 'button', class: 'btn ghost sm2', id: 'push-btn', style: 'display:none' }, '');
-    row.appendChild(btn);
+    var tbtn = h('button', { type: 'button', class: 'btn ghost sm2', id: 'push-test', style: 'display:none' }, t('push_test'));
+    tbtn.addEventListener('click', function () { RB.pushTest().then(function (r) { RB.toast(r && r.ok ? t('push_test_sent') : (r && r.error === 'not_found' ? t('push_test_none') : RB.errMsg(r && r.error)), r && r.ok ? '' : 'err'); }); });
+    row.appendChild(btn); row.appendChild(tbtn);
     function paint() {
       RB.pushState().then(function (s) {
-        sub.textContent = t('push_s_' + s); btn.style.display = (s === 'on' || s === 'off') ? '' : 'none'; btn.textContent = s === 'on' ? t('push_off') : t('push_on'); btn.setAttribute('data-s', s);
+        sub.textContent = t('push_s_' + s); btn.style.display = (s === 'on' || s === 'off') ? '' : 'none'; btn.textContent = s === 'on' ? t('push_off') : t('push_on'); btn.setAttribute('data-s', s); tbtn.style.display = s === 'on' ? '' : 'none';
       });
     }
     btn.addEventListener('click', function () {

@@ -516,7 +516,7 @@
       else stops.push({ time: '', name: p.name, addr: p.addr, kind: p.kind, lat: p.lat, lng: p.lng, day: d, end: true });
     }
     function setDays(n) {
-      n = Math.max(1, Math.min(14, n));
+      n = Math.max(1, Math.min(30, n));
       if (n < ST.days) {
         stops = stops.filter(function (s) { return s.day <= n && !(s.end && s.day >= n); });
       }
@@ -534,7 +534,7 @@
     function endOfDayCheck(d) {
       /* a fine tappa: ricordare che forse conviene pensare al giorno dopo; sopra i 500 km lo dice chiaramente */
       var km = dayKmOf(d), over = RBL.kmWarn(km);
-      if (d !== ST.days || ST.days >= 14 || (over ? ST.dismissedOver[d] : ST.dismissed[d])) return;
+      if (d !== ST.days || ST.days >= 30 || (over ? ST.dismissedOver[d] : ST.dismissed[d])) return;
       RB.ask({ title: t('end_day_title', d), msg: over ? t('km_warn', d, km) + ' ' + t('end_day_q') : (km ? t('end_day_km', km) + ' ' : '') + t('end_day_q'), ok: t('end_day_yes'), no: t('end_day_no') }).then(function (yes) {
         ST.dismissed[d] = true; if (over) ST.dismissedOver[d] = true;
         if (yes) addDayAfterEnd(); else drawPanel();
@@ -577,7 +577,7 @@
       var km = dayKmOf(d);
       if (RBL.kmWarn(km)) {
         var wb = h('div', { class: 'banner wa' }, t('km_warn', d, km));
-        if (last && ST.days < 14) wb.appendChild(h('button', { type: 'button', class: 'btn sec sm2', style: 'margin-top:8px;display:block', onclick: addDayAfterEnd }, RB.icon('plus'), t('end_day_yes')));
+        if (last && ST.days < 30) wb.appendChild(h('button', { type: 'button', class: 'btn sec sm2', style: 'margin-top:8px;display:block', onclick: addDayAfterEnd }, RB.icon('plus'), t('end_day_yes')));
         panel.appendChild(wb);
       }
     }

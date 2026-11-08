@@ -76,7 +76,7 @@ function backend(page, level, log) {
 
 async function newPage(browser, vp, level, log, errors) {
   const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: 2, locale: 'it-IT', timezoneId: 'Europe/Rome', permissions: [] });
-  const page = await ctx.newPage();
+  const page = await ctx.newPage(); await page.addInitScript(() => { try { localStorage.setItem('rb.tour', '1'); } catch (e) {} });
   global.__errs = errors;
   page.on('pageerror', e => errors.push('pageerror: ' + e.message));
   page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource|favicon/.test(m.text())) errors.push('console: ' + m.text()); });
@@ -300,12 +300,12 @@ async function newPage(browser, vp, level, log, errors) {
   await page.screenshot({ path: SHOTS + '48-concessionaria.png' }); await page.keyboard.press('Escape'); await page.waitForTimeout(300); step('concessionaria: chiama, WhatsApp, email, indirizzo, social (socio non modifica)');
   /* dati per le emergenze */
   await page.waitForSelector('#emg-list .row'); assert.ok((await page.textContent('#emg-list')).includes('Non ancora inseriti')); await page.click('#emg-list .row'); await page.waitForSelector('#em-cn');
-  { const tx = await page.textContent('.sheet.in'); assert.ok(tx.includes('Marco Bianchi') && tx.includes('Persona da avvisare') && tx.includes('Consenso') && tx.includes('Gruppo sanguigno')); }
+  { const tx = await page.textContent('.sheet.in'); assert.ok(tx.includes('Marco Bianchi') && tx.includes('Persona da avvisare') && tx.includes('Consenso') && tx.includes('Gruppo sanguigno')); assert.ok(!(await page.isVisible('#em-al')), 'dati facoltativi chiusi di default'); }
   await page.screenshot({ path: SHOTS + '49-emergenza-form.png' });
   await tclick('#em-save'); await page.waitForTimeout(250); assert.ok(!log.some(l => l.fn === 'rc_emergency_save'), 'senza contatto non salva');
   await page.fill('#em-cn', 'Anna Bianchi'); await page.fill('#em-cp', '12'); await tclick('#em-save'); await page.waitForTimeout(250); assert.ok(!log.some(l => l.fn === 'rc_emergency_save'), 'telefono troppo corto');
   await page.fill('#em-cp', '+39 333 1234567'); await tclick('#em-save'); await page.waitForTimeout(250); assert.ok(!log.some(l => l.fn === 'rc_emergency_save'), 'senza consenso non salva');
-  await page.fill('#em-al', 'penicillina'); await tclick('.sos-blood button[data-v="A+"]'); await tclick('.sos-seg button[data-v="assicura"]'); await tclick('.pass .sw'); await tclick('#em-save'); await page.waitForTimeout(500);
+  await tclick('#em-more'); await page.fill('#em-al', 'penicillina'); await tclick('.sos-blood button[data-v="A+"]'); await tclick('.sos-seg button[data-v="assicura"]'); await tclick('.pass .sw'); await tclick('#em-save'); await page.waitForTimeout(500);
   { const es = log.filter(l => l.fn === 'rc_emergency_save').pop(); assert.ok(es && es.body.p_consent === true && es.body.p_data.contact_name === 'Anna Bianchi' && es.body.p_data.blood === 'A+' && es.body.p_data.roadside === 'assicura' && es.body.p_data.allergies === 'penicillina', JSON.stringify(es && es.body)); }
   assert.ok((await page.textContent('#emg-list')).includes('Inseriti')); step('dati emergenza: obbligatori, consenso, salvataggio');
   await page.click('#emg-list .row'); await page.waitForSelector('#em-cn'); assert.strictEqual(await page.inputValue('#em-cn'), 'Anna Bianchi'); assert.strictEqual(await page.inputValue('#em-al'), 'penicillina');

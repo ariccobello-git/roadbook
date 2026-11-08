@@ -36,17 +36,20 @@
         RB.field(t('sos_contact_name') + ' *', RB.input('em-cn', p.contact_name || '', { max: 80 })),
         RB.field(t('sos_contact_phone') + ' *', RB.input('em-cp', p.contact_phone || '', { type: 'tel', max: 30, mode: 'tel' })),
         RB.field(t('sos_contact_rel'), RB.input('em-cr', p.contact_rel || '', { max: 40 }))));
-      body.appendChild(RB.secT(t('sos_moto')));
-      body.appendChild(h('div', { class: 'list' },
+      var opt = h('div', { id: 'em-opt', style: had ? '' : 'display:none' });
+      opt.appendChild(RB.secT(t('sos_moto')));
+      opt.appendChild(h('div', { class: 'list' },
         RB.field(t('sos_plate'), RB.input('em-pl', p.plate || '', { max: 12 })),
         h('div', { class: 'field' }, h('span', null, t('sos_roadside')), RB.seg(ROADSIDE.map(function (x) { return { v: x[0], label: t(x[1]) }; }), road, function (v) { road = v; }, 'sos-seg'))));
-      body.appendChild(RB.secT(t('sos_health')));
-      body.appendChild(h('div', { class: 'list' },
+      opt.appendChild(RB.secT(t('sos_health')));
+      opt.appendChild(h('div', { class: 'list' },
         h('div', { class: 'field' }, h('span', null, t('sos_blood')), RB.seg(BLOOD.map(function (b) { return { v: b, label: b || '—' }; }), blood, function (v) { blood = v; }, 'sos-blood')),
         RB.field(t('sos_allergies'), RB.input('em-al', p.allergies || '', { max: 200 })),
         RB.field(t('sos_meds'), RB.input('em-me', p.meds || '', { max: 200 })),
         RB.field(t('sos_conditions'), RB.input('em-co', p.conditions || '', { max: 200 })),
         RB.field(t('sos_notes'), RB.input('em-no', p.notes || '', { max: 300 }))));
+      body.appendChild(opt);
+      if (!had) body.appendChild(h('button', { type: 'button', class: 'btn sec', id: 'em-more', style: 'margin:12px 0', onclick: function (e) { var o = document.getElementById('em-opt'), show = o.style.display === 'none'; o.style.display = show ? '' : 'none'; e.currentTarget.textContent = show ? t('em_less') : t('em_more'); } }, t('em_more')));
       body.appendChild(RB.secT(t('sos_consent_t')));
       body.appendChild(h('div', { class: 'list' }, h('div', { class: 'pass' }, h('span', null, t('sos_consent')), RB.toggle(consent, function (v) { consent = v; }))));
       body.appendChild(h('p', { class: 'sm' }, t('sos_privacy')));

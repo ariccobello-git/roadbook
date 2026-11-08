@@ -224,7 +224,7 @@ t('secondo livello: date Excel, import Run, presenze', () => {
   assert.strictEqual(L.parseDateCell('31/02/2027'), null); assert.strictEqual(L.parseDateCell('abc'), null); assert.strictEqual(L.parseDateCell('2027-03-15 07:05').getMinutes(), 5);
   assert.strictEqual(L.parseDateCell(46000).getFullYear(), 2025); assert.strictEqual(L.parseDateCell('15/03/2027', '25:00'), null); assert.strictEqual(L.parseDateCell('15/03/1999'), null);
   const mem = [{ id: 'm1', first_name: 'Mario', last_name: 'Rossi' }, { id: 'm2', first_name: 'Anna', last_name: 'Conti' }];
-  const rows = [['Titolo', 'Data', 'Ora', 'Giorni', 'Km', 'Difficoltà', 'Quota'], ['Giro A', '15/03/2030', '8:30', 1, '120', 'Facile', '10,5'], ['Giro A', '15/03/2030'], ['', 'x'], ['Weekend', '10/05/2024', '09:00', 20, '9999'], ['Vecchio', '10/05/2024', '09:00', 2, 300, 'impegnativa', ''], ['', '', '', '', '']];
+  const rows = [['Titolo', 'Data', 'Ora', 'Giorni', 'Km', 'Difficoltà', 'Quota'], ['Giro A', '15/03/2030', '8:30', 1, '120', 'Facile', '10,5'], ['Giro A', '15/03/2030'], ['', 'x'], ['Weekend', '10/05/2024', '09:00', 40, '9999'], ['Vecchio', '10/05/2024', '09:00', 2, 300, 'impegnativa', ''], ['', '', '', '', '']];
   const att = [['Titolo Run', 'Cognome', 'Nome', 'Presente'], ['Vecchio', 'Rossi', 'Mario', 'si'], ['Vecchio', 'Conti', 'Anna', 'no'], ['Vecchio', 'Zeta', 'Zeno', 'x'], ['Inesistente', 'Rossi', 'Mario', 'si'], ['vecchio', 'Anna', 'Conti', '1']];
   const r = L.parseRunRows(rows, att, [], mem, Date.UTC(2026, 10, 8));
   assert.strictEqual(r.items.length, 5); assert.ok(r.items[0].ok && r.items[0].run.status === 'programmato' && r.items[0].run.fee === '10.5' && r.items[0].run.difficulty === 'facile');

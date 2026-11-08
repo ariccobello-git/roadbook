@@ -75,8 +75,10 @@
     var video = h('video', { id: 'x-video', playsinline: true, muted: true, autoplay: true, class: 'xvideo' }), out = h('div', { id: 'x-scan-out', class: 'xscan-out' }, h('span', null, t('x2_scan_point')));
     var stream = null, stop = false, last = '', lastAt = 0, det = null, canvas = document.createElement('canvas'), cx = canvas.getContext('2d', { willReadFrequently: true });
     var ctl = RB.sheet({ title: t('x2_scan'), leftLabel: t('close'), full: true, onclose: function () { stop = true; if (stream) stream.getTracks().forEach(function (x) { x.stop(); }); },
-      content: h('div', null, h('div', { class: 'xvwrap' }, video), out, h('p', { class: 'sm' }, t('x2_scan_help'))) });
-    function result(ok, txt, extra) { RB.clear(out); out.className = 'xscan-out ' + (ok ? 'ok' : 'ko'); out.appendChild(h('b', null, txt)); if (extra) out.appendChild(extra); RB.feel(ok ? 'ok' : 'err'); }
+      content: h('div', null, h('div', { class: 'xvwrap' }, video), counter, out, h('p', { class: 'sm' }, t('x2_scan_help'))) });
+    function cnt() { var c = RB.signupsOf(run.id).filter(function (x) { return x.status === 'si'; }); return t('x2_scan_count', c.filter(function (x) { return x.checked_in; }).length, c.length); }
+    var counter = h('p', { id: 'x-scan-count', class: 'sm', style: 'text-align:center;font-weight:600' }, cnt());
+    function result(ok, txt, extra) { counter.textContent = cnt(); RB.clear(out); out.className = 'xscan-out ' + (ok ? 'ok' : 'ko'); out.appendChild(h('b', null, txt)); if (extra) out.appendChild(extra); RB.feel(ok ? 'ok' : 'err'); }
     function handle(txt) {
       var id = L.parseQr(txt); if (!id) { result(false, t('x2_scan_bad')); return; }
       var m = RB.mem(id); if (!m) { result(false, t('x2_scan_unknown')); return; }
@@ -173,11 +175,26 @@
   };
 
   /* righe aggiunte in Altro */
+  /* guida al primo uso: 3 schermate, si apre da sola una volta e resta in Altro */
+  RB.tourSeen = function () { try { return !!localStorage.getItem('rb.tour'); } catch (e) { return true; } };
+  RB.tour = function () {
+    var n = 0, body = h('div', { id: 'x-tour' }), ctl;
+    var STEPS = [[t('tour1_t'), t('tour1_d'), 'check'], [t('tour2_t'), t('tour2_d'), 'alert'], [t('tour3_t'), t('tour3_d'), 'user']];
+    function draw() {
+      RB.clear(body); var st = STEPS[n];
+      body.appendChild(h('div', { class: 'empty' }, RB.icon(st[2]), h('b', null, st[0]), h('p', null, st[1])));
+      body.appendChild(h('p', { class: 'sm', style: 'text-align:center' }, (n + 1) + ' / ' + STEPS.length));
+      body.appendChild(h('button', { type: 'button', class: 'btn pri', id: 'x-tour-next', onclick: function () { if (n < STEPS.length - 1) { n++; draw(); } else ctl.close(true); } }, n < STEPS.length - 1 ? t('sos_continue') : t('tour_go')));
+    }
+    ctl = RB.sheet({ title: t('tour_title'), content: body, leftLabel: t('close'), onclose: function () { try { localStorage.setItem('rb.tour', '1'); } catch (e) {} } });
+    draw(); return ctl;
+  };
   RB.extrasSection = function (root) {
     var l = h('div', { class: 'list', id: 'x-tools' });
     l.appendChild(RB.row({ lead: RB.icon('user'), title: t('x2_card'), sub: t('x2_card_d'), onclick: function () { RB.cardSheet(); } }));
     l.appendChild(RB.row({ lead: RB.icon('route'), title: t('x2_stats'), sub: t('x2_stats_d'), onclick: function () { RB.statsSheet(false); } }));
     if (RB.can('members_view')) l.appendChild(RB.row({ lead: RB.icon('route'), title: t('x2_st_chapter'), sub: t('x2_st_chapter_d'), onclick: function () { RB.statsSheet(true); } }));
+    l.appendChild(RB.row({ lead: RB.icon('quote'), title: t('tour_title'), sub: t('tour_sub'), id: 'x-tour-row', onclick: function () { RB.tour(); } }));
     if (RB.can('runs_edit')) {
       l.appendChild(RB.row({ lead: RB.icon('quote'), title: t('x2_notices'), sub: t('x2_notices_d'), onclick: function () { RB.noticesManage(); } }));
       l.appendChild(RB.row({ lead: RB.icon('file'), title: t('x2_import'), sub: t('x2_import_d'), onclick: function () { RB.runImport(); } }));

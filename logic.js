@@ -255,7 +255,7 @@
     var x = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
     return 2 * R * Math.asin(Math.sqrt(x));
   };
-  L.runDays = function (run) { var d = parseInt(run && run.days, 10); return d >= 1 && d <= 14 ? d : 1; };
+  L.runDays = function (run) { var d = parseInt(run && run.days, 10); return d >= 1 && d <= 30 ? d : 1; };
   function textPlace(txt) { txt = String(txt == null ? '' : txt).trim(); return txt ? { name: '', addr: txt } : null; }
   L.endOf = function (run, day) {
     var e = null;
@@ -751,7 +751,7 @@
       if (!Object.keys(o).some(function (k) { return String(o[k] == null ? '' : o[k]).trim() !== ''; })) return;
       var errs = [], title = String(o.title == null ? '' : o.title).trim(), dt = L.parseDateCell(o.date, o.time);
       if (!title) errs.push('titolo_mancante'); if (!dt) errs.push('data_non_valida');
-      var days = o.days === '' || o.days == null ? 1 : parseInt(o.days, 10); if (!(days >= 1 && days <= 14)) { errs.push('giorni_non_validi'); days = 1; }
+      var days = o.days === '' || o.days == null ? 1 : parseInt(o.days, 10); if (!(days >= 1 && days <= 30)) { errs.push('giorni_non_validi'); days = 1; }
       var km = o.km === '' || o.km == null ? '' : Math.round(Number(String(o.km).replace(',', '.'))); if (km !== '' && !(km >= 0 && km <= 5000)) { errs.push('km_non_validi'); km = ''; }
       var fee = o.fee === '' || o.fee == null ? '' : Number(String(o.fee).replace(',', '.')); if (fee !== '' && !(fee >= 0 && fee <= 9999)) { errs.push('quota_non_valida'); fee = ''; }
       var diff = DIFFS[nrm(o.diff)] || 'media';
