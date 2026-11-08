@@ -24,12 +24,15 @@
   };
 
   /* ---------- accesso ---------- */
-  function loginScreen(msg) {
+  function loginScreen(msg, resume) {
     RB.stopSync(); RB.clear(app); RB.sheets.slice().forEach(function (s) { s.close(true); });
     var err = h('p', { class: 'err-t', role: 'alert' }, msg || '');
     var code = h('input', { id: 'code', class: 'code', type: 'text', autocomplete: 'off', autocapitalize: 'characters', spellcheck: 'false', maxlength: 12, placeholder: 'XXXX-XXXX', 'aria-label': t('access_code'),
       oninput: function () { var v = RB.normCode(code.value).slice(0, 8); code.value = v.length > 4 ? v.slice(0, 4) + '-' + v.slice(4) : v; }, onkeydown: function (e) { if (e.key === 'Enter') go(); } });
     var btn = h('button', { type: 'button', class: 'btn pri', onclick: go }, t('enter'));
+    var resumeBtn = null;
+    if (resume) resumeBtn = h('button', { type: 'button', class: 'btn ghost', id: 'resume', style: 'margin-top:10px', onclick: function () { if (RB.restore()) start(); } },
+      t('continue_as') + ' ' + ((resume.first_name || '') + ' ' + (resume.last_name || '')).trim());
     function go() {
       if (RB.normCode(code.value).length < 8) { err.textContent = t('e_auth'); RB.feel('err'); return; }
       btn.disabled = true; err.textContent = '';
@@ -38,12 +41,12 @@
         if (r.ok) { start(); } else { err.textContent = r.error === 'auth' ? t('e_auth') : RB.errMsg(r.error); RB.feel('err'); }
       });
     }
-    var langs = RB.seg([{ v: 'it', label: 'Italiano' }, { v: 'en', label: 'English' }, { v: 'fr', label: 'Français' }], RB.pref.lang, function (v) { RB.pref.lang = v; RB.savePref(); RB.applyPref(); loginScreen(''); });
+    var langs = RB.seg([{ v: 'it', label: 'Italiano' }, { v: 'en', label: 'English' }, { v: 'fr', label: 'Français' }], RB.pref.lang, function (v) { RB.pref.lang = v; RB.savePref(); RB.applyPref(); loginScreen('', resume); });
     app.appendChild(h('div', { class: 'login' },
       h('img', { class: 'logo' + (RB.logoSrc() === 'icon-180.png' ? '' : ' logo-img'), src: RB.logoSrc(), alt: '' }),
       h('h1', null, 'Roadbook'), h('p', { class: 'sub' }, t('login_sub')),
       h('div', { class: 'list' }, h('label', { class: 'field' }, h('span', null, t('access_code')), code)),
-      err, btn, h('p', { class: 'sm', style: 'text-align:center' }, t('login_help')), h('div', { class: 'lg' }, langs), h('p', { class: 'sm', style: 'text-align:center;opacity:.45;font-size:11px;margin-top:14px', id: 'rel' }, 'Release ' + RB.RELEASE)));
+      err, btn, resumeBtn, h('p', { class: 'sm', style: 'text-align:center' }, t('login_help')), h('div', { class: 'lg' }, langs), h('p', { class: 'sm', style: 'text-align:center;opacity:.45;font-size:11px;margin-top:14px', id: 'rel' }, 'Release ' + RB.RELEASE)));
     setTimeout(function () { try { code.focus(); } catch (e) {} }, 300);
   }
 
@@ -214,7 +217,10 @@
   if (inv) {
     try { history.replaceState(null, '', location.pathname); } catch (e) {}
     RB.login(inv).then(function (r) { if (r.ok) start(); else loginScreen(t('e_auth')); });
-  } else if (RB.restore()) {
-    start();
-  } else loginScreen('');
+  } else {
+    /* la schermata di accesso è sempre la pagina iniziale; con una sessione salvata si può riprenderla con un tocco */
+    var saved = null;
+    try { if (localStorage.getItem('rb.code')) { var cd = JSON.parse(localStorage.getItem('rb.cache') || 'null'); saved = (cd && cd.ok && cd.me) ? cd.me : { first_name: '', last_name: '' }; } } catch (e) {}
+    loginScreen('', saved);
+  }
 })();

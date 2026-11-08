@@ -206,6 +206,7 @@
     login_sub: ["Run e soci del chapter", "Chapter runs and members", "Runs et membres du chapter"],
     logo_help: ["Carica il logo del tuo chapter: comparirà all'accesso e nel menu. Usa solo immagini di cui il chapter ha i diritti.", "Upload your chapter's logo: it appears at sign-in and in the menu. Only use images the chapter has the rights to.", "Importez le logo de votre chapter : il apparaît à la connexion et dans le menu. N'utilisez que des images dont le chapter détient les droits."],
     logout: ["Esci", "Sign out", "Se déconnecter"],
+    continue_as: ["Continua come", "Continue as", "Continuer en tant que"],
     logout_msg: ["Dovrai reinserire il codice di accesso.", "You'll need to enter your access code again.", "Vous devrez ressaisir votre code d'accès."],
     m_bonifico: ["Bonifico", "Bank transfer", "Virement"], m_contanti: ["Contanti", "Cash", "Espèces"],
     mark_done: ["Segna come concluso", "Mark as done", "Marquer comme terminé"],
