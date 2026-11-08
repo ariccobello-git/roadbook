@@ -100,13 +100,12 @@
   RB.views.meteo = function (root) {
     root.appendChild(RB.title(t('tab_meteo'), t('mt_sub')));
     var lastP = null; try { lastP = JSON.parse(localStorage.getItem('rb.wxlast') || 'null'); } catch (e) {}
-    if (lastP && isFinite(lastP.lat) && isFinite(lastP.lng)) {
-      var hh = h('div', { id: 'mt-last', style: 'margin-top:8px;cursor:pointer', role: 'button', tabindex: '0', onclick: function () { RB.placeWeather(lastP); } });
-      root.appendChild(hh);
-      RB.geo.forecast(lastP.lat, lastP.lng).then(function (r) {
-        var cur = L.wxNext(r.data, Date.now(), 1)[0]; if (cur && hh.isConnected !== false) hh.appendChild(heroBox(lastP.n, r.data, cur, true));
-      }, function () {});
-    }
+    if (!lastP || !isFinite(lastP.lat) || !isFinite(lastP.lng)) lastP = { n: 'Roma', lat: 41.9028, lng: 12.4964 };
+    var hh = h('div', { id: 'mt-last', style: 'margin-top:8px;cursor:pointer', role: 'button', tabindex: '0', onclick: function () { RB.placeWeather(lastP); } });
+    root.appendChild(hh);
+    RB.geo.forecast(lastP.lat, lastP.lng).then(function (r) {
+      var cur = L.wxNext(r.data, Date.now(), 1)[0]; if (cur && hh.isConnected !== false) { var big = heroBox(lastP.n, r.data, cur, false); big.id = 'mt-top'; hh.appendChild(big); }
+    }, function () {});
     var res = h('div', { id: 'mt-res', style: 'margin-top:8px' });
     var q = RB.input('mt-q', '', { ph: t('mt_ph'), max: 80 });
     function search() {
