@@ -89,22 +89,52 @@
     RB.copy(txt).then(function (ok) { RB.toast(ok ? t('copied') : t('e_generic'), ok ? '' : 'err'); });
   }
 
-  /* pulsanti di navigazione: i soci vedono solo lo strumento scelto da chi ha creato il percorso */
+  /* percorso e tappe: solo organizzatori (route_view) o Run con percorso condiviso con tutti */
+  function seeRoute(r) { return RB.can('route_view') || !!r.route_public; }
   var NAV_OPEN = { apple: 'nav_open_apple', google: 'nav_open_google' };
   function navSection(r, f) {
-    var pts = RBL.navPoints(r), edit = RB.can('runs_edit'), tool = r.nav_tool || 'both';
-    if (!pts.length || !RB.can('route_view')) return;
-    var tools = edit || tool === 'both' ? ['apple', 'google'] : (tool === 'none' ? [] : [tool]);
+    if (!seeRoute(r)) return;
+    var edit = RB.can('runs_edit'), tool = r.nav_tool || 'both', days = RBL.runDays(r), tools = edit || tool === 'both' ? ['apple', 'google'] : (tool === 'none' ? [] : [tool]), d, any = false;
     if (!tools.length) return;
     if (RB.isApple) tools.sort(function (a, b) { return a === 'apple' ? -1 : b === 'apple' ? 1 : 0; });
     var l = h('div', { class: 'list' });
-    tools.forEach(function (k) {
-      if (k === 'apple') l.appendChild(RB.row({ lead: RB.icon('route'), title: t(NAV_OPEN.apple), sub: t('nav_points_n', pts.length), href: RBL.appleNav(pts) }));
-      else { var g = RBL.googleNav(pts); l.appendChild(RB.row({ lead: RB.icon('route'), title: t(NAV_OPEN.google), sub: g.dropped ? t('nav_dropped', g.dropped) : t('nav_points_n', pts.length), href: g.url })); }
-    });
+    for (d = 1; d <= days; d++) {
+      var pts = RBL.navPoints(r, days > 1 ? d : undefined);
+      if (pts.length < 1) continue;
+      any = true;
+      var km = RBL.dayKm(r, days > 1 ? d : undefined), pre = days > 1 ? t('day_n', d) + ' · ' : '';
+      tools.forEach(function (k) {
+        if (k === 'apple') l.appendChild(RB.row({ lead: RB.icon('route'), title: pre + t(NAV_OPEN.apple), sub: t('nav_points_n', pts.length) + (km ? ' · ~' + km + ' km' : ''), href: RBL.appleNav(pts) }));
+        else { var g = RBL.googleNav(pts); l.appendChild(RB.row({ lead: RB.icon('route'), title: pre + t(NAV_OPEN.google), sub: (g.dropped ? t('nav_dropped', g.dropped) : t('nav_points_n', pts.length)) + (km ? ' · ~' + km + ' km' : ''), href: g.url })); }
+      });
+    }
+    if (!any) return;
     f.appendChild(RB.secT(t('nav_title')));
     f.appendChild(l);
     if (edit) f.appendChild(h('p', { class: 'sm', style: 'padding:0 6px' }, t('nav_staff_note', t('nav_' + tool))));
+  }
+  function stopLine(s) {
+    var label = s.name || s.addr || '';
+    return h('li', null, h('i'), h('div', null, s.time ? h('b', null, s.time + ' ') : null, label,
+      s.kind && s.kind !== 'altro' ? h('span', { class: 'sm', style: 'margin-left:6px' }, RB.kindLabel(s.kind)) : null,
+      s.name && s.addr ? h('a', { class: 'sm', href: RB.mapsUrl(RBL.hasCoords(s) ? s.lat + ',' + s.lng : s.addr), target: '_blank', rel: 'noopener', style: 'display:block;margin:0' }, s.addr) : null));
+  }
+  function routeSection(r, f) {
+    if (!seeRoute(r)) return;
+    var days = RBL.runDays(r), d, any = false, card = h('div', { class: 'card', style: 'margin-top:0' });
+    for (d = 1; d <= days; d++) {
+      var pl = RBL.dayPlaces(r, days > 1 ? d : undefined), km = RBL.dayKm(r, days > 1 ? d : undefined);
+      if (!pl.length || (pl.length === 1 && days === 1 && !(r.stops || []).length)) continue;
+      any = true;
+      if (days > 1) card.appendChild(h('div', { class: 'sec-t', style: 'margin:6px 0' }, h('span', null, t('day_n', d) + (km ? ' · ~' + km + ' km' : '')), RBL.kmWarn(km) ? RB.chip(t('km_over'), 'wa') : null));
+      else if (RBL.kmWarn(km) && RB.can('runs_edit')) card.appendChild(h('div', { class: 'banner wa' }, t('km_warn_short', km)));
+      var tl = h('ul', { class: 'tl' });
+      pl.forEach(function (s) { tl.appendChild(stopLine(s)); });
+      card.appendChild(tl);
+    }
+    if (!any) return;
+    f.appendChild(RB.secT(t('stops')));
+    f.appendChild(card);
   }
 
   function buildRun(r, ctl, state) {
@@ -120,20 +150,12 @@
     if (r.km) info.appendChild(RB.row({ title: t('distance'), value: r.km + ' km', go: false }));
     info.appendChild(RB.row({ title: t('difficulty'), value: t(DIFF[r.difficulty] || 'diff_media'), go: false }));
     if (r.max_participants) info.appendChild(RB.row({ title: t('max_places'), value: String(r.max_participants), go: false }));
-    var ru = RB.safeUrl(r.route_url);
+    var ru = seeRoute(r) ? RB.safeUrl(r.route_url) : null;
     if (ru) info.appendChild(RB.row({ lead: RB.icon('route'), title: t('route_link'), href: ru }));
     f.appendChild(info);
     if (r.description) f.appendChild(h('div', { class: 'card', style: 'white-space:pre-wrap' }, r.description));
 
-    if (r.stops && r.stops.length) {
-      var tl = h('ul', { class: 'tl' });
-      r.stops.forEach(function (s) {
-        tl.appendChild(h('li', null, h('i'), h('div', null, s.time ? h('b', null, s.time + ' ') : null, s.name || s.addr || '',
-          s.name && s.addr ? h('a', { class: 'sm', href: RB.mapsUrl(s.addr), target: '_blank', rel: 'noopener', style: 'display:block;margin:0' }, s.addr) : null)));
-      });
-      f.appendChild(RB.secT(t('stops')));
-      f.appendChild(h('div', { class: 'card', style: 'margin-top:0' }, tl));
-    }
+    routeSection(r, f);
     navSection(r, f);
 
     /* la mia risposta */
@@ -215,7 +237,7 @@
   }
   function runPayload(r, over) {
     var o = { id: r.id, title: r.title, run_date: r.run_date, meeting_point: r.meeting_point || '', destination: r.destination || '', description: r.description || '', km: r.km == null ? '' : String(r.km),
-      difficulty: r.difficulty, route_url: r.route_url || '', stops: r.stops || [], nav_tool: r.nav_tool || 'both', status: r.status, max_participants: r.max_participants == null ? '' : String(r.max_participants) }, k;
+      difficulty: r.difficulty, route_url: r.route_url || '', stops: r.stops || [], meeting: r.meeting || null, dest: r.dest || null, days: RBL.runDays(r), route_public: !!r.route_public, nav_tool: r.nav_tool || 'both', status: r.status, max_participants: r.max_participants == null ? '' : String(r.max_participants) }, k;
     for (k in over) o[k] = over[k];
     return o;
   }
@@ -259,52 +281,172 @@
     var d = new Date(); d.setDate(d.getDate() + ((7 - d.getDay()) % 7 || 7)); d.setHours(9, 0, 0, 0); return d.toISOString();
   }
   RB.runForm = function (id) {
-    var r = id ? RB.run(id) : null, stops = r && r.stops ? r.stops.map(function (s) { return { time: s.time || '', name: s.name || '', addr: s.addr || '' }; }) : [];
+    var r = id ? RB.run(id) : null, ST = { days: r ? RBL.runDays(r) : 1, day: 1, dismissed: {}, dismissedOver: {}, kmTouched: !!(r && r.km), pub: !!(r && r.route_public) };
+    var meeting = r ? (r.meeting || (r.meeting_point ? { name: '', addr: r.meeting_point, kind: 'altro' } : null)) : null;
+    var dest = r ? (r.dest || (r.destination ? { name: '', addr: r.destination, kind: 'altro' } : null)) : null;
+    var stops = r && r.stops ? r.stops.map(function (s) { return { time: s.time || '', name: s.name || '', addr: s.addr || '', kind: s.kind || 'altro', lat: s.lat, lng: s.lng, day: parseInt(s.day, 10) || 1, end: !!s.end }; }) : [];
     var diff = r ? r.difficulty : 'media', status = r ? r.status : 'programmato', nav = r ? r.nav_tool || 'both' : 'both';
-    var box = h('div', null), stopsBox = h('div', { class: 'list' });
-    function drawStops() {
-      RB.clear(stopsBox);
-      stops.forEach(function (s, i) {
-        stopsBox.appendChild(h('div', { class: 'row', style: 'flex-direction:column;align-items:stretch;gap:6px' },
-          h('div', { style: 'display:flex;gap:8px;align-items:center' },
-            h('input', { type: 'time', '.value': s.time, style: 'width:96px;border:0;background:var(--fill);border-radius:9px;padding:7px', oninput: function (e) { s.time = e.target.value; } }),
-            h('input', { type: 'text', '.value': s.name, placeholder: t('stop_name'), maxlength: 80, style: 'flex:1;min-width:0;border:0;background:transparent;outline:0', oninput: function (e) { s.name = e.target.value; } }),
-            h('button', { type: 'button', class: 'ib', 'aria-label': t('delete'), onclick: function () { stops.splice(i, 1); drawStops(); } }, RB.icon('x'))),
-          h('input', { type: 'text', '.value': s.addr, placeholder: t('stop_addr'), maxlength: 200, 'aria-label': t('stop_addr'), style: 'border:0;background:var(--fill);border-radius:9px;padding:8px 10px;outline:0;min-width:0', oninput: function (e) { s.addr = e.target.value; } })));
+    var box = h('div', null), panel = h('div'), tabs = h('div'), durBox = h('div'), kmInfo = h('div'), routed = {};
+
+    function snapshot() { return { meeting: meeting, dest: dest, days: ST.days, stops: stops.map(function (s) { return s; }) }; }
+    function dayKmOf(d) { return routed[d] != null ? routed[d] : RBL.dayKm(snapshot(), ST.days > 1 ? d : undefined); }
+    function totalKm() { var d, sum = 0, ok = false; for (d = 1; d <= ST.days; d++) { var k = dayKmOf(d); if (k != null) { sum += k; ok = true; } } return ok ? sum : null; }
+    function syncKm() {
+      var k = totalKm(), el = document.getElementById('rf-km');
+      if (el && !ST.kmTouched && k != null) el.value = k;
+    }
+    function endStop(d) { var i; for (i = 0; i < stops.length; i++) if (stops[i].end && stops[i].day === d) return stops[i]; return null; }
+    function setEnd(d, p) {
+      var e = endStop(d);
+      if (!p) { if (e) stops.splice(stops.indexOf(e), 1); return; }
+      if (e) { e.name = p.name; e.addr = p.addr; e.kind = p.kind; e.lat = p.lat; e.lng = p.lng; }
+      else stops.push({ time: '', name: p.name, addr: p.addr, kind: p.kind, lat: p.lat, lng: p.lng, day: d, end: true });
+    }
+    function setDays(n) {
+      n = Math.max(1, Math.min(14, n));
+      if (n < ST.days) {
+        stops = stops.filter(function (s) { return s.day <= n && !(s.end && s.day >= n); });
+      }
+      ST.days = n; if (ST.day > n) ST.day = n; routed = {};
+      drawAll();
+    }
+    function addDayAfterEnd() {
+      /* il vecchio arrivo finale diventa l'arrivo della giornata, la nuova destinazione va scelta */
+      var d = ST.days;
+      if (d >= 14) return;
+      if (dest) setEnd(d, dest);
+      dest = null; ST.days = d + 1; ST.day = d + 1; routed = {};
+      drawAll();
+    }
+    function endOfDayCheck(d) {
+      /* a fine tappa: ricordare che forse conviene pensare al giorno dopo; sopra i 500 km lo dice chiaramente */
+      var km = dayKmOf(d), over = RBL.kmWarn(km);
+      if (d !== ST.days || ST.days >= 14 || (over ? ST.dismissedOver[d] : ST.dismissed[d])) return;
+      RB.ask({ title: t('end_day_title', d), msg: over ? t('km_warn', d, km) + ' ' + t('end_day_q') : (km ? t('end_day_km', km) + ' ' : '') + t('end_day_q'), ok: t('end_day_yes'), no: t('end_day_no') }).then(function (yes) {
+        ST.dismissed[d] = true; if (over) ST.dismissedOver[d] = true;
+        if (yes) addDayAfterEnd(); else drawPanel();
       });
     }
-    drawStops();
+    function changedAll() { routed = {}; drawPanel(); drawKm(); syncKm(); }
+
+    function stopCard(s, i) {
+      var holder = h('div', { class: 'stopc' });
+      var pr = RB.placeRow({ label: t('stop_n', i + 1), kinds: RBL.PLACE_KINDS, get: function () { return s.name || s.addr ? s : null; },
+        set: function (p) { s.name = p.name; s.addr = p.addr; s.kind = p.kind; s.lat = p.lat; s.lng = p.lng; }, changed: function () { changedAll(); } });
+      holder.appendChild(h('div', { class: 'stop-h' },
+        h('input', { type: 'time', '.value': s.time, 'aria-label': t('stop_time'), oninput: function (e) { s.time = e.target.value; } }),
+        h('button', { type: 'button', class: 'ib', 'aria-label': t('delete'), onclick: function () { stops.splice(stops.indexOf(s), 1); changedAll(); } }, RB.icon('x'))));
+      holder.appendChild(pr);
+      return holder;
+    }
+    function drawPanel() {
+      RB.clear(panel);
+      var d = ST.day, multi = ST.days > 1, last = d === ST.days;
+      if (!multi || d === 1) {
+        panel.appendChild(RB.placeRow({ label: t('meeting'), kinds: ['area', 'bar', 'altro'], withFungo: true, get: function () { return meeting; }, set: function (p) { meeting = p; }, changed: function () { changedAll(); } }));
+      } else {
+        var from = endStop(d - 1) || meeting;
+        panel.appendChild(h('div', { class: 'list' }, RB.row({ lead: RB.icon('pin'), title: t('day_start'), sub: from ? RB.placeLabel(from) : t('pp_choose'), go: false })));
+      }
+      panel.appendChild(RB.secT(t('stops'), h('button', { type: 'button', class: 'btn ghost sm2', onclick: function () { if (stops.length < 40) { stops.push({ time: '', name: '', addr: '', kind: 'altro', day: d, end: false }); drawPanel(); } } }, RB.icon('plus'), t('add'))));
+      var mine = stops.filter(function (s) { return s.day === d && !s.end; });
+      if (!mine.length) panel.appendChild(h('p', { class: 'sm', style: 'padding:0 6px' }, t('stops_none')));
+      mine.forEach(function (s, i) { panel.appendChild(stopCard(s, i)); });
+      if (!last) {
+        var e = endStop(d);
+        panel.appendChild(RB.secT(t('day_end', d)));
+        panel.appendChild(RB.placeRow({ label: t('day_end', d), kinds: ['hotel', 'agri', 'ristorante', 'altro', 'area', 'hd', 'bar'], get: function () { return e || endStop(d); }, set: function (p) { setEnd(d, p); }, changed: function () { changedAll(); } }));
+      } else {
+        panel.appendChild(RB.secT(t('destination')));
+        panel.appendChild(RB.placeRow({ label: t('destination'), kinds: RBL.PLACE_KINDS, get: function () { return dest; }, set: function (p) { dest = p; },
+          changed: function () { changedAll(); endOfDayCheck(d); } }));
+      }
+      var km = dayKmOf(d);
+      if (RBL.kmWarn(km)) {
+        var wb = h('div', { class: 'banner wa' }, t('km_warn', d, km));
+        if (last && ST.days < 14) wb.appendChild(h('button', { type: 'button', class: 'btn sec sm2', style: 'margin-top:8px;display:block', onclick: addDayAfterEnd }, RB.icon('plus'), t('end_day_yes')));
+        panel.appendChild(wb);
+      }
+    }
+    function drawKm() {
+      RB.clear(kmInfo);
+      var d, parts = [];
+      for (d = 1; d <= ST.days; d++) { var k = dayKmOf(d); if (k != null) parts.push((ST.days > 1 ? t('day_n', d) + ': ' : '') + (routed[d] != null ? '' : '~') + k + ' km'); }
+      kmInfo.appendChild(h('div', { class: 'sm', style: 'padding:6px 8px' }, parts.length ? parts.join(' · ') : t('km_unknown')));
+      kmInfo.appendChild(h('button', { type: 'button', class: 'btn sec sm2', id: 'rf-calc', style: 'margin:0 6px 6px', onclick: calcRoad }, RB.icon('route'), t('km_calc')));
+      if (panel.firstChild) { /* il banner nel pannello dipende dai km */ }
+    }
+    function calcRoad() {
+      var d, jobs = [];
+      for (d = 1; d <= ST.days; d++) (function (day) {
+        var u = RBL.dayPlaces(snapshot(), ST.days > 1 ? day : undefined);
+        jobs.push(RB.geo.route(u).then(function (k) { if (k != null) routed[day] = k; }));
+      })(d);
+      Promise.all(jobs).then(function () {
+        if (!Object.keys(routed).length) RB.toast(t('km_calc_fail'), 'err'); else { ST.kmTouched = false; syncKm(); drawPanel(); }
+        drawKm();
+      });
+    }
+    function drawTabs() {
+      RB.clear(tabs); RB.clear(durBox);
+      durBox.appendChild(h('div', { class: 'list' }, h('div', { class: 'row' }, h('span', { class: 'rt' }, h('b', null, t('days_count'))),
+        h('button', { type: 'button', class: 'ib', id: 'rf-dm', 'aria-label': '-', onclick: function () { setDays(ST.days - 1); } }, '−'),
+        h('b', { id: 'rf-days', style: 'min-width:24px;text-align:center' }, String(ST.days)),
+        h('button', { type: 'button', class: 'ib', id: 'rf-dp', 'aria-label': '+', onclick: function () { setDays(ST.days + 1); } }, '+'))));
+      if (ST.days > 1) {
+        var bar = h('div', { class: 'kbar' }), d;
+        for (d = 1; d <= ST.days; d++) (function (n) {
+          bar.appendChild(h('button', { type: 'button', class: 'kchip' + (n === ST.day ? ' on' : ''), 'data-day': n, onclick: function () { ST.day = n; drawTabs(); drawPanel(); } }, t('day_n', n)));
+        })(d);
+        tabs.appendChild(bar);
+      }
+    }
+    function drawAll() { drawTabs(); drawPanel(); drawKm(); syncKm(); }
+
+    var kmInput = RB.input('rf-km', r && r.km != null ? r.km : '', { type: 'number', mode: 'numeric', min: 0 });
+    kmInput.addEventListener('input', function () { ST.kmTouched = true; });
     var fields = h('div', { class: 'list' },
       RB.field(t('f_title'), RB.input('rf-title', r ? r.title : '', { ph: t('f_title_ph'), max: 80 })),
       RB.field(t('f_datetime'), RB.input('rf-dt', RB.localInput(r ? r.run_date : nextSunday9()), { type: 'datetime-local' })),
-      RB.field(t('meeting'), RB.input('rf-meet', r ? r.meeting_point : '', { max: 120 })),
-      RB.field(t('destination'), RB.input('rf-dest', r ? r.destination : '', { max: 120 })),
-      RB.field(t('distance') + ' (km)', RB.input('rf-km', r && r.km != null ? r.km : '', { type: 'number', mode: 'numeric', min: 0 })),
+      RB.field(t('distance') + ' (km)', kmInput),
       RB.field(t('max_places'), RB.input('rf-max', r && r.max_participants != null ? r.max_participants : '', { type: 'number', mode: 'numeric', min: 1, ph: t('no_limit') })),
       RB.field(t('route_link'), RB.input('rf-url', r ? r.route_url : '', { type: 'url', ph: 'https://' })));
     box.appendChild(fields);
+    box.appendChild(h('p', { class: 'sm', style: 'padding:6px 8px' }, t('route_org_only')));
+    box.appendChild(RB.secT(t('route_title')));
+    box.appendChild(durBox); box.appendChild(tabs); box.appendChild(panel); box.appendChild(kmInfo);
+    box.appendChild(h('div', { class: 'list', style: 'margin-top:12px' }, h('div', { class: 'row' }, h('span', { class: 'rt' }, h('b', null, t('route_public')), h('span', null, t('route_public_help'))), RB.toggle(ST.pub, function (v) { ST.pub = v; }))));
     box.appendChild(RB.secT(t('difficulty')));
     box.appendChild(RB.seg([{ v: 'facile', label: t('diff_facile') }, { v: 'media', label: t('diff_media') }, { v: 'impegnativa', label: t('diff_impegnativa') }], diff, function (v) { diff = v; }));
     if (r) { box.appendChild(RB.secT(t('status'))); box.appendChild(RB.seg([{ v: 'programmato', label: t('st_programmato') }, { v: 'annullato', label: t('st_annullato') }, { v: 'concluso', label: t('st_concluso') }], status, function (v) { status = v; })); }
     box.appendChild(RB.secT(t('nav_tool')));
     box.appendChild(RB.seg([{ v: 'apple', label: t('nav_apple') }, { v: 'google', label: t('nav_google') }, { v: 'both', label: t('nav_both') }, { v: 'none', label: t('nav_none') }], nav, function (v) { nav = v; }));
     box.appendChild(h('p', { class: 'sm', style: 'padding:0 6px' }, t('nav_help')));
-    box.appendChild(RB.secT(t('stops'), h('button', { type: 'button', class: 'btn ghost sm2', onclick: function () { if (stops.length < 30) { stops.push({ time: '', name: '', addr: '' }); drawStops(); } } }, RB.icon('plus'), t('add'))));
-    box.appendChild(stopsBox);
     box.appendChild(h('div', { class: 'list', style: 'margin-top:14px' }, RB.field(t('f_notes'), h('textarea', { id: 'rf-desc', maxlength: 1500, '.value': r ? r.description || '' : '' }))));
+    drawAll();
     var ctl = RB.sheet({ title: r ? t('edit_run') : t('new_run'), content: box, full: true, leftLabel: t('cancel'),
       right: { label: t('save'), fn: function () {
         var title = RB.val('rf-title'), dtv = RB.val('rf-dt');
         if (!title || !dtv) { RB.toast(t('e_dati_mancanti'), 'err'); return; }
         var url = RB.val('rf-url');
         if (url && !RB.safeUrl(url)) { RB.toast(t('e_link_non_valido'), 'err'); return; }
-        var p = { id: r ? r.id : null, title: title, run_date: new Date(dtv).toISOString(), meeting_point: RB.val('rf-meet'), destination: RB.val('rf-dest'), description: RB.val('rf-desc'),
-          km: RB.val('rf-km'), difficulty: diff, route_url: url, nav_tool: nav, status: status, max_participants: RB.val('rf-max'),
-          stops: stops.filter(function (s) { return s.name.trim() || s.addr.trim(); }).map(function (s) { return { time: s.time, name: s.name.trim(), addr: s.addr.trim() }; }) };
+        var out = [], d;
+        for (d = 1; d <= ST.days; d++) {
+          stops.filter(function (s) { return s.day === d && !s.end && (s.name.trim() || s.addr.trim()); }).forEach(function (s) { out.push(stopOut(s)); });
+          var e = endStop(d); if (d < ST.days && e && (e.name || e.addr)) out.push(stopOut(e));
+        }
+        var p = { id: r ? r.id : null, title: title, run_date: new Date(dtv).toISOString(), meeting_point: '', destination: '', meeting: meeting, dest: dest, days: ST.days, route_public: ST.pub,
+          description: RB.val('rf-desc'), km: RB.val('rf-km'), difficulty: diff, route_url: url, nav_tool: nav, status: status, max_participants: RB.val('rf-max'), stops: out };
         RB.act(ctl.right, function () { return RB.write('rc_run_save', { p: p }); }, t('saved')).then(function (x) { if (x && x.ok) ctl.close(true); });
       } } });
     return ctl;
   };
+  function stopOut(s) {
+    var o = { time: s.time, name: s.name.trim(), addr: s.addr.trim(), kind: s.kind || 'altro', day: s.day };
+    if (RBL.hasCoords(s)) { o.lat = s.lat; o.lng = s.lng; }
+    if (s.end) o.end = true;
+    return o;
+  }
 
   /* ---------- formazione ---------- */
   var KIND = { road_captain: 'k_rc', safety: 'k_safety', scopa: 'k_scopa', socio: 'k_socio' };

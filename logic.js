@@ -211,21 +211,158 @@
     return res;
   };
 
-  /* navigazione: ritrovo -> tappe con indirizzo -> destinazione (consecutivi uguali uniti) */
-  L.navPoints = function (run) {
+  /* ---------- luoghi, giorni e distanze ---------- */
+  L.KM_WARN = 500;
+  L.ROAD_FACTOR = 1.25; /* stima: la strada è circa il 25% più lunga della linea d'aria */
+  L.PLACE_KINDS = ['area', 'hotel', 'ristorante', 'hd', 'bar', 'agri', 'altro'];
+  function num(v) { return v === null || v === undefined || v === '' || isNaN(Number(v)) ? null : Number(v); }
+  L.hasCoords = function (p) { return !!p && num(p.lat) !== null && num(p.lng) !== null; };
+  L.haversine = function (a, b) {
+    var R = 6371, rad = Math.PI / 180, dLat = (b.lat - a.lat) * rad, dLng = (b.lng - a.lng) * rad;
+    var x = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    return 2 * R * Math.asin(Math.sqrt(x));
+  };
+  L.runDays = function (run) { var d = parseInt(run && run.days, 10); return d >= 1 && d <= 14 ? d : 1; };
+  function textPlace(txt) { txt = String(txt == null ? '' : txt).trim(); return txt ? { name: '', addr: txt } : null; }
+  L.endOf = function (run, day) {
+    var e = null;
+    ((run && run.stops) || []).forEach(function (s) { if (s && s.end && (parseInt(s.day, 10) || 1) === day) e = s; });
+    return e;
+  };
+  /* luoghi di una giornata in ordine: partenza, tappe, arrivo (la partenza del giorno dopo è l'arrivo del giorno prima) */
+  L.dayPlaces = function (run, day) {
+    run = run || {};
+    var days = L.runDays(run), all = day === undefined || day === null || days === 1;
+    day = all ? 1 : day;
+    var meet = run.meeting || textPlace(run.meeting_point), dest = run.dest || textPlace(run.destination), out = [];
+    var start = day <= 1 ? meet : (L.endOf(run, day - 1) || meet);
+    if (start) out.push(start);
+    (run.stops || []).forEach(function (s) { if (s && !s.end && (all || (parseInt(s.day, 10) || 1) === day)) out.push(s); });
+    var fin = day >= days ? dest : (L.endOf(run, day) || null);
+    if (all && days === 1) fin = dest;
+    if (fin) out.push(fin);
+    return out;
+  };
+  function pointOf(p) {
+    if (!p) return '';
+    if (L.hasCoords(p)) return Number(p.lat).toFixed(6) + ',' + Number(p.lng).toFixed(6);
+    return String(p.addr || '').trim();
+  }
+  /* navigazione: punti (testo o coordinate) del giorno, consecutivi uguali uniti */
+  L.navPoints = function (run, day) {
     var pts = [], last = null;
-    function add(v) {
-      v = String(v == null ? '' : v).trim();
+    L.dayPlaces(run, day).forEach(function (p) {
+      var v = pointOf(p);
       if (!v) return;
       var k = norm(v);
       if (k && k === last) return;
       last = k; pts.push(v);
-    }
-    add(run && run.meeting_point);
-    ((run && run.stops) || []).forEach(function (s) { add(s && s.addr); });
-    add(run && run.destination);
+    });
     return pts;
   };
+  /* km stimati (linea d'aria x fattore) se tutti i luoghi del giorno hanno coordinate, altrimenti null */
+  L.dayKm = function (run, day) {
+    var pl = L.dayPlaces(run, day);
+    if (pl.length < 2) return null;
+    var km = 0, i;
+    for (i = 0; i < pl.length; i++) if (!L.hasCoords(pl[i])) return null;
+    for (i = 1; i < pl.length; i++) km += L.haversine({ lat: +pl[i - 1].lat, lng: +pl[i - 1].lng }, { lat: +pl[i].lat, lng: +pl[i].lng });
+    return Math.round(km * L.ROAD_FACTOR);
+  };
+  L.kmWarn = function (km) { return km !== null && km !== undefined && km >= L.KM_WARN; };
+  L.osrmUrl = function (places) {
+    var c = places.filter(L.hasCoords);
+    if (c.length < 2 || c.length !== places.length) return null;
+    return 'https://router.project-osrm.org/route/v1/driving/' + c.map(function (p) { return Number(p.lng).toFixed(6) + ',' + Number(p.lat).toFixed(6); }).join(';') + '?overview=false';
+  };
+  L.parseOsrm = function (j) {
+    if (!j || j.code !== 'Ok' || !j.routes || !j.routes[0] || typeof j.routes[0].distance !== 'number') return null;
+    return Math.round(j.routes[0].distance / 1000);
+  };
+
+  /* ---------- ricerca luoghi (OpenStreetMap) ---------- */
+  var SEL = {
+    area: ['nwr["highway"="services"]', 'nwr["highway"="rest_area"]'],
+    hotel: ['nwr["tourism"~"^(hotel|motel|hostel|guest_house)$"]["name"]'],
+    ristorante: ['nwr["amenity"="restaurant"]["name"]'],
+    hd: ['nwr["shop"="motorcycle"]["name"~"harley",i]', 'nwr["shop"="motorcycle"]["brand"~"harley",i]'],
+    bar: ['nwr["amenity"~"^(cafe|bar|pub)$"]["name"]'],
+    agri: ['nwr["agritourism"="yes"]["name"]', 'nwr["tourism"="chalet"]["name"]']
+  };
+  L.overpassQuery = function (kind, lat, lng, radiusM) {
+    var sel = SEL[kind];
+    if (!sel || num(lat) === null || num(lng) === null) return null;
+    var r = Math.max(1000, Math.min(100000, Math.round(radiusM || 15000))), at = '(around:' + r + ',' + Number(lat).toFixed(5) + ',' + Number(lng).toFixed(5) + ');';
+    return '[out:json][timeout:25];(' + sel.map(function (s) { return s + at; }).join('') + ');out center tags 120;';
+  };
+  function addrOf(t) {
+    var street = [t['addr:street'], t['addr:housenumber']].filter(Boolean).join(' '), city = t['addr:city'] || t['addr:suburb'] || '';
+    var a = [street, city].filter(Boolean).join(', ');
+    return a || t['addr:full'] || '';
+  }
+  L.parseOverpass = function (j, kind, lat, lng) {
+    var seen = {}, out = [];
+    ((j && j.elements) || []).forEach(function (e) {
+      var t = e.tags || {}, la = num(e.lat !== undefined ? e.lat : e.center && e.center.lat), lo = num(e.lon !== undefined ? e.lon : e.center && e.center.lon);
+      if (la === null || lo === null) return;
+      var name = String(t.name || t.brand || t.operator || '').trim();
+      if (!name && kind !== 'area') return;
+      var key = name.toLowerCase() + '|' + la.toFixed(3) + '|' + lo.toFixed(3);
+      if (seen[key]) return; seen[key] = 1;
+      var extra = kind === 'area' ? [t.operator && t.operator !== name ? t.operator : '', t.ref, t.highway === 'rest_area' ? 'rest area' : ''].filter(Boolean).join(' · ') : '';
+      out.push({ name: name, addr: addrOf(t) || extra, info: addrOf(t) ? extra : '', lat: +la.toFixed(6), lng: +lo.toFixed(6), kind: kind,
+        dist: num(lat) !== null && num(lng) !== null ? Math.round(L.haversine({ lat: +lat, lng: +lng }, { lat: la, lng: lo }) * 10) / 10 : null });
+    });
+    out.sort(function (a, b) { return (a.dist === null ? 1e9 : a.dist) - (b.dist === null ? 1e9 : b.dist); });
+    return out.slice(0, 80);
+  };
+  function nomAddr(it) {
+    var a = it.address || {}, street = [a.road || a.pedestrian || a.footway, a.house_number].filter(Boolean).join(' '),
+      city = a.city || a.town || a.village || a.municipality || a.county || '';
+    var s = [street, city].filter(Boolean).join(', ');
+    return s || String(it.display_name || '').split(',').slice(0, 3).join(',').trim();
+  }
+  L.parseNominatim = function (arr) {
+    var out = [];
+    (Array.isArray(arr) ? arr : []).forEach(function (it) {
+      var la = num(it.lat), lo = num(it.lon);
+      if (la === null || lo === null) return;
+      out.push({ name: String(it.name || '').trim(), addr: nomAddr(it), lat: +la.toFixed(6), lng: +lo.toFixed(6) });
+    });
+    return out;
+  };
+  L.parseReverse = function (it, lat, lng) {
+    if (!it || it.error) return { name: '', addr: '', lat: +Number(lat).toFixed(6), lng: +Number(lng).toFixed(6) };
+    return { name: String(it.name || '').trim(), addr: nomAddr(it), lat: +Number(lat).toFixed(6), lng: +Number(lng).toFixed(6) };
+  };
+  L.parseZones = function (j) {
+    var seen = {}, out = [];
+    ((j && j.elements) || []).forEach(function (e) {
+      var t = e.tags || {}, n = String(t.name || '').trim(), la = num(e.lat !== undefined ? e.lat : e.center && e.center.lat), lo = num(e.lon !== undefined ? e.lon : e.center && e.center.lon);
+      if (!n || la === null || lo === null || seen[n.toLowerCase()]) return;
+      seen[n.toLowerCase()] = 1; out.push({ name: n, lat: +la.toFixed(5), lng: +lo.toFixed(5) });
+    });
+    out.sort(function (a, b) { return a.name.localeCompare(b.name, 'it'); });
+    return out;
+  };
+  L.zonesQuery = function (lat, lng) {
+    return '[out:json][timeout:25];nwr["place"~"^(suburb|quarter)$"]["name"](around:12000,' + Number(lat).toFixed(5) + ',' + Number(lng).toFixed(5) + ');out center tags 120;';
+  };
+  /* punti di partenza predefiniti */
+  L.FUNGO = { name: "Fungo dell'EUR", addr: 'Piazza Pakistan 1, Roma', kind: 'area', lat: 41.824428, lng: 12.462984 };
+  L.CITIES = [
+    { name: 'Roma', lat: 41.9028, lng: 12.4964 }, { name: 'Milano', lat: 45.4642, lng: 9.19 }, { name: 'Napoli', lat: 40.8518, lng: 14.2681 },
+    { name: 'Firenze', lat: 43.7696, lng: 11.2558 }, { name: 'Bologna', lat: 44.4949, lng: 11.3426 }, { name: 'Torino', lat: 45.0703, lng: 7.6869 }
+  ];
+  L.ROME_ZONES = [
+    { name: 'EUR', lat: 41.8336, lng: 12.4708 }, { name: 'Centro storico', lat: 41.8986, lng: 12.4768 }, { name: 'Prati / Vaticano', lat: 41.9067, lng: 12.4604 },
+    { name: 'Trastevere', lat: 41.8896, lng: 12.4697 }, { name: 'San Giovanni / Appio', lat: 41.8858, lng: 12.5071 }, { name: 'Ostiense / Garbatella', lat: 41.8582, lng: 12.4871 },
+    { name: 'Magliana', lat: 41.84, lng: 12.435 }, { name: 'Aurelio', lat: 41.898, lng: 12.435 }, { name: 'Flaminio / Parioli', lat: 41.927, lng: 12.477 },
+    { name: 'Salario / Trieste', lat: 41.918, lng: 12.52 }, { name: 'Nomentano', lat: 41.92, lng: 12.53 }, { name: 'Tiburtino', lat: 41.91, lng: 12.543 },
+    { name: 'Prenestino', lat: 41.89, lng: 12.545 }, { name: 'Casilino / Torre Spaccata', lat: 41.87, lng: 12.58 }, { name: 'Tuscolano / Cinecittà', lat: 41.868, lng: 12.526 },
+    { name: 'Laurentino / Laurentina', lat: 41.79, lng: 12.475 }, { name: 'Monte Mario / Cassia', lat: 41.934, lng: 12.45 }, { name: 'Ostia', lat: 41.73, lng: 12.283 }
+  ];
+
   L.NAV_MAX_WAYPOINTS = 9;
   L.googleNav = function (pts) {
     if (!pts || !pts.length) return null;

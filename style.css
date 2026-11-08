@@ -261,3 +261,28 @@ html[data-th=garage] .list,html[data-th=garage] .card,html[data-th=garage] .run,
 .stat div{min-width:0}
 .stat b{font-size:clamp(16px,5vw,24px);overflow-wrap:anywhere}
 .row .chips{flex-wrap:wrap;justify-content:flex-end}
+
+/* selettore luoghi e Run multi-giorno */
+.kbar{display:flex;gap:6px;overflow-x:auto;padding:2px 2px 10px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.kbar::-webkit-scrollbar{display:none}
+.kchip{flex:none;display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:999px;background:var(--fill);color:var(--tx);font-weight:600;font-size:15px;transition:background .2s,transform .15s}
+.kchip:active{transform:scale(.96)}
+.kchip.on{background:var(--acc);color:#fff}
+.kchip .ic{width:16px;height:16px}
+.pp-def{display:flex;gap:8px;margin-bottom:10px}
+.pp-def .btn{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.pp-pane{margin:10px 0}
+.pp-st{padding:10px 8px;color:var(--mu);font-size:14px}
+.pp-st.er{color:var(--er)}
+.pp-sf{display:flex;gap:8px}
+.pp-sf input{flex:1;min-width:0;border:0;background:var(--fill);border-radius:10px;padding:10px 12px;outline:0;font-size:16px;color:var(--tx)}
+.pp-r.on{background:var(--acc-soft)}
+.pp-cr{display:flex;align-items:center;gap:4px;padding:0 4px 10px;font-weight:600}
+.lnk{color:var(--acc);font-weight:600;font-size:15px}
+.pp-mw{position:relative;border-radius:14px;overflow:hidden}
+.pp-map{height:300px;background:var(--fill)}
+.pp-x{position:absolute;left:50%;top:50%;width:26px;height:26px;margin:-13px 0 0 -13px;pointer-events:none;z-index:500;border:2px solid var(--acc);border-radius:50%;box-shadow:0 0 0 2px #fff}
+.pp-x::after{content:"";position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px 0 0 -2px;background:var(--acc);border-radius:50%}
+.stopc{margin-bottom:10px}
+.stop-h{display:flex;justify-content:space-between;align-items:center;padding:0 4px 4px}
+.stop-h input{border:0;background:var(--fill);border-radius:9px;padding:6px 8px;width:100px;color:var(--tx)}

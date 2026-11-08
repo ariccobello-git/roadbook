@@ -145,7 +145,7 @@
       var box = h('div', { class: 'ask' },
         o.msg ? h('p', { class: 'sm' }, o.msg) : null,
         h('button', { type: 'button', class: 'btn ' + (o.danger ? 'dng' : 'pri'), onclick: function () { fin(true); ctl.close(true); } }, o.ok || RB.t('ok')),
-        h('button', { type: 'button', class: 'btn sec', onclick: function () { fin(false); ctl.close(); } }, RB.t('cancel')));
+        h('button', { type: 'button', class: 'btn sec', onclick: function () { fin(false); ctl.close(); } }, o.no || RB.t('cancel')));
       ctl = RB.sheet({ title: o.title, content: box, cls: 'menu', onclose: function () { fin(false); } });
     });
   };
