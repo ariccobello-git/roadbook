@@ -25,7 +25,7 @@
 
   /* ---------- accesso ---------- */
   function loginScreen(msg, resume) {
-    RB.stopSync(); RB.clear(app); RB.sheets.slice().forEach(function (s) { s.close(true); });
+    RB.stopSync(); RB.sosStopPoll(); RB.clear(app); RB.sheets.slice().forEach(function (s) { if (!(s.opts && s.opts.keep)) s.close(true); });
     var err = h('p', { class: 'err-t', role: 'alert' }, msg || '');
     var code = h('input', { id: 'code', class: 'code', type: 'text', autocomplete: 'off', autocapitalize: 'characters', spellcheck: 'false', maxlength: 12, placeholder: 'XXXX-XXXX', 'aria-label': t('access_code'),
       oninput: function () { var v = RB.normCode(code.value).slice(0, 8); code.value = v.length > 4 ? v.slice(0, 4) + '-' + v.slice(4) : v; }, onkeydown: function (e) { if (e.key === 'Enter') go(); } });
@@ -46,13 +46,13 @@
       h('img', { class: 'logo' + (RB.logoSrc() === 'icon-180.png' ? '' : ' logo-img'), src: RB.logoSrc(), alt: '' }),
       h('h1', null, 'Roadbook'), h('p', { class: 'sub' }, t('login_sub')),
       h('div', { class: 'list' }, h('label', { class: 'field' }, h('span', null, t('access_code')), code)),
-      err, btn, resumeBtn, h('p', { class: 'sm', style: 'text-align:center' }, t('login_help')), h('div', { class: 'lg' }, langs), h('p', { class: 'sm', style: 'text-align:center;opacity:.45;font-size:11px;margin-top:14px', id: 'rel' }, 'Release ' + RB.RELEASE)));
+      err, btn, resumeBtn, h('button', { type: 'button', class: 'btn sos-btn sos-login', id: 'sos-public', onclick: function () { RB.sosOpen('public'); } }, RB.icon('alert'), t('sos_btn')), h('p', { class: 'sm', style: 'text-align:center' }, t('login_help')), h('div', { class: 'lg' }, langs), h('p', { class: 'sm', style: 'text-align:center;opacity:.45;font-size:11px;margin-top:14px', id: 'rel' }, 'Release ' + RB.RELEASE)));
     setTimeout(function () { try { code.focus(); } catch (e) {} }, 300);
   }
 
   function start() {
     RB.render();
-    RB.sync().then(function () { if (RB.S.code) { RB.render(); RB.startSync(); } });
+    RB.sync().then(function () { if (RB.S.code) { RB.render(); RB.startSync(); RB.sosStartPoll(); RB.sosFlush(); } });
   }
 
   /* ---------- struttura ---------- */
@@ -95,8 +95,10 @@
     if (!RB.S.d) { main.appendChild(h('div', { class: 'empty' }, RB.icon('clock'), h('b', null, t('loading')))); return; }
     if (RB.S.me) main.appendChild(h('div', { class: 'whobar' }, h('button', { type: 'button', class: 'who', id: 'who', 'aria-label': t('profile_in_use'), onclick: function () { if (RB.ui.tab !== 'altro') { RB.ui.tab = 'altro'; RB.feel('tap'); window.scrollTo(0, 0); RB.render(); } } },
       h('span', { class: 'who-dot' }, ((RB.S.me.first_name || '?')[0] + (RB.S.me.last_name || '')[0]).toUpperCase()), h('span', { class: 'who-n' }, (RB.S.me.first_name + ' ' + RB.S.me.last_name).trim()), h('span', { class: 'who-p' }, RB.titleName(RB.S.me.title))),
+      h('button', { type: 'button', class: 'who-sos', id: 'sos-btn', 'aria-label': t('sos_btn'), title: t('sos_btn'), onclick: function () { RB.sosOpen('in'); } }, RB.icon('alert')),
       h('button', { type: 'button', class: 'who-out', id: 'who-out', 'aria-label': t('logout'), title: t('logout'), onclick: askLogout }, RB.icon('out'))));
     if (!RB.S.online) main.appendChild(h('div', { class: 'off-bar' }, t('offline')));
+    var sb = RB.sosBanner(); if (sb) main.appendChild(sb);
     if (RB.ui.tab === 'run') hint(main);
     try { RB.views[RB.ui.tab](main); } catch (e) { if (window.console) console.error(e); main.appendChild(h('div', { class: 'empty' }, h('b', null, t('e_generic')))); }
     window.scrollTo(0, y);
@@ -136,6 +138,7 @@
     var emgRow = RB.row({ lead: h('span', { class: 'sos-ic' }, RB.icon('alert')), title: t('sos_title'), sub: RB.emgStatusText(), onclick: function () { RB.emergencyForm(); } });
     root.appendChild(h('div', { class: 'list', id: 'emg-list' }, emgRow));
     if (RB.emg.state === null) RB.emgLoad().then(function (r) { var sb = emgRow.querySelector('.rt span'); if (r && sb) sb.textContent = RB.emgStatusText(); });
+    if (RB.can('emergency_manage')) root.appendChild(h('div', { class: 'list', id: 'sos-manage', style: 'margin-top:10px' }, RB.row({ lead: h('span', { class: 'sos-ic' }, RB.icon('alert')), title: t('sos_manage'), sub: RB.sosCount ? t('sos_open_n', RB.sosCount) : t('sos_manage_sub'), onclick: function () { RB.sosList(); } })));
     root.appendChild(RB.secT(t('dealer')));
     root.appendChild(h('div', { class: 'list', id: 'dealer-list' }, RB.row({ lead: RB.icon('store'), title: RB.dealerName(), sub: t('dealer_sub'), onclick: function () { RB.dealerSheet(); } })));
 
