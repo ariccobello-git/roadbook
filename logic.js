@@ -4,10 +4,11 @@
   var L = {};
 
   /* permessi dei profili di accesso (stessi nomi e stesse dipendenze del database) */
-  L.PERMS = ['members_view', 'phones_view', 'personal_view', 'route_view', 'formation_draft_view', 'runs_edit', 'formation_edit', 'signups_manage', 'photos_moderate', 'members_edit', 'settings_edit', 'profiles_manage', 'reports_view'];
+  L.PERMS = ['members_view', 'phones_view', 'personal_view', 'route_view', 'formation_draft_view', 'runs_edit', 'formation_edit', 'signups_manage', 'photos_moderate', 'members_edit', 'settings_edit', 'profiles_manage', 'reports_view', 'emergency_manage'];
   L.PERM_DEPS = {
     runs_edit: ['route_view'], formation_edit: ['formation_draft_view', 'members_view'], signups_manage: ['members_view'],
     members_edit: ['members_view', 'phones_view', 'personal_view'],
+    emergency_manage: ['members_view', 'phones_view', 'personal_view'],
     phones_view: ['members_view'], personal_view: ['members_view'], profiles_manage: ['members_view'], reports_view: ['members_view']
   };
   L.closePerms = function (list) {

@@ -440,3 +440,13 @@ select{border:0;background:var(--fill);border-radius:10px;padding:9px 10px;color
 /* in sfondo: animazioni ferme, meno lavoro per la GPU */
 html.bg *,html.bg *:before,html.bg *:after{animation-play-state:paused!important}
 .wxs .wx-fogb{filter:none;background:radial-gradient(closest-side,rgba(255,255,255,.4),rgba(255,255,255,0))}
+
+/* emergenza: il rosso è riservato alla sicurezza */
+:root{--sos:#e5352b;--sos-soft:rgba(229,53,43,.12)}
+.sos-ic{width:34px;height:34px;border-radius:11px;background:var(--sos);color:#fff;display:grid;place-items:center;flex:none}
+.sos-ic .ic{width:19px;height:19px;stroke:#fff}
+.sos-note{display:flex;gap:10px;align-items:flex-start;background:var(--sos-soft);border:1px solid rgba(229,53,43,.28);border-radius:16px;padding:12px 14px;font-size:14px;line-height:1.35;margin:2px 0 4px}
+.sos-note .ic{width:22px;height:22px;flex:none;stroke:var(--sos);margin-top:1px}
+.btn.sos-btn{background:linear-gradient(180deg,#f0483d,#d02a20);color:#fff;box-shadow:0 8px 20px rgba(229,53,43,.32)}
+.sos-seg,.sos-blood{flex-wrap:wrap}
+.sos-blood button{min-width:44px}
