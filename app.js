@@ -126,7 +126,7 @@
     if (anyTool) {
       root.appendChild(RB.secT(t('area_staff')));
       var sl = h('div', { class: 'list' });
-      if (RB.can('runs_edit')) sl.appendChild(RB.row({ lead: RB.icon('plus'), title: t('new_run'), onclick: function () { RB.runForm(null); } }));
+      if (RB.can('runs_edit')) sl.appendChild(RB.row({ lead: RB.icon('plus'), title: t('new_run'), onclick: function () { RB.newRun(); } }));
       var nx = RB.runs().filter(function (r) { return r.status === 'programmato' && new Date(r.run_date) > Date.now() - 6 * 3600 * 1000; }).sort(function (a, b) { return new Date(a.run_date) - new Date(b.run_date); })[0];
       if (nx && RB.can('formation_edit')) sl.appendChild(RB.row({ lead: RB.icon('moto'), title: t('formation'), sub: nx.title, onclick: function () { RB.formationEditor(nx.id); } }));
       if (nx && RB.can('signups_manage')) sl.appendChild(RB.row({ lead: RB.icon('check'), title: t('checkin'), sub: nx.title, onclick: function () { RB.openRun(nx.id); } }));

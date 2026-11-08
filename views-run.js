@@ -81,7 +81,7 @@
     var runs = RB.runs().slice(), next, past;
     next = runs.filter(function (r) { return !isPast(r); }).sort(function (a, b) { return new Date(a.run_date) - new Date(b.run_date); });
     past = runs.filter(isPast).sort(function (a, b) { return new Date(b.run_date) - new Date(a.run_date); });
-    root.appendChild(RB.title(t('tab_run'), RB.chapterName(), RB.can('runs_edit') ? RB.iconBtn('plus', t('new_run'), function () { RB.runForm(null); }, true) : null));
+    root.appendChild(RB.title(t('tab_run'), RB.chapterName(), RB.can('runs_edit') ? RB.iconBtn('plus', t('new_run'), function () { RB.newRun(); }, true) : null));
     root.appendChild(RB.seg([{ v: 'next', label: t('upcoming') + (next.length ? ' (' + next.length + ')' : '') }, { v: 'past', label: t('archive') + (past.length ? ' (' + past.length + ')' : '') }], RB.ui.runTab, function (v) { RB.ui.runTab = v; RB.refresh(); }));
     if (RB.ui.runTab === 'past') { archiveFilters(root, past); return; }
     RB.wxBanners(root, next);
@@ -307,6 +307,14 @@
   function nextSunday9() {
     var d = new Date(); d.setDate(d.getDate() + ((7 - d.getDay()) % 7 || 7)); d.setHours(9, 0, 0, 0); return d.toISOString();
   }
+  /* nuovo Run: da zero oppure copiando l'ultimo (come "duplica evento" delle app di eventi) */
+  RB.newRun = function () {
+    var last = RB.runs().filter(function (r) { return r.status !== 'annullato' && isPast(r); }).sort(function (a, b) { return new Date(b.run_date) - new Date(a.run_date); })[0];
+    if (!last) { RB.runForm(null); return; }
+    RB.menu(t('new_run'), [
+      { label: t('nr_scratch'), fn: function () { RB.runForm(null); } },
+      { label: t('nr_copy', last.title), fn: function () { RB.runForm(last.id, { clone: true }); } }]);
+  };
   RB.runForm = function (id, opts) {
     var r = id ? RB.run(id) : null;
     if (r && opts && opts.clone) r = Object.assign({}, r, { id: null, status: 'programmato', run_date: nextSunday9(), km: r.km, formation: [], formation_published: false, title: r.title });
@@ -437,21 +445,26 @@
     var fields = h('div', { class: 'list' },
       RB.field(t('f_title'), RB.input('rf-title', r ? r.title : '', { ph: t('f_title_ph'), max: 80 })),
       RB.field(t('f_datetime'), RB.input('rf-dt', RB.localInput(r ? r.run_date : nextSunday9()), { type: 'datetime-local' })),
-      RB.field(t('distance') + ' (km)', kmInput),
+      RB.field(t('distance') + ' (km)', kmInput));
+    var more = h('div', { class: 'more' }), moreOpen = !!(r && r.id) || !!(opts && opts.clone);
+    more.appendChild(h('div', { class: 'list' },
       RB.field(t('max_places'), RB.input('rf-max', r && r.max_participants != null ? r.max_participants : '', { type: 'number', mode: 'numeric', min: 1, ph: t('no_limit') })),
-      RB.field(t('route_link'), RB.input('rf-url', r ? r.route_url : '', { type: 'url', ph: 'https://' })));
+      RB.field(t('route_link'), RB.input('rf-url', r ? r.route_url : '', { type: 'url', ph: 'https://' }))));
     box.appendChild(fields);
     box.appendChild(h('p', { class: 'sm', style: 'padding:6px 8px' }, t('route_org_only')));
     box.appendChild(RB.secT(t('route_title')));
     box.appendChild(durBox); box.appendChild(tabs); box.appendChild(panel); box.appendChild(kmInfo);
     box.appendChild(h('div', { class: 'list', style: 'margin-top:12px' }, h('div', { class: 'row' }, h('span', { class: 'rt' }, h('b', null, t('route_public')), h('span', null, t('route_public_help'))), RB.toggle(ST.pub, function (v) { ST.pub = v; }))));
-    box.appendChild(RB.secT(t('difficulty')));
-    box.appendChild(RB.seg([{ v: 'facile', label: t('diff_facile') }, { v: 'media', label: t('diff_media') }, { v: 'impegnativa', label: t('diff_impegnativa') }], diff, function (v) { diff = v; }));
-    if (r && r.id) { box.appendChild(RB.secT(t('status'))); box.appendChild(RB.seg([{ v: 'programmato', label: t('st_programmato') }, { v: 'annullato', label: t('st_annullato') }, { v: 'concluso', label: t('st_concluso') }], status, function (v) { status = v; })); }
-    box.appendChild(RB.secT(t('nav_tool')));
-    box.appendChild(RB.seg([{ v: 'apple', label: t('nav_apple') }, { v: 'google', label: t('nav_google') }, { v: 'both', label: t('nav_both') }, { v: 'none', label: t('nav_none') }], nav, function (v) { nav = v; }));
-    box.appendChild(h('p', { class: 'sm', style: 'padding:0 6px' }, t('nav_help')));
-    box.appendChild(h('div', { class: 'list', style: 'margin-top:14px' }, RB.field(t('f_notes'), h('textarea', { id: 'rf-desc', maxlength: 1500, '.value': r ? r.description || '' : '' }))));
+    more.appendChild(RB.secT(t('difficulty')));
+    more.appendChild(RB.seg([{ v: 'facile', label: t('diff_facile') }, { v: 'media', label: t('diff_media') }, { v: 'impegnativa', label: t('diff_impegnativa') }], diff, function (v) { diff = v; }));
+    if (r && r.id) { more.appendChild(RB.secT(t('status'))); more.appendChild(RB.seg([{ v: 'programmato', label: t('st_programmato') }, { v: 'annullato', label: t('st_annullato') }, { v: 'concluso', label: t('st_concluso') }], status, function (v) { status = v; })); }
+    more.appendChild(RB.secT(t('nav_tool')));
+    more.appendChild(RB.seg([{ v: 'apple', label: t('nav_apple') }, { v: 'google', label: t('nav_google') }, { v: 'both', label: t('nav_both') }, { v: 'none', label: t('nav_none') }], nav, function (v) { nav = v; }));
+    more.appendChild(h('p', { class: 'sm', style: 'padding:0 6px' }, t('nav_help')));
+    more.appendChild(h('div', { class: 'list', style: 'margin-top:14px' }, RB.field(t('f_notes'), h('textarea', { id: 'rf-desc', maxlength: 1500, '.value': r ? r.description || '' : '' }))));
+    var moreBtn = h('button', { type: 'button', class: 'btn sec', id: 'rf-more', style: 'margin-top:14px', onclick: function () { moreOpen = !moreOpen; showMore(); } });
+    function showMore() { more.style.display = moreOpen ? '' : 'none'; moreBtn.textContent = moreOpen ? t('less_options') : t('more_options'); moreBtn.setAttribute('aria-expanded', moreOpen ? 'true' : 'false'); }
+    box.appendChild(moreBtn); box.appendChild(more); showMore();
     drawAll();
     var ctl = RB.sheet({ title: r && r.id ? t('edit_run') : t('new_run'), content: box, full: true, leftLabel: t('cancel'),
       right: { label: t('save'), fn: function () {
