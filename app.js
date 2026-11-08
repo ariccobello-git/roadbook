@@ -140,6 +140,7 @@
       if (RB.can('settings_edit')) {
         sl.appendChild(RB.row({ lead: RB.icon('quote'), title: t('how_to_pay'), onclick: function () { RB.payInfoForm(); } }));
         sl.appendChild(RB.row({ lead: RB.icon('edit'), title: t('chapter_settings'), onclick: function () { chapterForm(); } }));
+        sl.appendChild(RB.row({ lead: RB.icon('clock'), title: t('wx_every'), sub: t('wx_every_n', RB.wxInterval()), onclick: function () { wxIntervalForm(); } }));
       }
       sl.appendChild(RB.row({ lead: RB.icon('share'), title: t('share_app'), go: false, onclick: function () {
         var txt = t('share_app_text', RB.chapterName(), RB.appUrl());
@@ -188,6 +189,19 @@
         var name = RB.val('ch-name'); if (!name) { RB.toast(t('e_dati_mancanti'), 'err'); return; }
         var v = { name: name }; if (logo) v.logo = logo;
         RB.act(ctl.right, function () { return RB.write('rc_settings_save', { p_key: 'chapter', p_value: v }); }, t('saved')).then(function (x) { if (x && x.ok) ctl.close(true); });
+      } } });
+  }
+
+  RB.wxInterval = function () {
+    var w = RB.S.d && RB.S.d.settings && RB.S.d.settings.weather;
+    return w && +w.interval === 30 ? 30 : 60;
+  };
+  function wxIntervalForm() {
+    var v = RB.wxInterval();
+    var box = h('div', null, RB.seg([{ v: 30, label: t('min_n', 30) }, { v: 60, label: t('min_n', 60) }], v, function (x) { v = x; }), h('p', { class: 'sm', style: 'padding:8px 6px' }, t('wx_every_help')));
+    var ctl = RB.sheet({ title: t('wx_every'), content: box, leftLabel: t('cancel'),
+      right: { label: t('save'), fn: function () {
+        RB.act(ctl.right, function () { return RB.write('rc_settings_save', { p_key: 'weather', p_value: { interval: v } }); }, t('saved')).then(function (x) { if (x && x.ok) { ctl.close(true); RB.sync(); } });
       } } });
   }
 
