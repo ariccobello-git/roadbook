@@ -1,0 +1,28 @@
+name: Test su dispositivi e browser reali
+on: [push, pull_request, workflow_dispatch]
+jobs:
+  matrice:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Dipendenze e browser (Chromium, Firefox, WebKit/Safari)
+        run: |
+          cd tests
+          npm i --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium firefox webkit
+        shell: bash
+      - name: Server locale
+        run: nohup python3 -m http.server 8123 --bind 127.0.0.1 > /dev/null 2>&1 &
+        shell: bash
+      - name: Test funzionali
+        run: cd tests && node keys.test.js && node logic.test.js
+        shell: bash
+      - name: SOS su telefoni, tablet e computer con motore nativo
+        run: cd tests && ENGINE=native node sos.test.js all
+        shell: bash

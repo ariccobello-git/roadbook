@@ -1,0 +1,1 @@
+{ "name": "roadbook", "private": true, "scripts": { "serve": "python3 -m http.server 8123 --bind 127.0.0.1", "test": "cd tests && npm i --no-audit --no-fund && node keys.test.js && node logic.test.js && node ui.test.js && node wx.test.js && node sos.test.js all" } }
