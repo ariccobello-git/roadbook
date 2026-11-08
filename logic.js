@@ -4,10 +4,10 @@
   var L = {};
 
   /* permessi dei profili di accesso (stessi nomi e stesse dipendenze del database) */
-  L.PERMS = ['members_view', 'phones_view', 'personal_view', 'route_view', 'formation_draft_view', 'runs_edit', 'formation_edit', 'signups_manage', 'photos_moderate', 'members_edit', 'payments_view', 'payments_edit', 'settings_edit', 'profiles_manage', 'reports_view'];
+  L.PERMS = ['members_view', 'phones_view', 'personal_view', 'route_view', 'formation_draft_view', 'runs_edit', 'formation_edit', 'signups_manage', 'photos_moderate', 'members_edit', 'settings_edit', 'profiles_manage', 'reports_view'];
   L.PERM_DEPS = {
     runs_edit: ['route_view'], formation_edit: ['formation_draft_view', 'members_view'], signups_manage: ['members_view'],
-    members_edit: ['members_view', 'phones_view', 'personal_view'], payments_edit: ['payments_view', 'members_view'], payments_view: ['members_view'],
+    members_edit: ['members_view', 'phones_view', 'personal_view'],
     phones_view: ['members_view'], personal_view: ['members_view'], profiles_manage: ['members_view'], reports_view: ['members_view']
   };
   L.closePerms = function (list) {
@@ -197,29 +197,13 @@
     });
     return out;
   };
-  /* stato rata per rata di una persona: i pagamenti coprono le rate in ordine di scadenza */
-  L.planState = function (r, signup, payments, today) {
-    var due = L.dueOf(r, signup), got = L.paidSum(payments, r.id, signup.member_id), rows = L.plan(r, due).map(function (x) { return { due_on: x.due_on, amount: x.amount, cum: x.cum, paid: got >= x.cum - 0.005 }; });
-    var next = rows.filter(function (x) { return !x.paid; })[0] || null, ref = today || new Date().toISOString().slice(0, 10);
-    return { due: due, got: got, rows: rows, next: next, left: next ? Math.round((next.cum - got) * 100) / 100 : 0, late: !!(next && next.due_on && next.due_on < ref) };
+  /* causale del bonifico: segnaposto {run} {cognome} {nome} {rata} (es. "1/2") */
+  L.causale = function (tpl, v) {
+    v = v || {};
+    return String(tpl || '').replace(/\{(run|cognome|nome|rata)\}/g, function (m, k) { return v[k] === undefined || v[k] === null ? '' : String(v[k]); }).replace(/\s+/g, ' ').trim();
   };
-  L.paidSum = function (payments, runId, memberId) { return Math.round((payments || []).filter(function (p) { return p.run_id === runId && p.member_id === memberId; }).reduce(function (a, p) { return a + (+p.amount || 0); }, 0) * 100) / 100; };
-  /* 'none' = nessuna quota, 'unpaid' | 'partial' | 'paid' */
-  L.feeState = function (r, signup, payments) {
-    var due = L.dueOf(r, signup), got = L.paidSum(payments, r.id, signup.member_id);
-    if (!due) return got > 0 ? 'paid' : 'none';
-    return got >= due - 0.005 ? 'paid' : got > 0 ? 'partial' : 'unpaid';
-  };
-  /* riepilogo di un Run: iscritti 'si' con stato, incassato e atteso */
-  L.runFees = function (r, signups, payments) {
-    var rows = (signups || []).filter(function (s) { return s.run_id === r.id && s.status === 'si'; }).map(function (s) {
-      return { signup: s, member_id: s.member_id, due: L.dueOf(r, s), got: L.paidSum(payments, r.id, s.member_id), state: L.feeState(r, s, payments) };
-    });
-    var res = { rows: rows, expected: 0, collected: 0, paid: 0, total: rows.length };
-    rows.forEach(function (x) { res.expected += x.due; res.collected += x.got; if (x.state === 'paid') res.paid++; });
-    res.expected = Math.round(res.expected * 100) / 100; res.collected = Math.round(res.collected * 100) / 100;
-    return res;
-  };
+  /* una persona: importo dovuto e rate (importo + scadenza) */
+  L.schedule = function (r, signup) { var due = L.dueOf(r, signup); return { due: due, rows: L.plan(r, due) }; };
   L.counts = function (signups) {
     var c = { si: 0, forse: 0, no: 0, riders: 0, pass: 0, total: 0, checked: 0 };
     (signups || []).forEach(function (s) {
@@ -480,7 +464,7 @@
     i = h.time.indexOf(k);
     if (i < 0) return null;
     return { t: k, temp: at(h.temperature_2m, i), feels: at(h.apparent_temperature, i), pop: at(h.precipitation_probability, i), precip: at(h.precipitation, i),
-      code: at(h.weather_code, i), wind: at(h.wind_speed_10m, i), gust: at(h.wind_gusts_10m, i), vis: at(h.visibility, i) };
+      code: at(h.weather_code, i), wind: at(h.wind_speed_10m, i), gust: at(h.wind_gusts_10m, i), vis: at(h.visibility, i), uv: at(h.uv_index, i) };
   };
   /* rischio per chi va in moto: level 0 ok, 1 attenzione, 2 critico */
   L.wxFlags = function (r) {
@@ -545,7 +529,7 @@
   L.omUrl = function (lat, lng) {
     if (typeof lat !== 'number' || typeof lng !== 'number' || !isFinite(lat) || !isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
     return 'https://api.open-meteo.com/v1/forecast?latitude=' + lat.toFixed(3) + '&longitude=' + lng.toFixed(3)
-      + '&hourly=temperature_2m,apparent_temperature,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_gusts_10m,visibility'
+      + '&hourly=temperature_2m,apparent_temperature,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_gusts_10m,visibility,uv_index'
       + '&daily=sunrise,sunset,weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,wind_gusts_10m_max'
       + '&timezone=Europe%2FRome&wind_speed_unit=kmh&forecast_days=7';
   };
@@ -570,6 +554,47 @@
     for (i = 0; i < d.time.length; i++) out.push({ date: d.time[i], code: at(d.weather_code, i), max: at(d.temperature_2m_max, i), min: at(d.temperature_2m_min, i), pop: at(d.precipitation_probability_max, i), precip: at(d.precipitation_sum, i), gust: at(d.wind_gusts_10m_max, i), sunrise: d.sunrise ? d.sunrise[i] : null, sunset: d.sunset ? d.sunset[i] : null });
     return out;
   };
+  /* ---- scena meteo animata e consigli per la moto ---- */
+  L.wxIsNight = function (pt, ms) {
+    var d = pt && pt.daily, k = L.romeKey(ms), i = d && d.time ? d.time.indexOf(k.slice(0, 10)) : -1;
+    if (i < 0 || !d.sunrise || !d.sunset || !d.sunrise[i] || !d.sunset[i]) return false;
+    var hh = k.slice(11, 16); return hh < String(d.sunrise[i]).slice(11, 16) || hh > String(d.sunset[i]).slice(11, 16);
+  };
+  /* livelli: rain/wind 0-3, sun 0 nessuno, 1 sereno, 2 sole forte, 3 sole molto forte; sky = tema dello sfondo */
+  L.wxScene = function (rec, night) {
+    if (!rec) return { sky: 'cloud', night: !!night, storm: false, snow: false, rain: 0, wind: 0, sun: 0, cloud: 1, fog: false };
+    var kind = L.wxKind(rec.code), storm = kind === 'thunder', snow = kind === 'snow', rain = 0, wind = 0, sun = 0, cloud = 0, fog = kind === 'fog' || (rec.vis !== null && rec.vis < 2000);
+    var p = rec.precip || 0, w = rec.wind || 0, g = rec.gust || 0;
+    if (storm || kind === 'rain' || kind === 'drizzle' || kind === 'freezing' || p >= 0.3) rain = p >= 4 ? 3 : p >= 1 ? 2 : 1;
+    if (storm) rain = Math.max(rain, 2);
+    if (snow) rain = 0;
+    wind = (w >= 45 || g >= 60) ? 3 : (w >= 30 || g >= 45) ? 2 : (w >= 20 || g >= 35) ? 1 : 0;
+    var clear = (kind === 'clear' || (kind === 'unknown' && !rain)) && !snow && !storm && !fog && !rain;
+    if (clear && !night) { var hot = rec.temp !== null ? rec.temp : 0, uv = rec.uv !== null && rec.uv !== undefined ? rec.uv : 0; sun = (uv >= 8 || hot >= 35) ? 3 : (uv >= 6 || hot >= 30) ? 2 : 1; }
+    cloud = storm || rain ? 3 : kind === 'cloud' ? (rec.code === 3 ? 2 : 1) : snow ? 2 : 0;
+    var sky = storm ? 'storm' : snow ? 'snow' : rain ? 'rain' : fog ? 'fog' : wind >= 2 ? 'wind' : night ? 'night' : sun >= 2 ? 'sun' : clear ? 'clear' : 'cloud';
+    return { sky: sky, night: !!night, storm: storm, snow: snow, rain: rain, wind: wind, sun: sun, cloud: cloud, fog: fog };
+  };
+  var TIP_OF = { thunder: 'thunder', heavy: 'heavy', rain: 'rain', gust: 'gust', wind: 'wind', ice: 'ice', snow: 'snow', fog: 'fog', lowvis: 'fog', cold: 'cold', heat: 'heat' };
+  /* verdetto per la moto sulle prossime ore: livello, finestra migliore, consigli ordinati per gravità, abbigliamento */
+  L.wxRide = function (next, pt) {
+    var first = next.slice(0, 6), level = first.reduce(function (m, x) { return Math.max(m, x.level); }, 0), tips = {}, best = null, run = null, i, order = [];
+    first.forEach(function (x) { x.flags.forEach(function (f) { var k = TIP_OF[f]; if (!k) return; var lv = f === 'thunder' || f === 'ice' || f === 'snow' || f === 'heavy' ? 2 : x.level; if (!(k in tips) || lv > tips[k]) tips[k] = lv; }); });
+    if (first.some(function (x) { return L.wxScene(x.rec, pt ? L.wxIsNight(pt, x.ms) : false).sun >= 2; })) tips.sun = 1;
+    Object.keys(tips).forEach(function (k) { order.push(k); });
+    order.sort(function (a, b) { return tips[b] - tips[a]; });
+    for (i = 0; i < next.length; i++) {
+      var calm = next[i].level === 0 && !(pt && L.wxIsNight(pt, next[i].ms));
+      if (calm && run && next[i].ms - run.to === 3600000) run.to = next[i].ms;
+      else if (calm) run = { from: next[i].ms, to: next[i].ms };
+      else run = null;
+      if (run && (!best || run.to - run.from > best.to - best.from)) best = { from: run.from, to: run.to };
+    }
+    var c = next[0] && next[0].rec, tmp = c ? (c.feels !== null ? c.feels : c.temp) : null;
+    var dress = tmp === null ? null : tmp < 5 ? 1 : tmp < 12 ? 2 : tmp < 20 ? 3 : tmp < 28 ? 4 : 5;
+    return { level: level, tips: order.slice(0, 4), best: best, dress: dress };
+  };
+
   /* luoghi salvati: massimo 12, senza doppioni (stessa posizione entro ~1 km) */
   L.addPlace = function (list, p) {
     list = (list || []).filter(function (x) { return !(Math.abs(x.lat - p.lat) < 0.01 && Math.abs(x.lng - p.lng) < 0.01); });
@@ -584,24 +609,22 @@
       { k: 'date', ty: 'date' }, { k: 'title', ty: 'text' }, { k: 'status', ty: 'text' }, { k: 'days', ty: 'num' }, { k: 'km', ty: 'num' }, { k: 'difficulty', ty: 'text' },
       { k: 'meeting', ty: 'text' }, { k: 'destination', ty: 'text' }, { k: 'riders', ty: 'num' }, { k: 'passengers', ty: 'num' }, { k: 'total', ty: 'num' },
       { k: 'checked', ty: 'num' }, { k: 'maybe', ty: 'num' }, { k: 'max', ty: 'num' }, { k: 'fill', ty: 'num' }, { k: 'wx', ty: 'text' },
-      { k: 'fee', ty: 'num' }, { k: 'collected', ty: 'num', perm: 'payments_view' }, { k: 'paid_n', ty: 'num', perm: 'payments_view' }],
+      { k: 'fee', ty: 'num' }],
     socio: [
       { k: 'last_name', ty: 'text' }, { k: 'first_name', ty: 'text' }, { k: 'title', ty: 'text' }, { k: 'active', ty: 'text' }, { k: 'bike', ty: 'text' }, { k: 'joined_on', ty: 'date' },
       { k: 'phone', ty: 'text', perm: 'phones_view' }, { k: 'email', ty: 'text', perm: 'personal_view' }, { k: 'tessera', ty: 'text', perm: 'personal_view' },
       { k: 'attended', ty: 'num' }, { k: 'signed', ty: 'num' }],
     presenza: [
-      { k: 'date', ty: 'date' }, { k: 'run', ty: 'text' }, { k: 'member', ty: 'text' }, { k: 'answer', ty: 'text' }, { k: 'passengers', ty: 'num' }, { k: 'checked', ty: 'text' }],
-    quota: [
-      { k: 'date', ty: 'date' }, { k: 'run', ty: 'text' }, { k: 'member', ty: 'text' }, { k: 'amount', ty: 'num' }, { k: 'method', ty: 'text' }, { k: 'paid_on', ty: 'date' }, { k: 'note', ty: 'text', perm: 'payments_view' }]
+      { k: 'date', ty: 'date' }, { k: 'run', ty: 'text' }, { k: 'member', ty: 'text' }, { k: 'answer', ty: 'text' }, { k: 'passengers', ty: 'num' }, { k: 'checked', ty: 'text' }]
   };
-  R.DS_PERM = { run: null, socio: 'members_view', presenza: 'members_view', quota: 'payments_view' };
+  R.DS_PERM = { run: null, socio: 'members_view', presenza: 'members_view' };
   R.cols = function (ds, perms) {
     return (R.DATASETS[ds] || []).filter(function (c) { return !c.perm || (perms || []).indexOf(c.perm) >= 0; });
   };
   function yearOf(s) { var m = /^(\d{4})/.exec(String(s || '')); return m ? +m[1] : null; }
   function dstr(iso) { return iso ? String(iso).slice(0, 10) : ''; }
   R.runYear = function (r) { return new Date(r.run_date).getFullYear(); };
-  /* righe del dataset dopo i filtri; ctx: {runs, signups, members, payments, weather, titleName} */
+  /* righe del dataset dopo i filtri; ctx: {runs, signups, members, weather, titleName} */
   R.rows = function (ctx, def) {
     var f = def.filters || {}, y = f.year ? +f.year : null, rows = [], runs = ctx.runs || [], su = ctx.signups || [], byRun = {}, mem = {}, name = function (m) { return m ? (m.last_name + ' ' + m.first_name).trim() : '—'; };
     (ctx.members || []).forEach(function (m) { mem[m.id] = m; });
@@ -615,7 +638,7 @@
         rows.push({ date: dstr(r.run_date), title: r.title, status: r.status, days: L.runDays(r), km: r.km == null ? null : +r.km, difficulty: r.difficulty, meeting: r.meeting_point || '', destination: r.destination || '',
           riders: c.riders, passengers: c.pass, total: c.total, checked: c.checked, maybe: c.forse, max: r.max_participants == null ? null : +r.max_participants,
           fill: r.max_participants ? Math.round(c.total * 100 / r.max_participants) : null, wx: sm && sm.covered ? ['ok', 'warn', 'crit'][sm.level] : '',
-          fee: L.runFee(r) || null, collected: ctx.payments ? L.runFees(r, su, ctx.payments).collected : null, paid_n: ctx.payments ? L.runFees(r, su, ctx.payments).paid : null });
+          fee: L.runFee(r) || null });
       });
     } else if (def.ds === 'socio') {
       var yrs = {}; runs.forEach(function (r) { yrs[r.id] = R.runYear(r); });
@@ -632,13 +655,6 @@
         var r = rm[s.run_id]; if (!r || (y && R.runYear(r) !== y)) return;
         if (f.status && r.status !== f.status) return;
         rows.push({ date: dstr(r.run_date), run: r.title, member: name(mem[s.member_id]), answer: s.status, passengers: s.passengers || 0, checked: s.checked_in ? 'yes' : 'no' });
-      });
-    } else if (def.ds === 'quota') {
-      var qm = {}; runs.forEach(function (r) { qm[r.id] = r; });
-      (ctx.payments || []).forEach(function (p) {
-        var r = qm[p.run_id]; if (!r) return;
-        if (y && R.runYear(r) !== y) return; if (f.method && p.method !== f.method) return;
-        rows.push({ date: dstr(r.run_date), run: r.title, member: name(mem[p.member_id]), amount: p.amount == null ? null : +p.amount, method: p.method || '', paid_on: dstr(p.paid_on), note: p.note || '' });
       });
     }
     var sk = def.sort && def.sort.key, dir = def.sort && def.sort.dir === 'desc' ? -1 : 1;
@@ -666,7 +682,7 @@
     if (!cols.length) return null;
     var f = d.filters || {}, out = { ds: d.ds, cols: cols, filters: {}, sort: null };
     if (f.year && /^\d{4}$/.test(String(f.year))) out.filters.year = String(f.year);
-    ['status', 'role', 'active', 'method'].forEach(function (k) { if (f[k]) out.filters[k] = String(f[k]).slice(0, 40); });
+    ['status', 'role', 'active'].forEach(function (k) { if (f[k]) out.filters[k] = String(f[k]).slice(0, 40); });
     if (d.sort && ok.indexOf(d.sort.key) >= 0) out.sort = { key: d.sort.key, dir: d.sort.dir === 'desc' ? 'desc' : 'asc' };
     return out;
   };
@@ -674,7 +690,6 @@
   R.STANDARD = [
     { id: 'runs', def: { ds: 'run', cols: ['date', 'title', 'status', 'days', 'km', 'total', 'checked', 'fill'], filters: {}, sort: { key: 'date', dir: 'desc' } }, yearly: true },
     { id: 'presenze', def: { ds: 'socio', cols: ['last_name', 'first_name', 'title', 'attended', 'signed'], filters: { active: 'yes' }, sort: { key: 'attended', dir: 'desc' } }, yearly: true },
-    { id: 'quote', def: { ds: 'quota', cols: ['date', 'run', 'member', 'amount', 'method', 'paid_on'], filters: {}, sort: { key: 'paid_on', dir: 'desc' } }, perm: 'payments_view', yearly: true },
     { id: 'soci', def: { ds: 'socio', cols: ['last_name', 'first_name', 'title', 'joined_on', 'bike', 'active'], filters: { active: 'yes' }, sort: { key: 'last_name', dir: 'asc' } } },
     { id: 'meteo', def: { ds: 'run', cols: ['date', 'title', 'status', 'meeting', 'destination', 'wx'], filters: {}, sort: { key: 'date', dir: 'desc' } }, yearly: true }
   ];
@@ -689,19 +704,11 @@
     var sumP = 0, nP = 0; doneY.forEach(function (r) { var c = tot(r); if (c.total) { sumP += c.total; nP++; } });
     var att = {}; su.forEach(function (s) { if (s.checked_in || s.status === 'si') { var r = runs.filter(function (x) { return x.id === s.run_id; })[0]; if (r && R.runYear(r) === year && new Date(r.run_date).getTime() < nowMs) { att[s.member_id] = att[s.member_id] || { n: 0 }; att[s.member_id].n += s.checked_in ? 2 : 1; } } });
     var top = Object.keys(att).map(function (id) { return { id: id, n: att[id].n }; }).sort(function (a, b) { return b.n - a.n; }).slice(0, 5);
-    var act = (ctx.members || []).filter(function (m) { return m.active; }).length, paid = null, expected = null, paidIds = null;
-    if (ctx.payments) {
-      paid = 0; expected = 0; paidIds = [];
-      runs.forEach(function (r) {
-        if (r.status === 'annullato' || R.runYear(r) !== year) return;
-        var F = L.runFees(r, su, ctx.payments); expected += F.expected;
-        ctx.payments.forEach(function (p) { if (p.run_id === r.id) { paid += (+p.amount || 0); paidIds.push(p.member_id); } });
-      });
-    }
+    var act = (ctx.members || []).filter(function (m) { return m.active; }).length;
     return {
       year: year, members: act, runs: doneY.length, km: doneY.reduce(function (a, r) { return a + (+r.km || 0); }, 0), avg: nP ? Math.round(sumP / nP * 10) / 10 : 0, next: next,
       series: done.slice(-8).map(function (r) { return { id: r.id, label: r.title, date: String(r.run_date).slice(0, 10), value: tot(r).total }; }),
-      top: top, paid: paid, expected: expected, payers: paidIds ? new Set(paidIds).size : null, cancelled: runs.filter(function (r) { return r.status === 'annullato' && R.runYear(r) === year; }).length
+      top: top, cancelled: runs.filter(function (r) { return r.status === 'annullato' && R.runYear(r) === year; }).length
     };
   };
   L.yearsOf = function (runs) { var o = {}; (runs || []).forEach(function (r) { o[new Date(r.run_date).getFullYear()] = 1; }); o[new Date().getFullYear()] = 1; return Object.keys(o).map(Number).sort(function (a, b) { return b - a; }); };

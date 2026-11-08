@@ -89,28 +89,6 @@
     });
   }
 
-  function exportPayments(runId) {
-    return lib().then(function (X) {
-      var r = (RB.S.d.runs || []).filter(function (x) { return x.id === runId; })[0], L = window.RBL;
-      if (!r) throw new Error('run');
-      var pays = RB.S.d.payments || [], F = L.runFees(r, RB.signupsOf(runId), pays);
-      var rows = [[RB.t('x_name'), RB.t('x_status'), RB.t('room_assign'), RB.t('extras_title'), RB.t('x_due'), RB.t('x_amount'), RB.t('x_method'), RB.t('x_date'), RB.t('x_note')]];
-      var ids = F.rows.map(function (x) { return x.member_id; });
-      pays.forEach(function (p) { if (p.run_id === runId && ids.indexOf(p.member_id) < 0) ids.push(p.member_id); });
-      ids.map(function (id) { return RB.mem(id); }).filter(Boolean).sort(function (a, b) { return RB.fullName(a).localeCompare(RB.fullName(b)); }).forEach(function (m) {
-        var sg = RB.signupsOf(runId).filter(function (x) { return x.member_id === m.id; })[0], due = sg ? L.dueOf(r, sg) : 0, p = pays.filter(function (x) { return x.run_id === runId && x.member_id === m.id; });
-        var st = sg ? L.feeState(r, sg, pays) : 'paid', label = st === 'none' ? '' : RB.t('fs_' + st), rm = sg ? L.roomOf(r, sg.room) : null,
-          ex = sg ? L.extras(r).filter(function (x) { return +((sg.extras || {})[x.id]) > 0; }).map(function (x) { return x.name + ' x' + sg.extras[x.id]; }).join(', ') : '';
-        if (!p.length) rows.push([RB.fullName(m), label, rm ? rm.name : '', ex, due, '', '', '', '']);
-        p.forEach(function (x) { rows.push([RB.fullName(m), label, rm ? rm.name : '', ex, due, Number(x.amount), RB.t('m_' + x.method), x.paid_on || '', x.note || '']); });
-      });
-      var wb = X.utils.book_new(), ws = X.utils.aoa_to_sheet(rows);
-      ws['!cols'] = [26, 12, 14, 24, 10, 10, 12, 12, 30].map(function (w) { return { wch: w }; });
-      X.utils.book_append_sheet(wb, ws, 'Quote');
-      save(X, wb, 'roadbook-quote-' + String(r.title).replace(/[^\w\-]+/g, '_').slice(0, 40) + '.xlsx');
-    });
-  }
-
   /* tabella qualsiasi (report): intestazioni, righe, nome del foglio */
   function exportTable(name, head, rows) {
     return lib().then(function (X) {
@@ -121,5 +99,5 @@
     });
   }
 
-  RB.xls = { exportTable: exportTable, read: read, template: template, exportMembers: exportMembers, exportCodes: exportCodes, exportPayments: exportPayments };
+  RB.xls = { exportTable: exportTable, read: read, template: template, exportMembers: exportMembers, exportCodes: exportCodes };
 })();

@@ -86,6 +86,8 @@
     var bl = document.getElementById('brand-logo'); if (bl) bl.src = RB.logoSrc();
     RB.clear(main);
     if (!RB.S.d) { main.appendChild(h('div', { class: 'empty' }, RB.icon('clock'), h('b', null, t('loading')))); return; }
+    if (RB.S.me) main.appendChild(h('button', { type: 'button', class: 'who', id: 'who', 'aria-label': t('profile_in_use'), onclick: function () { if (RB.ui.tab !== 'altro') { RB.ui.tab = 'altro'; RB.feel('tap'); window.scrollTo(0, 0); RB.render(); } } },
+      h('span', { class: 'who-dot' }, ((RB.S.me.first_name || '?')[0] + (RB.S.me.last_name || '')[0]).toUpperCase()), h('span', { class: 'who-n' }, (RB.S.me.first_name + ' ' + RB.S.me.last_name).trim()), h('span', { class: 'who-p' }, RB.titleName(RB.S.me.title))));
     if (!RB.S.online) main.appendChild(h('div', { class: 'off-bar' }, t('offline')));
     if (RB.ui.tab === 'run') hint(main);
     try { RB.views[RB.ui.tab](main); } catch (e) { if (window.console) console.error(e); main.appendChild(h('div', { class: 'empty' }, h('b', null, t('e_generic')))); }

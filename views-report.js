@@ -6,7 +6,7 @@
 
   RB.reportCtx = function () {
     var d = RB.S.d;
-    return { runs: d.runs || [], signups: d.signups || [], members: d.members || [], payments: RB.can('payments_view') ? (d.payments || []) : null, weather: d.weather || {},
+    return { runs: d.runs || [], signups: d.signups || [], members: d.members || [], weather: d.weather || {},
       titleName: RB.titleName, now: Date.now() };
   };
   function colLabel(ds, k) { return t('col_' + (ds === 'socio' && k === 'title' ? 'role' : k)); }
@@ -20,7 +20,6 @@
     if (ds === 'run' && k === 'difficulty') return t('diff_' + v);
     if (k === 'active' || (ds === 'presenza' && k === 'checked')) return t(v === 'yes' ? 'yes' : 'no');
     if (ds === 'presenza' && k === 'answer') return t(ANS[v] || 'no_go');
-    if (k === 'method') return RB.has('m_' + v) ? t('m_' + v) : v;
     if (k === 'wx') return t('wx_lv_' + (v === 'crit' ? 2 : v === 'warn' ? 1 : 0));
     if (k === 'amount') return RB.fmt.money(v);
     if (k === 'fill') return v + '%';
@@ -112,7 +111,6 @@
         fl.appendChild(RB.field(t('col_role'), sel('rb-role', [['', t('rep_any')]].concat(RB.profiles().map(function (p) { return [p.key, RB.titleName(p.key)]; })), f.role, function (v) { if (v) f.role = v; else delete f.role; })));
         fl.appendChild(RB.field(t('col_active'), sel('rb-active', [['', t('rep_any')], ['yes', t('yes')], ['no', t('no')]], f.active, function (v) { if (v) f.active = v; else delete f.active; })));
       }
-      if (d.ds === 'quota') fl.appendChild(RB.field(t('col_method'), sel('rb-method', [['', t('rep_any')], ['contanti', t('m_contanti')], ['bonifico', t('m_bonifico')]], f.method, function (v) { if (v) f.method = v; else delete f.method; })));
       dyn.appendChild(fl);
       dyn.appendChild(RB.secT(t('rep_sort')));
       dyn.appendChild(h('div', { class: 'list' },
@@ -183,12 +181,6 @@
       l = h('div', { class: 'list' });
       D.top.forEach(function (x, i) { var m = RB.mem(x.id); if (m) l.appendChild(RB.row({ lead: RB.av(m, 'sm'), title: (i + 1) + '. ' + RB.fullName(m), value: String(x.n), go: false })); });
       root.appendChild(l);
-    }
-    if (D.paid !== null) {
-      var pct = D.expected ? Math.min(100, Math.round(D.paid * 100 / D.expected)) : 0;
-      root.appendChild(RB.secT(t('dash_fees', D.year)));
-      root.appendChild(h('div', { class: 'card', style: 'margin-top:0' }, h('div', { style: 'display:flex;justify-content:space-between' }, h('b', null, RB.fmt.money(D.paid)), h('span', { class: 'sm' }, t('dash_of', RB.fmt.money(D.expected)))),
-        h('div', { class: 'bt', style: 'margin:8px 0' }, h('i', { style: 'width:' + pct + '%' })), h('div', { class: 'sm' }, t('dash_payers', D.payers, D.members))));
     }
     if (D.cancelled) root.appendChild(h('p', { class: 'sm', style: 'padding:0 6px' }, t('dash_cancelled', D.cancelled)));
   }

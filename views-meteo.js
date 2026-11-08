@@ -8,11 +8,36 @@
   function store(a) { try { localStorage.setItem(KEY, JSON.stringify(a)); } catch (e) {} }
   function isSaved(p) { return saved().some(function (x) { return Math.abs(x.lat - p.lat) < 0.01 && Math.abs(x.lng - p.lng) < 0.01; }); }
   function shortName(p) { return (p.name || (p.addr || '').split(',')[0] || '').trim() || t('mt_here'); }
-  function lvOf(list) { return list.reduce(function (m, x) { return Math.max(m, x.level); }, 0); }
+
+  /* scena animata + testi: luogo, temperatura, condizione */
+  function sceneKey(sc) {
+    if (sc.storm) return 'sc_storm'; if (sc.snow) return 'sc_snow'; if (sc.rain) return 'sc_rain' + sc.rain; if (sc.fog) return 'sc_fog';
+    if (sc.sun >= 3) return 'sc_sun3'; if (sc.sun === 2) return 'sc_sun2'; if (sc.wind >= 2) return 'sc_wind' + sc.wind;
+    if (sc.night) return 'sc_night'; return sc.sun === 1 ? 'sc_clear' : 'sc_cloud';
+  }
+  function heroBox(name, d, cur, compact) {
+    var sc = L.wxScene(cur.rec, L.wxIsNight(d, cur.ms)), el = RB.wxScene(sc, compact), rec = cur.rec, lab = t(sceneKey(sc)) + (sc.wind >= 2 && (sc.rain || sc.storm) ? ' · ' + t('sc_windy') : '');
+    el.id = compact ? null : 'mt-hero'; if (!compact) el.setAttribute('data-label', lab);
+    el.appendChild(h('div', { class: 'wxs-in' }, h('div', { class: 'wxs-s' }, name),
+      h('div', { class: 'wxs-row' }, h('div', null, h('div', { class: 'wxs-t' }, (rec.temp !== null ? Math.round(rec.temp) : '—') + '°'), h('div', { class: 'wxs-d' }, lab)),
+        h('div', { class: 'wxs-s', style: 'text-align:right' }, rec.feels !== null && rec.temp !== null && Math.abs(rec.feels - rec.temp) >= 2 ? h('div', null, t('wx_feels') + ' ' + Math.round(rec.feels) + '°') : null,
+          h('div', null, '💨 ' + (rec.wind !== null ? Math.round(rec.wind) : '—') + (rec.gust !== null ? ' · ' + Math.round(rec.gust) : '') + ' km/h'), h('div', null, '💧 ' + (rec.pop !== null ? rec.pop + '%' : '—'))))));
+    return el;
+  }
+  /* verdetto per chi va in moto */
+  function rideCard(rd, next) {
+    var c = h('div', { class: 'ride l' + rd.level, id: 'mt-ride' }, h('div', { class: 'rd-dot' }, ['🏍️', '⚠️', '⛔'][rd.level]),
+      h('div', null, h('b', null, t('ride_' + rd.level)), h('span', null, rd.best ? t('ride_best', RB.wxHm(rd.best.from), RB.wxHm(rd.best.to + 3600000)) : t('ride_nobest'))));
+    var tips = h('ul', { class: 'tips' });
+    rd.tips.forEach(function (k) { tips.appendChild(h('li', null, t('tip_' + k))); });
+    if (rd.dress) tips.appendChild(h('li', null, '🧥 ' + t('dress_' + rd.dress)));
+    return h('div', null, c, h('div', { class: 'card wxc', style: 'margin-top:8px' }, h('div', { class: 'sec-t', style: 'margin:0 0 4px' }, h('span', null, t('ride_title'))), tips));
+  }
 
   /* scheda con le previsioni di un luogo */
   RB.placeWeather = function (pl) {
     var box = h('div'), ctl, star = null;
+    try { localStorage.setItem('rb.wxlast', JSON.stringify({ n: pl.n, lat: pl.lat, lng: pl.lng })); } catch (e) {}
     function drawStar() {
       if (!star) return;
       var on = isSaved(pl);
@@ -31,16 +56,21 @@
       RB.clear(box);
       var d = r.data, now = Date.now(), next = L.wxNext(d, now, 12), days = L.wxDays(d), cur = next[0];
       if (!cur) { box.appendChild(h('div', { class: 'card sm' }, t('wx_nodata'))); return; }
-      var lv = lvOf(next.slice(0, 6));
-      box.appendChild(h('div', { class: 'wx-head' }, RB.chip(t('wx_lv_' + lv), ['ok', 'wa', 'er'][lv]), h('span', { class: 'sm', id: 'mt-upd' }, t('mt_upd', RB.wxHm(new Date(d.at || now).getTime())))));
+      var rd = L.wxRide(next, d);
+      box.appendChild(heroBox(pl.n, d, cur, false));
+      box.appendChild(h('div', { class: 'wx-head', style: 'margin-bottom:0' }, h('span', { class: 'sm', id: 'mt-upd' }, t('mt_upd', RB.wxHm(new Date(d.at || now).getTime())))));
       if (r.cached || !RB.S.online) box.appendChild(h('div', { class: 'banner wa', id: 'mt-stale' }, t('wx_stale', RB.wxHm(new Date(d.at || now).getTime()))));
+      box.appendChild(rideCard(rd, next));
       var worst = next.slice(0, 6).filter(function (x) { return x.level > 0; }).sort(function (a, b) { return b.level - a.level || a.ms - b.ms; })[0];
-      if (worst) box.appendChild(h('div', { class: 'banner ' + (worst.level === 2 ? 'er' : 'wa'), role: worst.level === 2 ? 'alert' : null }, t('mt_alert', RB.wxHm(worst.ms), RB.wxFlagsText(worst.flags))));
-      else box.appendChild(h('div', { class: 'banner acc' }, t('wx_all_ok')));
-      box.appendChild(h('div', { class: 'card wxc', style: 'margin-top:8px' }, h('div', { class: 'sec-t', style: 'margin:0 0 6px' }, h('span', null, t('mt_now'))), h('div', { class: 'wx-m', id: 'mt-cur', style: 'font-size:17px' }, RB.wxMetric(cur.rec))));
-      var hc = h('div', { class: 'card wxc', style: 'margin-top:8px' }, h('div', { class: 'sec-t', style: 'margin:0 0 6px' }, h('span', null, t('mt_hours'))));
-      next.forEach(function (x) { hc.appendChild(h('div', { class: 'wx-pt' }, h('div', { class: 'wx-l' }, h('b', null, RB.wxHm(x.ms))), h('div', { class: 'wx-m' }, RB.wxMetric(x.rec)), x.flags.length ? h('div', { class: 'chips' }, x.flags.map(function (k) { return RB.chip(t('wxf_' + k), x.level === 2 ? 'er' : 'wa'); })) : null)); });
-      box.appendChild(hc);
+      if (worst) box.appendChild(h('div', { class: 'banner ' + (worst.level === 2 ? 'er' : 'wa'), role: worst.level === 2 ? 'alert' : null, style: 'margin-top:10px' }, t('mt_alert', RB.wxHm(worst.ms), RB.wxFlagsText(worst.flags))));
+      box.appendChild(h('div', { class: 'card wxc', style: 'margin-top:10px' }, h('div', { class: 'sec-t', style: 'margin:0 0 6px' }, h('span', null, t('mt_now'))), h('div', { class: 'wx-m', id: 'mt-cur', style: 'font-size:17px' }, RB.wxMetric(cur.rec))));
+      box.appendChild(h('div', { class: 'sec-t' }, h('span', null, t('mt_hours'))));
+      var strip = h('div', { class: 'hstrip', id: 'mt-hours' });
+      next.forEach(function (x) {
+        strip.appendChild(h('div', { class: 'hcell l' + x.level }, h('small', null, RB.wxHm(x.ms)), h('div', { class: 'hi' }, L.WX_ICON[L.wxKind(x.rec.code)]), h('b', null, (x.rec.temp !== null ? Math.round(x.rec.temp) : '—') + '°'),
+          h('small', null, '💧' + (x.rec.pop !== null ? x.rec.pop + '%' : '—')), h('small', null, '💨' + (x.rec.wind !== null ? Math.round(x.rec.wind) : '—'))));
+      });
+      box.appendChild(strip);
       var dc = h('div', { class: 'card wxc', style: 'margin-top:8px' }, h('div', { class: 'sec-t', style: 'margin:0 0 6px' }, h('span', null, t('mt_days'))));
       days.forEach(function (x) {
         var dt = new Date(x.date + 'T12:00:00');
@@ -69,6 +99,14 @@
 
   RB.views.meteo = function (root) {
     root.appendChild(RB.title(t('tab_meteo'), t('mt_sub')));
+    var lastP = null; try { lastP = JSON.parse(localStorage.getItem('rb.wxlast') || 'null'); } catch (e) {}
+    if (lastP && isFinite(lastP.lat) && isFinite(lastP.lng)) {
+      var hh = h('div', { id: 'mt-last', style: 'margin-top:8px;cursor:pointer', role: 'button', tabindex: '0', onclick: function () { RB.placeWeather(lastP); } });
+      root.appendChild(hh);
+      RB.geo.forecast(lastP.lat, lastP.lng).then(function (r) {
+        var cur = L.wxNext(r.data, Date.now(), 1)[0]; if (cur && hh.isConnected !== false) hh.appendChild(heroBox(lastP.n, r.data, cur, true));
+      }, function () {});
+    }
     var res = h('div', { id: 'mt-res', style: 'margin-top:8px' });
     var q = RB.input('mt-q', '', { ph: t('mt_ph'), max: 80 });
     function search() {
