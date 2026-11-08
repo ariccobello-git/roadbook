@@ -13,8 +13,8 @@
   }
   RB.waDigits = waDigits;
   function payInfo() { return (RB.S.d.settings && RB.S.d.settings.payment_info) || {}; }
-  function paymentsOf(memberId, year) { return (RB.S.d.payments || []).filter(function (p) { return p.member_id === memberId && p.year === year; }); }
-  function isPaid(memberId, year) { return paymentsOf(memberId, year).length > 0; }
+  function paysOfMember(memberId) { return (RB.S.d.payments || []).filter(function (p) { return p.member_id === memberId; }); }
+  function runById(id) { return (RB.S.d.runs || []).filter(function (r) { return r.id === id; })[0]; }
   RB.inviteLink = function (code) { return RB.appUrl() + '?c=' + code; };
 
   /* ================= SOCI ================= */
@@ -42,7 +42,6 @@
       src.forEach(function (m) {
         var right = [];
         if (!m.active) right.push(RB.chip(t('inactive'), 'wa'));
-        if (seePay && m.active) right.push(RB.chip(isPaid(m.id, RB.ui.year) ? t('paid') : t('unpaid'), isPaid(m.id, RB.ui.year) ? 'ok' : 'er'));
         box.appendChild(RB.row({ lead: RB.av(m, ''), title: RB.fullName(m), sub: RB.titleName(m.title) + (m.bike ? ' · ' + m.bike : ''), onclick: function () { RB.memberDetail(m.id); },
           right: right.length ? h('span', { class: 'chips', style: 'margin:0' }, right) : null }));
       });
@@ -83,10 +82,16 @@
       if (info.children.length) f.appendChild(info);
       if (m.notes) f.appendChild(h('div', { class: 'card', style: 'white-space:pre-wrap' }, m.notes));
       if (seePay) {
-        var py = RB.ui.year, pays = paymentsOf(m.id, py);
-        f.appendChild(RB.secT(t('fee') + ' ' + py));
-        f.appendChild(h('div', { class: 'list' }, RB.row({ title: pays.length ? t('paid') : t('unpaid'), sub: pays.length ? pays.map(function (p) { return RB.fmt.money(p.amount) + ' · ' + t('m_' + p.method); }).join(', ') : '', go: payEdit,
-          right: RB.chip(pays.length ? t('paid') : t('unpaid'), pays.length ? 'ok' : 'er'), onclick: payEdit ? function () { RB.paymentSheet(m.id, py); } : null })));
+        var pays = paysOfMember(m.id).filter(function (p) { return runById(p.run_id); }).sort(function (x, z) { return String(z.paid_on || '').localeCompare(String(x.paid_on || '')); });
+        if (pays.length) {
+          f.appendChild(RB.secT(t('fees_paid')));
+          var pl = h('div', { class: 'list' });
+          pays.forEach(function (p) {
+            pl.appendChild(RB.row({ title: runById(p.run_id).title, sub: RB.fmt.money(p.amount) + ' · ' + t('m_' + p.method) + (p.paid_on ? ' · ' + RB.fmt.full(p.paid_on) : ''), go: payEdit,
+              onclick: payEdit ? function () { RB.paymentSheet(m.id, p.run_id); } : null }));
+          });
+          f.appendChild(pl);
+        }
       }
       if (edit && m.access_code) {
         f.appendChild(RB.secT(t('invite')));
@@ -297,65 +302,98 @@
     if (!any) root.appendChild(RB.empty('dir', t('no_org'), RB.can('members_edit') ? t('no_org_admin') : ''));
   };
 
-  /* ================= QUOTE ================= */
+  /* ================= QUOTE (per Run) ================= */
+  function stChip(st) { return RB.chip(t('fs_' + st), st === 'paid' ? 'ok' : st === 'partial' ? 'wa' : 'er'); }
+  function feeRuns() {
+    var pays = RB.S.d.payments || [];
+    return (RB.S.d.runs || []).filter(function (r) { return r.status !== 'annullato' && (RBL.runFee(r) || pays.some(function (p) { return p.run_id === r.id; })); })
+      .sort(function (a, b) { return new Date(b.run_date) - new Date(a.run_date); });
+  }
   RB.views.quote = function (root) {
-    var info = payInfo(), me = RB.S.me, seeAll = RB.can('payments_view'), editPay = RB.can('payments_edit'), year = RB.ui.year;
-    var yr = h('div', { class: 'rb' }, RB.iconBtn('chev', '-', function () { RB.ui.year--; RB.refresh(); }), h('b', { style: 'align-self:center;min-width:44px;text-align:center' }, year), RB.iconBtn('chev', '+', function () { RB.ui.year++; RB.refresh(); }));
-    yr.firstChild.querySelector('svg').style.transform = 'rotate(180deg)';
-    root.appendChild(RB.title(t('tab_quote'), t('fee') + ' ' + year, yr));
+    var info = payInfo(), me = RB.S.me, seeAll = RB.can('payments_view'), pays = RB.S.d.payments || [];
+    root.appendChild(RB.title(t('tab_quote'), t('fees_per_run')));
+
+    /* le mie quote: Run a cui partecipo con una quota */
+    root.appendChild(RB.secT(t('my_fees')));
+    var mineBox = h('div', { class: 'list' }), nm = 0;
+    feeRuns().forEach(function (r) {
+      var sg = RB.signupsOf(r.id).filter(function (x) { return x.member_id === me.id && x.status === 'si'; })[0];
+      if (!sg || !RBL.runFee(r)) return;
+      var st = RBL.feeState(r, sg, pays), got = RBL.paidSum(pays, r.id, me.id); nm++;
+      mineBox.appendChild(RB.row({ title: r.title, sub: RB.fmt.day(new Date(r.run_date)) + ' · ' + RB.fmt.money(got) + ' / ' + RB.fmt.money(RBL.dueOf(r, sg)), right: stChip(st), onclick: function () { RB.openRun(r.id); } }));
+    });
+    if (!nm) mineBox.appendChild(h('div', { class: 'empty', style: 'padding:22px' }, t('no_my_fees')));
+    root.appendChild(mineBox);
 
     /* come pagare */
     root.appendChild(RB.secT(t('how_to_pay'), RB.can('settings_edit') ? h('button', { type: 'button', class: 'btn ghost sm2', onclick: function () { RB.payInfoForm(); } }, t('edit')) : null));
     var methods = info.methods || [], c = h('div', { class: 'list' });
-    if (info.annual_fee) c.appendChild(RB.row({ title: t('annual_fee'), value: RB.fmt.money(info.annual_fee), go: false }));
-    if (info.deadline) c.appendChild(RB.row({ title: t('deadline'), value: RB.fmt.full(info.deadline), go: false }));
     if (methods.indexOf('contanti') >= 0) {
       c.appendChild(RB.row({ lead: RB.icon('quote'), title: t('m_contanti'), sub: [info.cash_contact ? t('cash_to') + ' ' + info.cash_contact : '', info.cash_note || ''].filter(Boolean).join(' · ') || t('cash_default'), go: false }));
     }
     if (methods.indexOf('bonifico') >= 0) {
       c.appendChild(RB.row({ lead: RB.icon('quote'), title: t('m_bonifico'), sub: info.holder ? t('holder') + ': ' + info.holder : '', go: false }));
       if (info.iban) c.appendChild(RB.row({ title: 'IBAN', sub: info.iban, cls: 'iban', go: false, right: h('button', { type: 'button', class: 'btn ghost sm2', onclick: function () { RB.copy(info.iban.replace(/\s/g, '')).then(function () { RB.toast(t('copied')); }); } }, RB.icon('copy')) }));
-      if (info.causale) c.appendChild(RB.row({ title: t('causale'), sub: info.causale.replace('{anno}', year), go: false, right: h('button', { type: 'button', class: 'btn ghost sm2', onclick: function () { RB.copy(info.causale.replace('{anno}', year)).then(function () { RB.toast(t('copied')); }); } }, RB.icon('copy')) }));
+      if (info.causale) c.appendChild(RB.row({ title: t('causale'), sub: info.causale, go: false }));
     }
     if (!c.children.length) c.appendChild(h('div', { class: 'empty', style: 'padding:22px' }, t('pay_info_missing')));
     root.appendChild(c);
 
-    /* il mio stato */
-    var mine = paymentsOf(me.id, year);
-    root.appendChild(RB.secT(t('my_fee')));
-    root.appendChild(h('div', { class: 'list' }, RB.row({ title: mine.length ? t('paid') : t('unpaid'), go: false,
-      sub: mine.length ? mine.map(function (p) { return RB.fmt.money(p.amount) + ' · ' + t('m_' + p.method) + (p.paid_on ? ' · ' + RB.fmt.full(p.paid_on) : ''); }).join(', ') : t('not_registered'),
-      right: RB.chip(mine.length ? t('paid') : t('unpaid'), mine.length ? 'ok' : 'er') })));
-
     if (!seeAll) return;
 
-    /* registro (officer) */
-    var act = RB.members().filter(function (m) { return m.active; }), paid = act.filter(function (m) { return isPaid(m.id, year); });
-    var all = (RB.S.d.payments || []).filter(function (p) { return p.year === year; });
-    var cash = 0, bank = 0; all.forEach(function (p) { if (p.method === 'contanti') cash += Number(p.amount); else bank += Number(p.amount); });
+    /* registro per Run (officer) */
     root.appendChild(RB.secT(t('register')));
-    root.appendChild(h('div', { class: 'stat' }, h('div', null, h('b', null, paid.length + '/' + act.length), h('span', null, t('paid'))), h('div', null, h('b', null, RB.fmt.money(cash)), h('span', null, t('m_contanti'))), h('div', null, h('b', null, RB.fmt.money(bank)), h('span', null, t('m_bonifico')))));
-    root.appendChild(RB.seg([{ v: 'all', label: t('f_all') }, { v: 'unpaid', label: t('unpaid') }, { v: 'paid', label: t('paid') }], RB.ui.payFilter, function (v) { RB.ui.payFilter = v; RB.refresh(); }));
+    root.appendChild(RB.seg([{ v: 'all', label: t('f_all') }, { v: 'unpaid', label: t('to_collect') }], RB.ui.payFilter === 'unpaid' ? 'unpaid' : 'all', function (v) { RB.ui.payFilter = v; RB.refresh(); }));
     var box = h('div', { class: 'list', style: 'margin-top:12px' }), n = 0;
-    act.forEach(function (m) {
-      var p = isPaid(m.id, year);
-      if ((RB.ui.payFilter === 'unpaid' && p) || (RB.ui.payFilter === 'paid' && !p)) return;
+    feeRuns().forEach(function (r) {
+      var F = RBL.runFees(r, RB.signupsOf(r.id), pays);
+      if (RB.ui.payFilter === 'unpaid' && (!F.total || F.paid >= F.total)) return;
       n++;
-      box.appendChild(RB.row({ lead: RB.av(m, 'sm'), title: RB.fullName(m), sub: p ? paymentsOf(m.id, year).map(function (x) { return RB.fmt.money(x.amount) + ' · ' + t('m_' + x.method); }).join(', ') : RB.titleName(m.title),
-        right: RB.chip(p ? t('paid') : t('unpaid'), p ? 'ok' : 'er'), onclick: editPay ? function () { RB.paymentSheet(m.id, year); } : null }));
+      box.appendChild(RB.row({ title: r.title, sub: RB.fmt.day(new Date(r.run_date)) + ' · ' + RB.fmt.money(F.collected) + (F.expected ? ' / ' + RB.fmt.money(F.expected) : ''),
+        right: RB.chip(F.paid + '/' + F.total, F.total && F.paid >= F.total ? 'ok' : F.paid ? 'wa' : 'er'), onclick: function () { RB.runFees(r.id); } }));
     });
-    if (!n) box.appendChild(h('div', { class: 'empty', style: 'padding:22px' }, t('no_results')));
+    if (!n) box.appendChild(h('div', { class: 'empty', style: 'padding:22px' }, t('no_fee_runs')));
     root.appendChild(box);
-    root.appendChild(h('button', { type: 'button', class: 'btn ghost', onclick: function () { RB.xls.exportPayments(year).catch(function () { RB.toast(t('e_xls'), 'err'); }); } }, RB.icon('file'), t('export_fees')));
   };
 
-  RB.paymentSheet = function (memberId, year) {
-    var m = RB.mem(memberId), info = payInfo(), method = 'contanti', ctl;
+  /* quote di un Run: chi ha pagato e chi no */
+  RB.runFees = function (runId) {
+    var editPay = RB.can('payments_edit'), filter = 'all', box = h('div'), ctl;
+    function build() {
+      var r = runById(runId); RB.clear(box);
+      if (!r) { ctl.close(true); return; }
+      var pays = RB.S.d.payments || [], F = RBL.runFees(r, RB.signupsOf(r.id), pays), rows = F.rows.slice();
+      pays.forEach(function (p) {
+        if (p.run_id === r.id && !rows.some(function (x) { return x.member_id === p.member_id; })) rows.push({ member_id: p.member_id, due: 0, got: RBL.paidSum(pays, r.id, p.member_id), state: 'paid' });
+      });
+      var cash = 0, bank = 0; pays.forEach(function (p) { if (p.run_id !== r.id) return; if (p.method === 'contanti') cash += Number(p.amount); else bank += Number(p.amount); });
+      box.appendChild(h('div', { style: 'margin:4px 0 8px' }, h('b', null, r.title), h('div', { class: 'sm', style: 'margin:0' }, RB.fmt.day(new Date(r.run_date)) + ' · ' + (RBL.runFee(r) ? RB.fmt.money(RBL.runFee(r)) + ' ' + t('per_person') : t('no_fee')))));
+      box.appendChild(h('div', { class: 'stat' }, h('div', null, h('b', null, F.paid + '/' + F.total), h('span', null, t('paid'))), h('div', null, h('b', null, RB.fmt.money(cash)), h('span', null, t('m_contanti'))), h('div', null, h('b', null, RB.fmt.money(bank)), h('span', null, t('m_bonifico')))));
+      box.appendChild(RB.seg([{ v: 'all', label: t('f_all') }, { v: 'unpaid', label: t('to_collect') }, { v: 'paid', label: t('paid') }], filter, function (v) { filter = v; build(); }));
+      var l = h('div', { class: 'list', style: 'margin-top:12px' }), n = 0;
+      rows.sort(function (a, b) { return RB.fullName(RB.mem(a.member_id)).localeCompare(RB.fullName(RB.mem(b.member_id))); }).forEach(function (x) {
+        var m = RB.mem(x.member_id); if (!m) return;
+        if ((filter === 'unpaid' && x.state === 'paid') || (filter === 'paid' && x.state !== 'paid')) return;
+        n++;
+        l.appendChild(RB.row({ lead: RB.av(m, 'sm'), title: RB.fullName(m), sub: RB.fmt.money(x.got) + (x.due ? ' / ' + RB.fmt.money(x.due) : ''), right: x.state === 'none' ? null : stChip(x.state),
+          go: editPay, onclick: editPay ? function () { RB.paymentSheet(x.member_id, r.id); } : null }));
+      });
+      if (!n) l.appendChild(h('div', { class: 'empty', style: 'padding:22px' }, t('no_results')));
+      box.appendChild(l);
+      box.appendChild(h('button', { type: 'button', class: 'btn ghost', onclick: function () { RB.xls.exportPayments(r.id).catch(function () { RB.toast(t('e_xls'), 'err'); }); } }, RB.icon('file'), t('export_fees')));
+    }
+    ctl = RB.sheet({ title: t('run_fees'), content: box, full: true });
+    ctl.refresh = build; build();
+  };
+
+  RB.paymentSheet = function (memberId, runId) {
+    var m = RB.mem(memberId), r = runById(runId), method = 'contanti', ctl;
     var box = h('div');
     function build() {
       RB.clear(box);
-      var pays = paymentsOf(memberId, year);
-      box.appendChild(h('div', { style: 'display:flex;align-items:center;gap:12px;margin:4px 0 8px' }, RB.av(m, ''), h('div', null, h('b', null, RB.fullName(m)), h('div', { class: 'sm', style: 'margin:0' }, t('fee') + ' ' + year))));
+      var pays = (RB.S.d.payments || []).filter(function (p) { return p.member_id === memberId && p.run_id === runId; }), sg = RB.signupsOf(runId).filter(function (x) { return x.member_id === memberId; })[0];
+      var due = sg ? RBL.dueOf(r, sg) : RBL.runFee(r), got = RBL.paidSum(RB.S.d.payments, runId, memberId), rest = Math.max(0, Math.round((due - got) * 100) / 100);
+      box.appendChild(h('div', { style: 'display:flex;align-items:center;gap:12px;margin:4px 0 8px' }, RB.av(m, ''), h('div', null, h('b', null, RB.fullName(m)), h('div', { class: 'sm', style: 'margin:0' }, r.title + (due ? ' · ' + t('my_due', RB.fmt.money(due)) : '')))));
       if (pays.length) {
         var l = h('div', { class: 'list' });
         pays.forEach(function (p) {
@@ -368,26 +406,24 @@
       }
       box.appendChild(RB.secT(pays.length ? t('add_payment') : t('register_payment')));
       var today = new Date(); today = today.getFullYear() + '-' + ('0' + (today.getMonth() + 1)).slice(-2) + '-' + ('0' + today.getDate()).slice(-2);
-      box.appendChild(h('div', { class: 'list' }, RB.field(t('amount') + ' (€)', RB.input('pf-amt', info.annual_fee || '', { type: 'number', mode: 'decimal', step: '0.01', min: 0 })),
+      box.appendChild(h('div', { class: 'list' }, RB.field(t('amount') + ' (€)', RB.input('pf-amt', pays.length ? (rest || '') : (due || ''), { type: 'number', mode: 'decimal', step: '0.01', min: 0 })),
         RB.field(t('x_date'), RB.input('pf-date', today, { type: 'date' })), RB.field(t('f_notes'), RB.input('pf-note', '', { max: 120 }))));
       box.appendChild(h('div', { style: 'margin-top:12px' }, RB.seg([{ v: 'contanti', label: t('m_contanti') }, { v: 'bonifico', label: t('m_bonifico') }], method, function (v) { method = v; })));
       var b = h('button', { type: 'button', class: 'btn pri', onclick: function () {
         var amt = RB.val('pf-amt').replace(',', '.');
         if (!amt || isNaN(Number(amt)) || Number(amt) < 0) { RB.toast(t('e_importo'), 'err'); return; }
-        RB.act(b, function () { return RB.write('rc_payment_save', { p: { member_id: memberId, year: year, amount: amt, method: method, paid_on: RB.val('pf-date'), note: RB.val('pf-note') } }); }, t('saved')).then(function (x) { if (x && x.ok) build(); });
+        RB.act(b, function () { return RB.write('rc_payment_save', { p: { member_id: memberId, run_id: runId, amount: amt, method: method, paid_on: RB.val('pf-date'), note: RB.val('pf-note') } }); }, t('saved')).then(function (x) { if (x && x.ok) build(); });
       } }, t('save'));
       box.appendChild(b);
     }
-    ctl = RB.sheet({ title: t('fee') + ' ' + year, content: box, full: true });
+    ctl = RB.sheet({ title: t('fee'), content: box, full: true });
     ctl.refresh = null; build();
   };
 
   RB.payInfoForm = function () {
     var info = payInfo(), cash = (info.methods || []).indexOf('contanti') >= 0, bank = (info.methods || []).indexOf('bonifico') >= 0;
-    var box = h('div', null, h('div', { class: 'list' },
-      RB.field(t('annual_fee') + ' (€)', RB.input('pi-fee', info.annual_fee || '', { type: 'number', mode: 'decimal', step: '0.01', min: 0 })),
-      RB.field(t('deadline'), RB.input('pi-dead', info.deadline || '', { type: 'date' }))),
-      h('div', { class: 'list', style: 'margin-top:14px' }, h('div', { class: 'pass' }, h('span', null, t('m_contanti')), RB.toggle(cash, function (v) { cash = v; })), h('div', { class: 'pass' }, h('span', null, t('m_bonifico')), RB.toggle(bank, function (v) { bank = v; }))),
+    var box = h('div', null,
+      h('div', { class: 'list' }, h('div', { class: 'pass' }, h('span', null, t('m_contanti')), RB.toggle(cash, function (v) { cash = v; })), h('div', { class: 'pass' }, h('span', null, t('m_bonifico')), RB.toggle(bank, function (v) { bank = v; }))),
       RB.secT(t('m_contanti')),
       h('div', { class: 'list' }, RB.field(t('cash_to'), RB.input('pi-cc', info.cash_contact || '', { max: 80 })), RB.field(t('f_notes'), RB.input('pi-cn', info.cash_note || '', { max: 160 }))),
       RB.secT(t('m_bonifico')),
@@ -398,7 +434,7 @@
       right: { label: t('save'), fn: function () {
         var iban = RB.val('pi-ib').toUpperCase().replace(/\s+/g, '');
         if (iban && !/^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/.test(iban)) { RB.toast(t('e_iban'), 'err'); return; }
-        var v = { annual_fee: RB.val('pi-fee'), deadline: RB.val('pi-dead'), methods: [cash ? 'contanti' : null, bank ? 'bonifico' : null].filter(Boolean), cash_contact: RB.val('pi-cc'), cash_note: RB.val('pi-cn'),
+        var v = { methods: [cash ? 'contanti' : null, bank ? 'bonifico' : null].filter(Boolean), cash_contact: RB.val('pi-cc'), cash_note: RB.val('pi-cn'),
           holder: RB.val('pi-ho'), iban: iban.replace(/(.{4})/g, '$1 ').trim(), causale: RB.val('pi-ca') };
         RB.act(ctl.right, function () { return RB.write('rc_settings_save', { p_key: 'payment_info', p_value: v }); }, t('saved')).then(function (x) { if (x && x.ok) ctl.close(true); });
       } } });

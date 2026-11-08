@@ -5,9 +5,9 @@
   var ANS = { si: 'yes_go', forse: 'maybe', no: 'no_go' };
 
   RB.reportCtx = function () {
-    var d = RB.S.d, pi = (d.settings && d.settings.payment_info) || {};
+    var d = RB.S.d;
     return { runs: d.runs || [], signups: d.signups || [], members: d.members || [], payments: RB.can('payments_view') ? (d.payments || []) : null, weather: d.weather || {},
-      titleName: RB.titleName, fee: parseFloat(pi.annual_fee) || 0, now: Date.now() };
+      titleName: RB.titleName, now: Date.now() };
   };
   function colLabel(ds, k) { return t('col_' + (ds === 'socio' && k === 'title' ? 'role' : k)); }
   function dateTxt(v) { return v ? new Date(v + 'T12:00:00').toLocaleDateString(RB.loc(), { day: '2-digit', month: '2-digit', year: 'numeric' }) : ''; }

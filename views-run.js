@@ -175,6 +175,15 @@
     if (r.km) info.appendChild(RB.row({ title: t('distance'), value: r.km + ' km', go: false }));
     info.appendChild(RB.row({ title: t('difficulty'), value: t(DIFF[r.difficulty] || 'diff_media'), go: false }));
     if (r.max_participants) info.appendChild(RB.row({ title: t('max_places'), value: String(r.max_participants), go: false }));
+    if (RBL.runFee(r)) {
+      var pays = RB.S.d.payments || [], fst = mine && mine.status === 'si' ? RBL.feeState(r, mine, pays) : 'none';
+      info.appendChild(RB.row({ title: t('run_fee'), sub: fst !== 'none' ? t('my_due', RB.fmt.money(RBL.dueOf(r, mine))) : t('per_person'), value: RB.fmt.money(RBL.runFee(r)), go: false,
+        right: fst !== 'none' ? RB.chip(t('fs_' + fst), fst === 'paid' ? 'ok' : fst === 'partial' ? 'wa' : 'er') : null }));
+    }
+    if (RB.can('payments_view') && (RBL.runFee(r) || (RB.S.d.payments || []).some(function (p) { return p.run_id === r.id; }))) {
+      var F = RBL.runFees(r, signups, RB.S.d.payments || []);
+      info.appendChild(RB.row({ lead: RB.icon('quote'), title: t('run_fees'), sub: F.paid + '/' + F.total + ' · ' + RB.fmt.money(F.collected) + (F.expected ? ' / ' + RB.fmt.money(F.expected) : ''), onclick: function () { RB.runFees(r.id); } }));
+    }
     var ru = seeRoute(r) ? RB.safeUrl(r.route_url) : null;
     if (ru) info.appendChild(RB.row({ lead: RB.icon('route'), title: t('route_link'), href: ru }));
     f.appendChild(info);
@@ -264,7 +273,7 @@
   }
   function runPayload(r, over) {
     var o = { id: r.id, title: r.title, run_date: r.run_date, meeting_point: r.meeting_point || '', destination: r.destination || '', description: r.description || '', km: r.km == null ? '' : String(r.km),
-      difficulty: r.difficulty, route_url: r.route_url || '', stops: r.stops || [], meeting: r.meeting || null, dest: r.dest || null, days: RBL.runDays(r), route_public: !!r.route_public, nav_tool: r.nav_tool || 'both', status: r.status, max_participants: r.max_participants == null ? '' : String(r.max_participants) }, k;
+      difficulty: r.difficulty, route_url: r.route_url || '', stops: r.stops || [], meeting: r.meeting || null, dest: r.dest || null, days: RBL.runDays(r), route_public: !!r.route_public, nav_tool: r.nav_tool || 'both', status: r.status, fee: r.fee == null ? '' : String(r.fee), max_participants: r.max_participants == null ? '' : String(r.max_participants) }, k;
     for (k in over) o[k] = over[k];
     return o;
   }
@@ -445,7 +454,8 @@
     var fields = h('div', { class: 'list' },
       RB.field(t('f_title'), RB.input('rf-title', r ? r.title : '', { ph: t('f_title_ph'), max: 80 })),
       RB.field(t('f_datetime'), RB.input('rf-dt', RB.localInput(r ? r.run_date : nextSunday9()), { type: 'datetime-local' })),
-      RB.field(t('distance') + ' (km)', kmInput));
+      RB.field(t('distance') + ' (km)', kmInput),
+      RB.field(t('run_fee') + ' (€)', RB.input('rf-fee', r && r.fee != null ? r.fee : '', { type: 'number', mode: 'decimal', step: '0.01', min: 0, ph: t('run_fee_ph') })));
     var more = h('div', { class: 'more' }), moreOpen = !!(r && r.id) || !!(opts && opts.clone);
     more.appendChild(h('div', { class: 'list' },
       RB.field(t('max_places'), RB.input('rf-max', r && r.max_participants != null ? r.max_participants : '', { type: 'number', mode: 'numeric', min: 1, ph: t('no_limit') })),
@@ -478,7 +488,7 @@
           var e = endStop(d); if (d < ST.days && e && (e.name || e.addr)) out.push(stopOut(e));
         }
         var p = { id: r ? r.id : null, title: title, run_date: new Date(dtv).toISOString(), meeting_point: '', destination: '', meeting: meeting, dest: dest, days: ST.days, route_public: ST.pub,
-          description: RB.val('rf-desc'), km: RB.val('rf-km'), difficulty: diff, route_url: url, nav_tool: nav, status: status, max_participants: RB.val('rf-max'), stops: out };
+          description: RB.val('rf-desc'), km: RB.val('rf-km'), difficulty: diff, route_url: url, nav_tool: nav, status: status, max_participants: RB.val('rf-max'), fee: RB.val('rf-fee').replace(',', '.'), stops: out };
         RB.act(ctl.right, function () { return RB.geo.withTimes(p).then(function (q) { return RB.write('rc_run_save', { p: q }); }); }, t('saved')).then(function (x) { if (x && x.ok) ctl.close(true); });
       } } });
     return ctl;

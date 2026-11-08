@@ -172,6 +172,26 @@
   };
 
   /* conteggi iscritti di un run */
+  /* quote per Run: quota a persona; chi porta passeggeri paga anche per loro */
+  L.runFee = function (r) { var f = r && r.fee != null ? parseFloat(r.fee) : 0; return isFinite(f) && f > 0 ? f : 0; };
+  L.dueOf = function (r, signup) { return Math.round(L.runFee(r) * (1 + ((signup && signup.passengers) || 0)) * 100) / 100; };
+  L.paidSum = function (payments, runId, memberId) { return Math.round((payments || []).filter(function (p) { return p.run_id === runId && p.member_id === memberId; }).reduce(function (a, p) { return a + (+p.amount || 0); }, 0) * 100) / 100; };
+  /* 'none' = nessuna quota, 'unpaid' | 'partial' | 'paid' */
+  L.feeState = function (r, signup, payments) {
+    var due = L.dueOf(r, signup), got = L.paidSum(payments, r.id, signup.member_id);
+    if (!due) return got > 0 ? 'paid' : 'none';
+    return got >= due - 0.005 ? 'paid' : got > 0 ? 'partial' : 'unpaid';
+  };
+  /* riepilogo di un Run: iscritti 'si' con stato, incassato e atteso */
+  L.runFees = function (r, signups, payments) {
+    var rows = (signups || []).filter(function (s) { return s.run_id === r.id && s.status === 'si'; }).map(function (s) {
+      return { signup: s, member_id: s.member_id, due: L.dueOf(r, s), got: L.paidSum(payments, r.id, s.member_id), state: L.feeState(r, s, payments) };
+    });
+    var res = { rows: rows, expected: 0, collected: 0, paid: 0, total: rows.length };
+    rows.forEach(function (x) { res.expected += x.due; res.collected += x.got; if (x.state === 'paid') res.paid++; });
+    res.expected = Math.round(res.expected * 100) / 100; res.collected = Math.round(res.collected * 100) / 100;
+    return res;
+  };
   L.counts = function (signups) {
     var c = { si: 0, forse: 0, no: 0, riders: 0, pass: 0, total: 0, checked: 0 };
     (signups || []).forEach(function (s) {
@@ -535,7 +555,8 @@
     run: [
       { k: 'date', ty: 'date' }, { k: 'title', ty: 'text' }, { k: 'status', ty: 'text' }, { k: 'days', ty: 'num' }, { k: 'km', ty: 'num' }, { k: 'difficulty', ty: 'text' },
       { k: 'meeting', ty: 'text' }, { k: 'destination', ty: 'text' }, { k: 'riders', ty: 'num' }, { k: 'passengers', ty: 'num' }, { k: 'total', ty: 'num' },
-      { k: 'checked', ty: 'num' }, { k: 'maybe', ty: 'num' }, { k: 'max', ty: 'num' }, { k: 'fill', ty: 'num' }, { k: 'wx', ty: 'text' }],
+      { k: 'checked', ty: 'num' }, { k: 'maybe', ty: 'num' }, { k: 'max', ty: 'num' }, { k: 'fill', ty: 'num' }, { k: 'wx', ty: 'text' },
+      { k: 'fee', ty: 'num' }, { k: 'collected', ty: 'num', perm: 'payments_view' }, { k: 'paid_n', ty: 'num', perm: 'payments_view' }],
     socio: [
       { k: 'last_name', ty: 'text' }, { k: 'first_name', ty: 'text' }, { k: 'title', ty: 'text' }, { k: 'active', ty: 'text' }, { k: 'bike', ty: 'text' }, { k: 'joined_on', ty: 'date' },
       { k: 'phone', ty: 'text', perm: 'phones_view' }, { k: 'email', ty: 'text', perm: 'personal_view' }, { k: 'tessera', ty: 'text', perm: 'personal_view' },
@@ -543,7 +564,7 @@
     presenza: [
       { k: 'date', ty: 'date' }, { k: 'run', ty: 'text' }, { k: 'member', ty: 'text' }, { k: 'answer', ty: 'text' }, { k: 'passengers', ty: 'num' }, { k: 'checked', ty: 'text' }],
     quota: [
-      { k: 'member', ty: 'text' }, { k: 'year', ty: 'num' }, { k: 'amount', ty: 'num' }, { k: 'method', ty: 'text' }, { k: 'paid_on', ty: 'date' }, { k: 'note', ty: 'text', perm: 'payments_view' }]
+      { k: 'date', ty: 'date' }, { k: 'run', ty: 'text' }, { k: 'member', ty: 'text' }, { k: 'amount', ty: 'num' }, { k: 'method', ty: 'text' }, { k: 'paid_on', ty: 'date' }, { k: 'note', ty: 'text', perm: 'payments_view' }]
   };
   R.DS_PERM = { run: null, socio: 'members_view', presenza: 'members_view', quota: 'payments_view' };
   R.cols = function (ds, perms) {
@@ -565,7 +586,8 @@
         var c = L.counts(byRun[r.id] || []), W = ctx.weather && ctx.weather[r.id], sm = W ? L.wxSummary(r, W, ctx.now) : null;
         rows.push({ date: dstr(r.run_date), title: r.title, status: r.status, days: L.runDays(r), km: r.km == null ? null : +r.km, difficulty: r.difficulty, meeting: r.meeting_point || '', destination: r.destination || '',
           riders: c.riders, passengers: c.pass, total: c.total, checked: c.checked, maybe: c.forse, max: r.max_participants == null ? null : +r.max_participants,
-          fill: r.max_participants ? Math.round(c.total * 100 / r.max_participants) : null, wx: sm && sm.covered ? ['ok', 'warn', 'crit'][sm.level] : '' });
+          fill: r.max_participants ? Math.round(c.total * 100 / r.max_participants) : null, wx: sm && sm.covered ? ['ok', 'warn', 'crit'][sm.level] : '',
+          fee: L.runFee(r) || null, collected: ctx.payments ? L.runFees(r, su, ctx.payments).collected : null, paid_n: ctx.payments ? L.runFees(r, su, ctx.payments).paid : null });
       });
     } else if (def.ds === 'socio') {
       var yrs = {}; runs.forEach(function (r) { yrs[r.id] = R.runYear(r); });
@@ -584,9 +606,11 @@
         rows.push({ date: dstr(r.run_date), run: r.title, member: name(mem[s.member_id]), answer: s.status, passengers: s.passengers || 0, checked: s.checked_in ? 'yes' : 'no' });
       });
     } else if (def.ds === 'quota') {
+      var qm = {}; runs.forEach(function (r) { qm[r.id] = r; });
       (ctx.payments || []).forEach(function (p) {
-        if (y && +p.year !== y) return; if (f.method && p.method !== f.method) return;
-        rows.push({ member: name(mem[p.member_id]), year: +p.year, amount: p.amount == null ? null : +p.amount, method: p.method || '', paid_on: dstr(p.paid_on), note: p.note || '' });
+        var r = qm[p.run_id]; if (!r) return;
+        if (y && R.runYear(r) !== y) return; if (f.method && p.method !== f.method) return;
+        rows.push({ date: dstr(r.run_date), run: r.title, member: name(mem[p.member_id]), amount: p.amount == null ? null : +p.amount, method: p.method || '', paid_on: dstr(p.paid_on), note: p.note || '' });
       });
     }
     var sk = def.sort && def.sort.key, dir = def.sort && def.sort.dir === 'desc' ? -1 : 1;
@@ -622,7 +646,7 @@
   R.STANDARD = [
     { id: 'runs', def: { ds: 'run', cols: ['date', 'title', 'status', 'days', 'km', 'total', 'checked', 'fill'], filters: {}, sort: { key: 'date', dir: 'desc' } }, yearly: true },
     { id: 'presenze', def: { ds: 'socio', cols: ['last_name', 'first_name', 'title', 'attended', 'signed'], filters: { active: 'yes' }, sort: { key: 'attended', dir: 'desc' } }, yearly: true },
-    { id: 'quote', def: { ds: 'quota', cols: ['member', 'year', 'amount', 'method', 'paid_on'], filters: {}, sort: { key: 'paid_on', dir: 'desc' } }, perm: 'payments_view', yearly: true },
+    { id: 'quote', def: { ds: 'quota', cols: ['date', 'run', 'member', 'amount', 'method', 'paid_on'], filters: {}, sort: { key: 'paid_on', dir: 'desc' } }, perm: 'payments_view', yearly: true },
     { id: 'soci', def: { ds: 'socio', cols: ['last_name', 'first_name', 'title', 'joined_on', 'bike', 'active'], filters: { active: 'yes' }, sort: { key: 'last_name', dir: 'asc' } } },
     { id: 'meteo', def: { ds: 'run', cols: ['date', 'title', 'status', 'meeting', 'destination', 'wx'], filters: {}, sort: { key: 'date', dir: 'desc' } }, yearly: true }
   ];
@@ -637,9 +661,15 @@
     var sumP = 0, nP = 0; doneY.forEach(function (r) { var c = tot(r); if (c.total) { sumP += c.total; nP++; } });
     var att = {}; su.forEach(function (s) { if (s.checked_in || s.status === 'si') { var r = runs.filter(function (x) { return x.id === s.run_id; })[0]; if (r && R.runYear(r) === year && new Date(r.run_date).getTime() < nowMs) { att[s.member_id] = att[s.member_id] || { n: 0 }; att[s.member_id].n += s.checked_in ? 2 : 1; } } });
     var top = Object.keys(att).map(function (id) { return { id: id, n: att[id].n }; }).sort(function (a, b) { return b.n - a.n; }).slice(0, 5);
-    var fee = ctx.fee || 0, act = (ctx.members || []).filter(function (m) { return m.active; }).length, paid = null, expected = null;
-    if (ctx.payments) { paid = ctx.payments.filter(function (p) { return +p.year === year; }).reduce(function (a, p) { return a + (+p.amount || 0); }, 0); expected = fee * act; }
-    var paidIds = ctx.payments ? ctx.payments.filter(function (p) { return +p.year === year; }).map(function (p) { return p.member_id; }) : null;
+    var act = (ctx.members || []).filter(function (m) { return m.active; }).length, paid = null, expected = null, paidIds = null;
+    if (ctx.payments) {
+      paid = 0; expected = 0; paidIds = [];
+      runs.forEach(function (r) {
+        if (r.status === 'annullato' || R.runYear(r) !== year) return;
+        var F = L.runFees(r, su, ctx.payments); expected += F.expected;
+        ctx.payments.forEach(function (p) { if (p.run_id === r.id) { paid += (+p.amount || 0); paidIds.push(p.member_id); } });
+      });
+    }
     return {
       year: year, members: act, runs: doneY.length, km: doneY.reduce(function (a, r) { return a + (+r.km || 0); }, 0), avg: nP ? Math.round(sumP / nP * 10) / 10 : 0, next: next,
       series: done.slice(-8).map(function (r) { return { id: r.id, label: r.title, date: String(r.run_date).slice(0, 10), value: tot(r).total }; }),
