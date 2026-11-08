@@ -213,6 +213,15 @@
       } } });
   }
 
+  /* ---------- ritorno dallo sfondo (iOS può scartare la memoria grafica: schermo bianco) ---------- */
+  function resumed() {
+    var root = document.documentElement; root.classList.remove('bg');
+    if (!app.firstChild || !document.body.clientHeight) { location.reload(); return; }
+    app.style.display = 'none'; void app.offsetHeight; app.style.display = '';
+  }
+  document.addEventListener('visibilitychange', function () { if (document.hidden) document.documentElement.classList.add('bg'); else resumed(); });
+  window.addEventListener('pageshow', function (e) { if (e.persisted) resumed(); });
+
   /* ---------- avvio ---------- */
   RB.applyPref();
   if ('serviceWorker' in navigator && /^https:|^http:\/\/localhost/.test(location.href)) { window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); }); }

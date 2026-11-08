@@ -437,3 +437,7 @@ select{border:0;background:var(--fill);border-radius:10px;padding:9px 10px;color
 .who-dot{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,var(--g1),var(--g2));color:#fff;font-size:11px;font-weight:700}
 .who-n{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .who-p{padding:2px 8px;border-radius:99px;background:rgba(127,127,127,.16);font-size:12px;white-space:nowrap}
+
+/* in sfondo: animazioni ferme, meno lavoro per la GPU */
+html.bg *,html.bg *:before,html.bg *:after{animation-play-state:paused!important}
+.wxs .wx-fogb{filter:none;background:radial-gradient(closest-side,rgba(255,255,255,.4),rgba(255,255,255,0))}
