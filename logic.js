@@ -714,5 +714,135 @@
   };
   L.yearsOf = function (runs) { var o = {}; (runs || []).forEach(function (r) { o[new Date(r.run_date).getFullYear()] = 1; }); o[new Date().getFullYear()] = 1; return Object.keys(o).map(Number).sort(function (a, b) { return b - a; }); };
 
+  /* ---------- secondo livello: import Run da Excel, calendario, GPX, tessera QR, statistiche ---------- */
+  function nrm(x) { return String(x == null ? '' : x).trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' '); }
+  L.normName = nrm;
+  /* data da cella Excel: numero seriale, testo gg/mm/aaaa o aaaa-mm-gg (+ ora facoltativa) -> Date locale oppure null */
+  L.parseDateCell = function (d, tm) {
+    var y, m, day, hh = 9, mi = 0, mt;
+    if (typeof d === 'number' && isFinite(d)) {
+      var ms = Math.round((d - 25569) * 86400) * 1000, u = new Date(ms); y = u.getUTCFullYear(); m = u.getUTCMonth() + 1; day = u.getUTCDate();
+      var fr = d - Math.floor(d); if (fr > 0) { var tot = Math.round(fr * 1440); hh = Math.floor(tot / 60); mi = tot % 60; }
+    } else {
+      var s = String(d == null ? '' : d).trim();
+      if ((mt = s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})(?:[ T](\d{1,2}):(\d{2}))?$/))) { day = +mt[1]; m = +mt[2]; y = +mt[3]; if (mt[4] != null) { hh = +mt[4]; mi = +mt[5]; } }
+      else if ((mt = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{2}))?/))) { y = +mt[1]; m = +mt[2]; day = +mt[3]; if (mt[4] != null) { hh = +mt[4]; mi = +mt[5]; } }
+      else return null;
+    }
+    if (tm !== undefined && tm !== null && tm !== '') {
+      if (typeof tm === 'number' && tm >= 0 && tm < 1) { var t2 = Math.round(tm * 1440); hh = Math.floor(t2 / 60); mi = t2 % 60; }
+      else { var q = String(tm).trim().match(/^(\d{1,2})[:.](\d{2})/); if (q) { hh = +q[1]; mi = +q[2]; } else return null; }
+    }
+    if (m < 1 || m > 12 || day < 1 || day > 31 || hh > 23 || mi > 59 || y < 2000 || y > 2100) return null;
+    var dt = new Date(y, m - 1, day, hh, mi, 0, 0);
+    return dt.getMonth() === m - 1 && dt.getDate() === day ? dt : null;
+  };
+  var RUN_COLS = { titolo: 'title', title: 'title', data: 'date', date: 'date', ora: 'time', time: 'time', giorni: 'days', days: 'days', ritrovo: 'meeting', destinazione: 'dest', km: 'km', difficolta: 'diff', quota: 'fee', descrizione: 'desc', stato: 'status' };
+  var DIFFS = { facile: 'facile', easy: 'facile', media: 'media', medium: 'media', impegnativa: 'impegnativa', hard: 'impegnativa', difficile: 'impegnativa' };
+  /* righe del foglio "Run" (+ foglio facoltativo "Presenze") -> elenco controllato. existing = Run già presenti, members = soci */
+  L.parseRunRows = function (rows, attRows, existing, members, now) {
+    var out = { items: [], att: [], attErrors: [], total: 0 };
+    if (!rows || !rows.length) return out;
+    var head = rows[0].map(function (h) { return RUN_COLS[nrm(h)] || null; }), seen = {}, ex = {};
+    (existing || []).forEach(function (r) { ex[nrm(r.title) + '|' + String(r.run_date).slice(0, 10)] = 1; });
+    now = now || Date.now();
+    rows.slice(1).forEach(function (row, i) {
+      var o = {}; head.forEach(function (k, c) { if (k) o[k] = row[c]; });
+      if (!Object.keys(o).some(function (k) { return String(o[k] == null ? '' : o[k]).trim() !== ''; })) return;
+      var errs = [], title = String(o.title == null ? '' : o.title).trim(), dt = L.parseDateCell(o.date, o.time);
+      if (!title) errs.push('titolo_mancante'); if (!dt) errs.push('data_non_valida');
+      var days = o.days === '' || o.days == null ? 1 : parseInt(o.days, 10); if (!(days >= 1 && days <= 14)) { errs.push('giorni_non_validi'); days = 1; }
+      var km = o.km === '' || o.km == null ? '' : Math.round(Number(String(o.km).replace(',', '.'))); if (km !== '' && !(km >= 0 && km <= 5000)) { errs.push('km_non_validi'); km = ''; }
+      var fee = o.fee === '' || o.fee == null ? '' : Number(String(o.fee).replace(',', '.')); if (fee !== '' && !(fee >= 0 && fee <= 9999)) { errs.push('quota_non_valida'); fee = ''; }
+      var diff = DIFFS[nrm(o.diff)] || 'media';
+      var stIn = nrm(o.status), status = /annull|cancel/.test(stIn) ? 'annullato' : (dt && dt.getTime() < now) || /conclus|done|fatto/.test(stIn) ? 'concluso' : 'programmato';
+      var key = nrm(title) + '|' + (dt ? dt.toISOString().slice(0, 10) : '');
+      var dup = !!ex[key] || !!seen[key]; seen[key] = 1;
+      out.items.push({ row: i + 2, errors: errs, dup: dup, ok: !errs.length && !dup, key: key, title: title,
+        run: errs.length ? null : { id: null, title: title, run_date: dt.toISOString(), meeting_point: String(o.meeting || '').trim().slice(0, 200), destination: String(o.dest || '').trim().slice(0, 200), description: String(o.desc || '').trim().slice(0, 1000),
+          km: km === '' ? '' : String(km), difficulty: diff, route_url: '', stops: [], meeting: null, dest: null, days: days, route_public: false, nav_tool: 'both', status: status, fee: fee === '' ? '' : String(fee) } });
+    });
+    out.total = out.items.length;
+    if (attRows && attRows.length > 1) {
+      var byName = {}; (members || []).forEach(function (m) { byName[nrm(m.last_name + ' ' + m.first_name)] = m; byName[nrm(m.first_name + ' ' + m.last_name)] = m; });
+      var byKey = {}; out.items.forEach(function (it) { if (!it.errors.length) byKey[nrm(it.title)] = it; });
+      attRows.slice(1).forEach(function (r, i) {
+        var t = nrm(r[0]), nm = nrm(String(r[1] || '') + ' ' + String(r[2] || '')), nm2 = nrm(String(r[2] || '') + ' ' + String(r[1] || ''));
+        if (!t && !nm.trim()) return;
+        var pres = nrm(r[3]); if (pres !== '' && !/^(si|s|x|1|yes|y|presente|true|vero)$/.test(pres)) return;
+        var m = byName[nm] || byName[nm2], it = byKey[t];
+        if (!it) out.attErrors.push({ row: i + 2, why: 'run_sconosciuto' }); else if (!m) out.attErrors.push({ row: i + 2, why: 'socio_sconosciuto', name: String(r[1] || '') + ' ' + String(r[2] || '') });
+        else out.att.push({ key: it.key, member: m.id });
+      });
+    }
+    return out;
+  };
+
+  /* file .ics (RFC 5545) per un Run */
+  function icsEsc(s) { return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n'); }
+  function icsFold(line) { var out = [], b = line; while (b.length > 73) { out.push(b.slice(0, 73)); b = ' ' + b.slice(73); } out.push(b); return out.join('\r\n'); }
+  function icsUtc(d) { function p(n) { return (n < 10 ? '0' : '') + n; } return d.getUTCFullYear() + p(d.getUTCMonth() + 1) + p(d.getUTCDate()) + 'T' + p(d.getUTCHours()) + p(d.getUTCMinutes()) + p(d.getUTCSeconds()) + 'Z'; }
+  L.ics = function (run, chapter, now) {
+    var st = new Date(run.run_date), n = L.runDays(run), en = new Date(st.getTime() + (n > 1 ? n * 86400000 : 8 * 3600000));
+    var desc = [run.destination ? 'Destinazione: ' + run.destination : '', run.km ? run.km + ' km' : '', run.description || ''].filter(Boolean).join('\n');
+    var lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Roadbook//Roma Chapter//IT', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'BEGIN:VEVENT',
+      'UID:' + run.id + '@roadbook', 'DTSTAMP:' + icsUtc(new Date(now || Date.now())), 'DTSTART:' + icsUtc(st), 'DTEND:' + icsUtc(en), 'SUMMARY:' + icsEsc((chapter ? chapter + ' · ' : '') + run.title),
+      run.meeting_point ? 'LOCATION:' + icsEsc(run.meeting_point) : '', desc ? 'DESCRIPTION:' + icsEsc(desc) : '', run.status === 'annullato' ? 'STATUS:CANCELLED' : 'STATUS:CONFIRMED',
+      'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsEsc(run.title), 'TRIGGER:-P1D', 'END:VALARM', 'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsEsc(run.title), 'TRIGGER:-PT2H', 'END:VALARM', 'END:VEVENT', 'END:VCALENDAR'];
+    return lines.filter(Boolean).map(icsFold).join('\r\n') + '\r\n';
+  };
+
+  /* GPX: tappe dai waypoint, oppure dal tracciato (partenza, punti intermedi, arrivo) + chilometri */
+  function hav(a, b) { var R = 6371, r = Math.PI / 180, dLa = (b.lat - a.lat) * r, dLo = (b.lng - a.lng) * r, x = Math.sin(dLa / 2) * Math.sin(dLa / 2) + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLo / 2) * Math.sin(dLo / 2); return 2 * R * Math.asin(Math.sqrt(x)); }
+  function xmlTxt(s) { return String(s || '').replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&').trim(); }
+  L.parseGpx = function (xml, maxStops) {
+    maxStops = maxStops || 8; xml = String(xml || '');
+    if (!/<gpx[\s>]/i.test(xml)) return null;
+    function pts(tag) {
+      var re = new RegExp('<' + tag + '\\b([^>]*?)(?:/>|>([\\s\\S]*?)</' + tag + '>)', 'gi'), out = [], m;
+      while ((m = re.exec(xml))) {
+        var la = /lat\s*=\s*["']([-\d.]+)["']/i.exec(m[1]), lo = /lon\s*=\s*["']([-\d.]+)["']/i.exec(m[1]); if (!la || !lo) continue;
+        var nm = m[2] ? /<name>([\s\S]*?)<\/name>/i.exec(m[2]) : null, p = { lat: +la[1], lng: +lo[1], name: nm ? xmlTxt(nm[1]) : '' };
+        if (isFinite(p.lat) && isFinite(p.lng) && Math.abs(p.lat) <= 90 && Math.abs(p.lng) <= 180) out.push(p);
+      }
+      return out;
+    }
+    var trk = pts('trkpt'); if (!trk.length) trk = pts('rtept');
+    var km = 0, i; for (i = 1; i < trk.length; i++) km += hav(trk[i - 1], trk[i]);
+    var wpt = pts('wpt'), stops;
+    if (wpt.length) stops = wpt.slice(0, maxStops).map(function (p, k) { return { name: (p.name || 'Tappa ' + (k + 1)).slice(0, 60), lat: +p.lat.toFixed(6), lng: +p.lng.toFixed(6) }; });
+    else if (trk.length >= 2) {
+      var n = Math.min(maxStops, Math.max(2, Math.round(km / 60) + 1)), pick = [], cum = [0]; for (i = 1; i < trk.length; i++) cum.push(cum[i - 1] + hav(trk[i - 1], trk[i]));
+      for (i = 0; i < n; i++) { var target = km * i / (n - 1), j = 0; while (j < trk.length - 1 && cum[j] < target) j++; pick.push(trk[j]); }
+      stops = pick.map(function (p, k) { return { name: k === 0 ? 'Partenza' : k === pick.length - 1 ? 'Arrivo' : 'Tappa ' + k, lat: +p.lat.toFixed(6), lng: +p.lng.toFixed(6) }; });
+    } else return { stops: [], km: 0, empty: true };
+    return { stops: stops, km: Math.round(km), empty: false };
+  };
+
+  /* tessera digitale: contenuto del QR (nessun dato personale, solo l'identificativo) */
+  L.qrPayload = function (memberId) { return 'RBK1:' + memberId; };
+  L.parseQr = function (txt) { var m = /^RBK1:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.exec(String(txt || '').trim()); return m ? m[1].toLowerCase() : null; };
+
+  /* statistiche e storico */
+  function isDone(r, now) { return r.status !== 'annullato' && (r.status === 'concluso' || new Date(r.run_date).getTime() < (now || Date.now())); }
+  L.statsMember = function (runs, signups, memberId, now) {
+    var done = (runs || []).filter(function (r) { return isDone(r, now); }), byRun = {}; (signups || []).forEach(function (s) { if (s.member_id === memberId) byRun[s.run_id] = s; });
+    var attended = done.filter(function (r) { return byRun[r.id] && byRun[r.id].checked_in; }), signed = done.filter(function (r) { return byRun[r.id] && byRun[r.id].status === 'si'; });
+    var km = attended.reduce(function (a, r) { return a + (r.km || 0); }, 0), nights = attended.reduce(function (a, r) { return a + (L.runDays(r) > 1 ? L.runDays(r) - 1 : 0); }, 0);
+    var years = {}; attended.forEach(function (r) { var y = new Date(r.run_date).getFullYear(); years[y] = (years[y] || 0) + 1; });
+    var last = attended.slice().sort(function (a, b) { return new Date(b.run_date) - new Date(a.run_date); })[0] || null;
+    return { done: done.length, attended: attended.length, signed: signed.length, rate: done.length ? Math.round(attended.length * 100 / done.length) : 0, km: km, nights: nights, years: years, last: last };
+  };
+  L.statsChapter = function (runs, signups, members, now) {
+    var done = (runs || []).filter(function (r) { return isDone(r, now); }), ids = {}; done.forEach(function (r) { ids[r.id] = r; });
+    var per = {}, tot = 0, byMonth = {}, byMember = {};
+    (signups || []).forEach(function (s) { if (ids[s.run_id] && s.checked_in) { per[s.run_id] = (per[s.run_id] || 0) + 1; byMember[s.member_id] = (byMember[s.member_id] || 0) + 1; } });
+    done.forEach(function (r) { tot += per[r.id] || 0; var k = String(r.run_date).slice(0, 7); byMonth[k] = (byMonth[k] || 0) + 1; });
+    var mm = {}; (members || []).forEach(function (m) { mm[m.id] = m; });
+    var top = Object.keys(byMember).map(function (id) { return { id: id, n: byMember[id], m: mm[id] }; }).filter(function (x) { return x.m; }).sort(function (a, b) { return b.n - a.n; }).slice(0, 5);
+    var withData = done.filter(function (r) { return per[r.id]; });
+    return { runs: done.length, avg: withData.length ? Math.round(tot * 10 / withData.length) / 10 : 0, km: done.reduce(function (a, r) { return a + (r.km || 0); }, 0), top: top, byMonth: byMonth, active: Object.keys(byMember).length };
+  };
+
   if (typeof module !== 'undefined' && module.exports) module.exports = L; else root.RBL = L;
 })(typeof window !== 'undefined' ? window : this);

@@ -70,6 +70,38 @@
     });
   }
 
+
+  /* tutti i fogli di un file -> { Nome: righe } */
+  function readBook(file) {
+    return lib().then(function (X) {
+      return new Promise(function (res, rej) {
+        var fr = new FileReader();
+        fr.onerror = function () { rej(new Error('read')); };
+        fr.onload = function () {
+          try {
+            var wb = X.read(fr.result, { type: 'array' }), out = {};
+            wb.SheetNames.forEach(function (n) { out[n] = X.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: '' }); });
+            res({ names: wb.SheetNames, sheets: out });
+          } catch (e) { rej(e); }
+        };
+        fr.readAsArrayBuffer(file);
+      });
+    });
+  }
+  /* modello per importare Run (e, se vuoi, lo storico delle presenze) */
+  function runTemplate() {
+    return lib().then(function (X) {
+      var wb = X.utils.book_new(), head = ['Titolo', 'Data', 'Ora', 'Giorni', 'Ritrovo', 'Destinazione', 'Km', 'Difficoltà', 'Quota', 'Descrizione', 'Stato'];
+      var ws = X.utils.aoa_to_sheet([head, ['Giro dei Castelli', '15/03/2026', '09:00', 1, 'Ostia, Piazzale del Lido', 'Frascati', 120, 'media', 10, 'Pranzo al sacco', '']]);
+      ws['!cols'] = head.map(function (h0) { return { wch: Math.max(14, h0.length + 4) }; }); X.utils.book_append_sheet(wb, ws, 'Run');
+      var att = X.utils.aoa_to_sheet([['Titolo Run', 'Cognome', 'Nome', 'Presente'], ['Giro dei Castelli', 'Rossi', 'Mario', 'si']]); att['!cols'] = [28, 18, 16, 10].map(function (w) { return { wch: w }; });
+      X.utils.book_append_sheet(wb, att, 'Presenze');
+      var info = X.utils.aoa_to_sheet([[RB.t('x2_help_1')], [RB.t('x2_help_2')], [RB.t('x2_help_3')], [RB.t('x2_help_4')]]); info['!cols'] = [{ wch: 110 }];
+      X.utils.book_append_sheet(wb, info, RB.t('x2_help_sheet'));
+      save(X, wb, 'roadbook-modello-run.xlsx');
+    });
+  }
+
   /* elenco con codice e link di invito per ogni persona (da usare per inviare gli accessi) */
   function exportCodes() {
     return lib().then(function (X) {
@@ -99,5 +131,5 @@
     });
   }
 
-  RB.xls = { exportTable: exportTable, read: read, template: template, exportMembers: exportMembers, exportCodes: exportCodes };
+  RB.xls = { readBook: readBook, runTemplate: runTemplate, exportTable: exportTable, read: read, template: template, exportMembers: exportMembers, exportCodes: exportCodes };
 })();

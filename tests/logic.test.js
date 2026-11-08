@@ -218,4 +218,38 @@ t('dashboard e report', ()=>{
   assert.ok(!R.cols('socio',['members_view']).some(c=>c.k==='phone'||c.k==='email')); assert.ok(R.cols('socio',['phones_view','personal_view']).some(c=>c.k==='email'));
   assert.ok(R.STANDARD.every(s=>R.cleanDef(s.def))); assert.deepStrictEqual(L.yearsOf([{run_date:'2024-05-01T00:00:00Z'}])[0]>=y,true);
 });
+
+t('secondo livello: date Excel, import Run, presenze', () => {
+  const d1 = L.parseDateCell('15/03/2027', '08:30'); assert.strictEqual(d1.getHours(), 8); assert.strictEqual(d1.getDate(), 15);
+  assert.strictEqual(L.parseDateCell('31/02/2027'), null); assert.strictEqual(L.parseDateCell('abc'), null); assert.strictEqual(L.parseDateCell('2027-03-15 07:05').getMinutes(), 5);
+  assert.strictEqual(L.parseDateCell(46000).getFullYear(), 2025); assert.strictEqual(L.parseDateCell('15/03/2027', '25:00'), null); assert.strictEqual(L.parseDateCell('15/03/1999'), null);
+  const mem = [{ id: 'm1', first_name: 'Mario', last_name: 'Rossi' }, { id: 'm2', first_name: 'Anna', last_name: 'Conti' }];
+  const rows = [['Titolo', 'Data', 'Ora', 'Giorni', 'Km', 'Difficoltà', 'Quota'], ['Giro A', '15/03/2030', '8:30', 1, '120', 'Facile', '10,5'], ['Giro A', '15/03/2030'], ['', 'x'], ['Weekend', '10/05/2024', '09:00', 20, '9999'], ['Vecchio', '10/05/2024', '09:00', 2, 300, 'impegnativa', ''], ['', '', '', '', '']];
+  const att = [['Titolo Run', 'Cognome', 'Nome', 'Presente'], ['Vecchio', 'Rossi', 'Mario', 'si'], ['Vecchio', 'Conti', 'Anna', 'no'], ['Vecchio', 'Zeta', 'Zeno', 'x'], ['Inesistente', 'Rossi', 'Mario', 'si'], ['vecchio', 'Anna', 'Conti', '1']];
+  const r = L.parseRunRows(rows, att, [], mem, Date.UTC(2026, 10, 8));
+  assert.strictEqual(r.items.length, 5); assert.ok(r.items[0].ok && r.items[0].run.status === 'programmato' && r.items[0].run.fee === '10.5' && r.items[0].run.difficulty === 'facile');
+  assert.ok(r.items[1].dup && !r.items[1].ok); assert.ok(r.items[2].errors.includes('titolo_mancante'));
+  const w = r.items.find(i => i.title === 'Weekend'); assert.ok(w.errors.includes('giorni_non_validi') && w.errors.includes('km_non_validi'));
+  const v = r.items.find(i => i.title === 'Vecchio'); assert.strictEqual(v.run.status, 'concluso'); assert.strictEqual(r.att.length, 2); assert.strictEqual(r.attErrors.length, 2);
+  const again = L.parseRunRows(rows, null, [{ title: 'Giro A', run_date: r.items[0].run.run_date }], mem); assert.ok(again.items[0].dup);
+  assert.strictEqual(L.parseRunRows([], null, [], mem).items.length, 0); assert.strictEqual(L.parseRunRows([['x']], null, [], mem).items.length, 0);
+});
+t('secondo livello: calendario .ics', () => {
+  const s = L.ics({ id: 'u1', title: 'Giro, dei; Castelli', run_date: '2030-03-15T07:30:00Z', meeting_point: 'Ostia', days: 1, km: 100, description: 'riga1\nriga2' }, 'Roma Chapter', 0);
+  assert.ok(s.startsWith('BEGIN:VCALENDAR\r\n') && s.endsWith('END:VCALENDAR\r\n')); assert.ok(s.includes('SUMMARY:Roma Chapter · Giro\\, dei\\; Castelli')); assert.ok(s.includes('DTSTART:20300315T073000Z') && s.includes('DTEND:20300315T153000Z'));
+  assert.ok(s.includes('DESCRIPTION:100 km\\nriga1\\nriga2')); s.split('\r\n').forEach(l => assert.ok(l.length <= 75, 'riga lunga'));
+  const m = L.ics({ id: 'u2', title: 'Weekend', run_date: '2030-03-15T07:30:00Z', days: 3, status: 'annullato' }, '', 0); assert.ok(m.includes('DTEND:20300318T073000Z') && m.includes('STATUS:CANCELLED'));
+  assert.ok(L.ics({ id: 'u3', title: 'x'.repeat(200), run_date: '2030-03-15T07:30:00Z' }, '', 0).split('\r\n').every(l => l.length <= 75));
+});
+t('secondo livello: GPX, QR, statistiche', () => {
+  const g = L.parseGpx('<gpx><wpt lat="41.9" lon="12.5"><name>Bar &amp; Caffè</name></wpt><wpt lat="42" lon="12.6"/></gpx>'); assert.strictEqual(g.stops.length, 2); assert.strictEqual(g.stops[0].name, 'Bar & Caffè'); assert.strictEqual(g.stops[1].name, 'Tappa 2');
+  const t2 = L.parseGpx('<gpx><trk><trkseg><trkpt lat="41.9" lon="12.5"/><trkpt lat="42.5" lon="12.9"/><trkpt lat="43" lon="13"/></trkseg></trk></gpx>'); assert.strictEqual(t2.stops[0].name, 'Partenza'); assert.strictEqual(t2.stops[t2.stops.length - 1].name, 'Arrivo'); assert.ok(t2.km > 100 && t2.km < 160);
+  assert.strictEqual(L.parseGpx('<html>no</html>'), null); assert.ok(L.parseGpx('<gpx></gpx>').empty); assert.strictEqual(L.parseGpx('<gpx><wpt lat="999" lon="1"/></gpx>').empty, true);
+  const id = '0a1b2c3d-0000-4000-8000-000000000001'; assert.strictEqual(L.parseQr(L.qrPayload(id)), id); assert.strictEqual(L.parseQr('RBK1:xx'), null); assert.strictEqual(L.parseQr('http://evil'), null); assert.strictEqual(L.parseQr(null), null);
+  const runs = [{ id: 'r1', run_date: '2026-01-10T08:00:00Z', km: 100, days: 1, status: 'concluso' }, { id: 'r2', run_date: '2026-02-10T08:00:00Z', km: 300, days: 3, status: 'concluso' }, { id: 'r3', run_date: '2026-03-10T08:00:00Z', km: 50, days: 1, status: 'annullato' }, { id: 'r4', run_date: '2099-03-10T08:00:00Z', km: 50, days: 1, status: 'programmato' }];
+  const su = [{ run_id: 'r1', member_id: 'a', status: 'si', checked_in: true }, { run_id: 'r2', member_id: 'a', status: 'si', checked_in: true }, { run_id: 'r2', member_id: 'b', status: 'si', checked_in: true }, { run_id: 'r3', member_id: 'a', status: 'si', checked_in: true }, { run_id: 'r1', member_id: 'b', status: 'no', checked_in: false }];
+  const sa = L.statsMember(runs, su, 'a', Date.UTC(2026, 5, 1)); assert.deepStrictEqual([sa.done, sa.attended, sa.km, sa.nights, sa.rate], [2, 2, 400, 2, 100]);
+  const sb = L.statsMember(runs, su, 'b', Date.UTC(2026, 5, 1)); assert.deepStrictEqual([sb.attended, sb.rate], [1, 50]); assert.strictEqual(L.statsMember(runs, su, 'zz', Date.UTC(2026, 5, 1)).attended, 0);
+  const c = L.statsChapter(runs, su, [{ id: 'a', first_name: 'A' }, { id: 'b', first_name: 'B' }], Date.UTC(2026, 5, 1)); assert.strictEqual(c.runs, 2); assert.strictEqual(c.avg, 1.5); assert.strictEqual(c.top[0].id, 'a'); assert.strictEqual(c.active, 2);
+});
 console.log(n+' test passati');

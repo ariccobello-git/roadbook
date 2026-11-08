@@ -99,7 +99,7 @@
       h('button', { type: 'button', class: 'who-out', id: 'who-out', 'aria-label': t('logout'), title: t('logout'), onclick: askLogout }, RB.icon('out'))));
     if (!RB.S.online) main.appendChild(h('div', { class: 'off-bar' }, t('offline')));
     var sb = RB.sosBanner(); if (sb) main.appendChild(sb);
-    if (RB.ui.tab === 'run') hint(main);
+    if (RB.ui.tab === 'run') { var nb = RB.noticesBlock(); if (nb) main.appendChild(nb); hint(main); }
     try { RB.views[RB.ui.tab](main); } catch (e) { if (window.console) console.error(e); main.appendChild(h('div', { class: 'empty' }, h('b', null, t('e_generic')))); }
     window.scrollTo(0, y);
   };
@@ -134,11 +134,13 @@
       shown = !shown; var c = RB.S.code; csub.textContent = shown ? c.slice(0, 4) + '-' + c.slice(4) : '••••-••••'; csub.className = shown ? 'iban' : ''; this.textContent = shown ? t('hide') : t('show');
     } }, t('show')));
     root.appendChild(h('div', { class: 'list' }, codeRow));
+    RB.extrasSection(root);
     root.appendChild(RB.secT(t('sos_title')));
     var emgRow = RB.row({ lead: h('span', { class: 'sos-ic' }, RB.icon('alert')), title: t('sos_title'), sub: RB.emgStatusText(), onclick: function () { RB.emergencyForm(); } });
     root.appendChild(h('div', { class: 'list', id: 'emg-list' }, emgRow));
     if (RB.emg.state === null) RB.emgLoad().then(function (r) { var sb = emgRow.querySelector('.rt span'); if (r && sb) sb.textContent = RB.emgStatusText(); });
     if (RB.can('emergency_manage')) root.appendChild(h('div', { class: 'list', id: 'sos-manage', style: 'margin-top:10px' }, RB.row({ lead: h('span', { class: 'sos-ic' }, RB.icon('alert')), title: t('sos_manage'), sub: RB.sosCount ? t('sos_open_n', RB.sosCount) : t('sos_manage_sub'), onclick: function () { RB.sosList(); } })));
+    if (RB.can('emergency_manage')) root.appendChild(h('div', { class: 'list', id: 'push-list', style: 'margin-top:10px' }, RB.pushRow()));
     root.appendChild(RB.secT(t('dealer')));
     root.appendChild(h('div', { class: 'list', id: 'dealer-list' }, RB.row({ lead: RB.icon('store'), title: RB.dealerName(), sub: t('dealer_sub'), onclick: function () { RB.dealerSheet(); } })));
 

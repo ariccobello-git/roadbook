@@ -497,3 +497,25 @@ html.bg *,html.bg *:before,html.bg *:after{animation-play-state:paused!important
 @keyframes tileIn{from{opacity:0;transform:translateY(14px) scale(.97)}}
 @keyframes gaugeIn{from{transform:scaleX(0)}}
 @media (prefers-reduced-motion:reduce){.tile,.gauge i{animation:none}}
+
+/* funzioni di secondo livello */
+.notice{background:var(--glass);border:1px solid var(--sep);border-radius:18px;padding:12px 14px;margin:0 0 10px;box-shadow:var(--sh)}
+.notice.pin{border-color:rgba(10,132,255,.45)}
+.notice b{display:block;font-size:16px}.notice p{margin:4px 0;white-space:pre-wrap;font-size:14.5px}.notice small{color:var(--mu)}
+.xcard{background:linear-gradient(135deg,#1c3b8a,#0a84ff);color:#fff;border-radius:26px;padding:18px;box-shadow:0 14px 34px rgba(10,80,200,.35)}
+.xc-top{display:flex;justify-content:space-between;font-weight:700;opacity:.9;margin-bottom:12px}
+.xc-who{display:flex;gap:12px;align-items:center}.xc-who b{display:block;font-size:20px}.xc-who span{display:block;opacity:.85;font-size:14px}
+.xqr{background:#fff;border-radius:18px;padding:12px;margin:16px auto 10px;width:min(78vw,300px);aspect-ratio:1;display:grid;place-items:center;color:#000}
+.xqr svg{width:100%;height:100%}
+.xcard .sm{color:rgba(255,255,255,.85)}
+.xvwrap{border-radius:20px;overflow:hidden;background:#000;aspect-ratio:3/4;max-height:56vh;display:grid;place-items:center}
+.xvideo{width:100%;height:100%;object-fit:cover}
+.xscan-out{margin-top:10px;padding:14px;border-radius:16px;background:var(--fill);text-align:center;min-height:56px}
+.xscan-out.ok{background:rgba(48,176,90,.2)}.xscan-out.ko{background:rgba(255,159,10,.2)}
+.xstats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.xs{background:var(--glass);border:1px solid var(--sep);border-radius:20px;padding:14px;text-align:center}
+.xs b{display:block;font:800 28px ui-rounded,-apple-system,sans-serif}.xs span{font-size:12.5px;color:var(--mu)}
+.xbars{display:flex;gap:6px;align-items:flex-end;margin-top:10px;height:110px}
+.xbar{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;font-size:11px}
+.xbar i{width:100%;max-width:22px;border-radius:6px 6px 2px 2px;background:linear-gradient(180deg,#5ac8fa,#0a84ff);animation:gaugeIn .8s cubic-bezier(.2,.8,.2,1) both;transform-origin:bottom}
+.xbar span{color:var(--mu)}

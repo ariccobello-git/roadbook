@@ -189,6 +189,7 @@
     RB.weatherSection(r, f, ctl);
     routeSection(r, f);
     navSection(r, f);
+    RB.runExtras(f, r, cSign);
 
     /* la mia risposta */
     if (r.status === 'programmato' && !past) {
@@ -560,7 +561,7 @@
         var from = endStop(d - 1) || meeting;
         panel.appendChild(h('div', { class: 'list' }, RB.row({ lead: RB.icon('pin'), title: t('day_start'), sub: from ? RB.placeLabel(from) : t('pp_choose'), go: false })));
       }
-      panel.appendChild(RB.secT(t('stops'), h('button', { type: 'button', class: 'btn ghost sm2', onclick: function () { if (stops.length < 40) { stops.push({ time: '', name: '', addr: '', kind: 'altro', day: d, end: false }); drawPanel(); } } }, RB.icon('plus'), t('add'))));
+      panel.appendChild(RB.secT(t('stops'), h('span', { style: 'display:flex;gap:6px' }, h('button', { type: 'button', class: 'btn ghost sm2', id: 'rf-gpx', onclick: function () { RB.gpxPick(function (g) { g.stops.forEach(function (p) { if (stops.length < 40) stops.push({ time: '', name: p.name, addr: '', kind: 'altro', lat: p.lat, lng: p.lng, day: d, end: false }); }); if (g.km && !ST.kmTouched) { var kk = document.getElementById('rf-km'); if (kk && !kk.value) kk.value = g.km; } drawPanel(); RB.toast(t('x2_gpx_ok', g.stops.length)); }); } }, 'GPX'), h('button', { type: 'button', class: 'btn ghost sm2', onclick: function () { if (stops.length < 40) { stops.push({ time: '', name: '', addr: '', kind: 'altro', day: d, end: false }); drawPanel(); } } }, RB.icon('plus'), t('add')))));
       var mine = stops.filter(function (s) { return s.day === d && !s.end; });
       if (!mine.length) panel.appendChild(h('p', { class: 'sm', style: 'padding:0 6px' }, t('stops_none')));
       mine.forEach(function (s, i) { panel.appendChild(stopCard(s, i)); });
