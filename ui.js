@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   var RB = window.RB = window.RB || {};
-  RB.RELEASE = '3.2.3';
+  RB.RELEASE = '3.2.4';
 
   /* ---------- DOM sicuro: i testi sono sempre nodi di testo, mai HTML ---------- */
   function add(el, kids) {
@@ -226,7 +226,6 @@
   };
   RB.safeUrl = function (u) { return /^https?:\/\//i.test(u || '') ? u : null; };
   RB.hue = function (s) { var x = 0, i; s = String(s || ''); for (i = 0; i < s.length; i++) x = (x * 31 + s.charCodeAt(i)) % 360; return x; };
-  RB.debounce = function (fn, ms) { var t; return function () { var a = arguments, s = this; clearTimeout(t); t = setTimeout(function () { fn.apply(s, a); }, ms); }; };
   RB.icon = function (name) {
     var P = {
       sun: 'M12 16a4 4 0 100-8 4 4 0 000 8zM12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4', run: 'M3 17l4-8 3 5 3-9 4 12M3 21h18', soci: 'M16 11a4 4 0 10-8 0M4 21a8 8 0 0116 0', dir: 'M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.3 6.8 19.1l1-5.8L3.5 9.2l5.9-.9z',
