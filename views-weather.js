@@ -43,6 +43,8 @@
     return parts.join('  ');
   }
 
+  RB.wxMetric = metric; RB.wxHm = hhmm; RB.wxFlagsText = flagsText;
+
   /* sezione meteo del dettaglio Run */
   RB.weatherSection = function (r, f, ctl) {
     var win = L.wxWindow(r, Date.now()), W = RB.wxOf(r.id), past = r.status !== 'programmato' || win.after;

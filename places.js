@@ -50,6 +50,21 @@
       if (!u) return Promise.resolve(null);
       return getJson(u, 15000).then(L.parseOsrm, function () { return null; });
     },
+    /* previsioni di un luogo (Open-Meteo); ultimo risultato conservato per l'uso senza segnale */
+    forecast: function (lat, lng) {
+      var u = L.omUrl(lat, lng), key = 'rb.wxp.' + lat.toFixed(2) + ',' + lng.toFixed(2);
+      if (!u) return Promise.reject(new Error('coords'));
+      return getJson(u, 15000).then(function (j) {
+        var d = L.parseOm(j); if (!d) throw new Error('data');
+        d.at = new Date().toISOString();
+        try { localStorage.setItem(key, JSON.stringify(d)); } catch (e) {}
+        return { data: d, cached: false };
+      }).catch(function (e) {
+        var c = null; try { c = JSON.parse(localStorage.getItem(key) || 'null'); } catch (x) {}
+        if (c && c.hourly) return { data: c, cached: true };
+        throw e;
+      });
+    },
     /* aggiunge a meeting/tappe/destinazione i minuti di percorso dal navigatore (tm); in caso di errore lascia invariato */
     withTimes: function (p) {
       var days = p.days || 1, jobs = [], d;

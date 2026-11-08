@@ -492,6 +492,43 @@
     return { before: nowMs < s, during: nowMs >= s && nowMs <= e, after: nowMs > e, startMs: s, endMs: e, daysTo: (s - nowMs) / 86400000 };
   };
 
+
+  /* ---------- meteo di un luogo qualsiasi (Open-Meteo, dal telefono) ---------- */
+  L.omUrl = function (lat, lng) {
+    if (typeof lat !== 'number' || typeof lng !== 'number' || !isFinite(lat) || !isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+    return 'https://api.open-meteo.com/v1/forecast?latitude=' + lat.toFixed(3) + '&longitude=' + lng.toFixed(3)
+      + '&hourly=temperature_2m,apparent_temperature,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_gusts_10m,visibility'
+      + '&daily=sunrise,sunset,weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,wind_gusts_10m_max'
+      + '&timezone=Europe%2FRome&wind_speed_unit=kmh&forecast_days=7';
+  };
+  L.parseOm = function (j) {
+    if (!j || !j.hourly || !j.hourly.time || !j.hourly.time.length || !j.daily || !j.daily.time) return null;
+    return { hourly: j.hourly, daily: j.daily };
+  };
+  /* prossime n ore a partire dall'ora corrente */
+  L.wxNext = function (pt, nowMs, n) {
+    var out = [], base = Math.floor(nowMs / 3600000) * 3600000, i, rec, fl;
+    for (i = 0; i < n; i++) {
+      rec = L.wxHour(pt, base + i * 3600000);
+      if (!rec) continue;
+      fl = L.wxFlags(rec);
+      out.push({ ms: base + i * 3600000, rec: rec, level: fl.level, flags: fl.flags });
+    }
+    return out;
+  };
+  L.wxDays = function (pt) {
+    var d = pt && pt.daily, out = [], i;
+    if (!d || !d.time) return out;
+    for (i = 0; i < d.time.length; i++) out.push({ date: d.time[i], code: at(d.weather_code, i), max: at(d.temperature_2m_max, i), min: at(d.temperature_2m_min, i), pop: at(d.precipitation_probability_max, i), precip: at(d.precipitation_sum, i), gust: at(d.wind_gusts_10m_max, i), sunrise: d.sunrise ? d.sunrise[i] : null, sunset: d.sunset ? d.sunset[i] : null });
+    return out;
+  };
+  /* luoghi salvati: massimo 12, senza doppioni (stessa posizione entro ~1 km) */
+  L.addPlace = function (list, p) {
+    list = (list || []).filter(function (x) { return !(Math.abs(x.lat - p.lat) < 0.01 && Math.abs(x.lng - p.lng) < 0.01); });
+    list.unshift({ n: String(p.n || '').slice(0, 80), lat: +p.lat, lng: +p.lng });
+    return list.slice(0, 12);
+  };
+
   /* ---------- dashboard e report ---------- */
   var R = L.report = {};
   R.DATASETS = {

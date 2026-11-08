@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   var RB = window.RB, h = RB.h, t = RB.t, app = document.getElementById('app');
-  var TABS = [['run', 'run', 'tab_run'], ['soci', 'soci', 'tab_soci'], ['dir', 'dir', 'tab_dir'], ['quote', 'quote', 'tab_quote'], ['report', 'chart', 'tab_report'], ['altro', 'altro', 'tab_altro']];
+  var TABS = [['run', 'run', 'tab_run'], ['meteo', 'sun', 'tab_meteo'], ['soci', 'soci', 'tab_soci'], ['dir', 'dir', 'tab_dir'], ['quote', 'quote', 'tab_quote'], ['report', 'chart', 'tab_report'], ['altro', 'altro', 'tab_altro']];
   var lastSig = '', pending = false, installEvt = null, shellKey = '';
   /* Soci e Direttivo servono solo a chi può vedere l'elenco dei soci */
   function visibleTabs() { return TABS.filter(function (x) { return x[0] === 'report' ? RB.can('reports_view') : ((x[0] !== 'soci' && x[0] !== 'dir') || RB.can('members_view')); }); }
