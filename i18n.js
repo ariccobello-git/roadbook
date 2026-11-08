@@ -364,7 +364,7 @@
     wx_ago: ["{0} h fa", "{0} h ago", "il y a {0} h"],
     wx_stale: ["Ultima verifica alle {0}: se non hai segnale, questo è l'ultimo dato disponibile.", "Last check at {0}: if you have no signal, this is the latest data available.", "Dernière vérification à {0} : sans signal, c'est la dernière donnée disponible."],
     wx_all_ok: ["Nessuna criticità prevista lungo il percorso", "No issues expected along the route", "Aucun problème prévu le long du parcours"],
-    wx_note: ["Orari stimati a 65 km/h con 20 minuti a ogni tappa. 💧 probabilità e quantità di pioggia · 💨 vento (raffiche) · 👁 visibilità. Dati Open-Meteo.", "Times estimated at 65 km/h with 20 minutes per stop. 💧 rain chance and amount · 💨 wind (gusts) · 👁 visibility. Open-Meteo data.", "Horaires estimés à 65 km/h avec 20 minutes par étape. 💧 probabilité et quantité de pluie · 💨 vent (rafales) · 👁 visibilité. Données Open-Meteo."],
+    wx_note: ["Orari calcolati con i tempi di percorso del navigatore (stima a 65 km/h se non disponibili) più 20 minuti a ogni tappa. 💧 probabilità e quantità di pioggia · 💨 vento (raffiche) · 👁 visibilità. Dati Open-Meteo.", "Times based on navigation route durations (65 km/h estimate if unavailable) plus 20 minutes per stop. 💧 rain chance and amount · 💨 wind (gusts) · 👁 visibility. Open-Meteo data.", "Horaires basés sur les durées d'itinéraire du navigateur (estimation à 65 km/h sinon) plus 20 minutes par étape. 💧 probabilité et quantité de pluie · 💨 vent (rafales) · 👁 visibilité. Données Open-Meteo."],
     wx_nodata: ["Dati non disponibili per quest'ora", "No data for this hour", "Pas de données pour cette heure"],
     wx_feels: ["perc.", "feels", "ress."],
     wx_gust: ["raff.", "gusts", "raf."],

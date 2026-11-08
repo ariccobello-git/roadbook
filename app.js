@@ -43,7 +43,7 @@
       h('img', { class: 'logo' + (RB.logoSrc() === 'icon-180.png' ? '' : ' logo-img'), src: RB.logoSrc(), alt: '' }),
       h('h1', null, 'Roadbook'), h('p', { class: 'sub' }, t('login_sub')),
       h('div', { class: 'list' }, h('label', { class: 'field' }, h('span', null, t('access_code')), code)),
-      err, btn, h('p', { class: 'sm', style: 'text-align:center' }, t('login_help')), h('div', { class: 'lg' }, langs)));
+      err, btn, h('p', { class: 'sm', style: 'text-align:center' }, t('login_help')), h('div', { class: 'lg' }, langs), h('p', { class: 'sm', style: 'text-align:center;opacity:.45;font-size:11px;margin-top:14px', id: 'rel' }, 'Release ' + RB.RELEASE)));
     setTimeout(function () { try { code.focus(); } catch (e) {} }, 300);
   }
 

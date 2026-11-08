@@ -49,6 +49,17 @@
       var u = L.osrmUrl(places);
       if (!u) return Promise.resolve(null);
       return getJson(u, 15000).then(L.parseOsrm, function () { return null; });
+    },
+    /* aggiunge a meeting/tappe/destinazione i minuti di percorso dal navigatore (tm); in caso di errore lascia invariato */
+    withTimes: function (p) {
+      var days = p.days || 1, jobs = [], d;
+      function clear(x) { if (x) delete x.tm; }
+      clear(p.meeting); clear(p.dest); (p.stops || []).forEach(clear);
+      for (d = 1; d <= days; d++) (function (day) {
+        var pl = L.dayPlaces(p, days > 1 ? day : undefined), u = L.osrmUrl(pl);
+        if (u) jobs.push(getJson(u, 6000).then(function (j) { L.applyTimes(pl, L.parseOsrmLegs(j), day); }, function () {}));
+      })(d);
+      return Promise.all(jobs).then(function () { return p; });
     }
   };
 

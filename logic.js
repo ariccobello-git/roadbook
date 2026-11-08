@@ -280,6 +280,24 @@
     return Math.round(j.routes[0].distance / 1000);
   };
 
+  /* minuti di guida per ogni tratto (durate di percorso OSRM); null se mancano */
+  L.parseOsrmLegs = function (j) {
+    if (!j || j.code !== 'Ok' || !j.routes || !j.routes[0] || !j.routes[0].legs) return null;
+    var out = j.routes[0].legs.map(function (l) { return typeof l.duration === 'number' ? Math.max(1, Math.round(l.duration / 60)) : null; });
+    return out.length && out.every(function (x) { return x !== null; }) ? out : null;
+  };
+  /* assegna a ogni luogo di una giornata i minuti dalla partenza (guida + sosta a ogni tappa intermedia) */
+  L.applyTimes = function (places, legs, day) {
+    var t = 0, i;
+    if (!legs || legs.length !== places.length - 1) return false;
+    if (!day || day === 1) places[0].tm = 0;
+    for (i = 1; i < places.length; i++) {
+      t += legs[i - 1] + (i > 1 ? L.WX_DWELL : 0);
+      places[i].tm = t;
+    }
+    return true;
+  };
+
   /* ---------- ricerca luoghi (OpenStreetMap) ---------- */
   var SEL = {
     area: ['nwr["highway"="services"]', 'nwr["highway"="rest_area"]'],
@@ -435,13 +453,14 @@
     if (r.temp !== null && r.temp >= 38) add('heat', 2); else if (r.temp !== null && r.temp >= 33) add('heat', 1);
     return { level: lv, flags: f };
   };
-  /* orari di arrivo ai punti: partenza all'ora del Run, km a 65 km/h, 20 min a ogni tappa; ogni giorno riparte dall'ora del Run */
+  /* orari di arrivo ai punti: partenza all'ora del Run; tempi di percorso del navigatore (tm) se salvati, altrimenti stima a 65 km/h; 20 min a ogni tappa; ogni giorno riparte dall'ora del Run */
   L.wxEtas = function (run, W) {
     var pts = (W && W.points) || [], start = new Date(run.run_date).getTime(), out = [], day = 1, t = start, prev = null, i;
     for (i = 0; i < pts.length; i++) {
       var p = pts[i], d = parseInt(p.day, 10) || 1;
       if (d > day) { day = d; t = start + (d - 1) * 86400000; prev = null; }
-      if (prev && L.hasCoords(prev) && L.hasCoords(p)) t += L.haversine({ lat: +prev.lat, lng: +prev.lng }, { lat: +p.lat, lng: +p.lng }) * L.ROAD_FACTOR / L.WX_SPEED * 3600000;
+      if (typeof p.tm === 'number' && p.tm >= 0) t = start + (d - 1) * 86400000 + p.tm * 60000;
+      else if (prev && L.hasCoords(prev) && L.hasCoords(p)) t += L.haversine({ lat: +prev.lat, lng: +prev.lng }, { lat: +p.lat, lng: +p.lng }) * L.ROAD_FACTOR / L.WX_SPEED * 3600000;
       else if (!L.hasCoords(p) && p.role === 'dest') t = start + (L.runDays(run) - 1) * 86400000 + (run.km ? run.km / L.WX_SPEED : 3) * 3600000;
       out.push({ p: p, eta: t });
       if (p.role === 'stop') t += L.WX_DWELL * 60000;
