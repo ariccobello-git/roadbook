@@ -105,5 +105,15 @@
     });
   }
 
-  RB.xls = { read: read, template: template, exportMembers: exportMembers, exportCodes: exportCodes, exportPayments: exportPayments };
+  /* tabella qualsiasi (report): intestazioni, righe, nome del foglio */
+  function exportTable(name, head, rows) {
+    return lib().then(function (X) {
+      var wb = X.utils.book_new(), ws = X.utils.aoa_to_sheet([head].concat(rows));
+      ws['!cols'] = head.map(function (h0) { return { wch: Math.max(12, String(h0).length + 4) }; });
+      X.utils.book_append_sheet(wb, ws, String(name).replace(/[\\\/?*\[\]:]/g, ' ').slice(0, 31) || 'Report');
+      save(X, wb, 'roadbook-' + String(name).replace(/[^\w\-]+/g, '_').toLowerCase() + '.xlsx');
+    });
+  }
+
+  RB.xls = { exportTable: exportTable, read: read, template: template, exportMembers: exportMembers, exportCodes: exportCodes, exportPayments: exportPayments };
 })();

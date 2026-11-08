@@ -41,6 +41,7 @@
     if (off) chips.appendChild(RB.chip(t('st_annullato'), 'er'));
     else if (r.status === 'concluso') chips.appendChild(RB.chip(t('st_concluso'), ''));
     if (r.km) chips.appendChild(RB.chip(r.km + ' km', '', 'route'));
+    var wc = past ? null : RB.wxChip(r); if (wc) chips.appendChild(wc);
     chips.appendChild(RB.chip(t(DIFF[r.difficulty] || 'diff_media'), 'acc'));
     chips.appendChild(RB.chip(c.total + ' ' + t('persons') + (r.max_participants ? ' / ' + r.max_participants : ''), c.total ? 'ok' : '', 'soci'));
     if (r.formation_published) chips.appendChild(RB.chip(t('formation'), '', 'moto'));
@@ -53,15 +54,39 @@
     return card;
   }
 
+  /* archivio: Run passati con ricerca, anno e stato; si possono riaprire e richiamare come nuovo Run */
+  function archiveFilters(root, past) {
+    var A = RB.ui.arch = RB.ui.arch || { q: '', year: '', status: '' }, years = RBL.yearsOf(past);
+    var q = h('input', { type: 'search', id: 'ar-q', placeholder: t('ar_search'), autocomplete: 'off', '.value': A.q, oninput: function (e) { A.q = e.target.value; drawList(); } });
+    var yr = h('select', { id: 'ar-year', onchange: function (e) { A.year = e.target.value; drawList(); } }, h('option', { value: '' }, t('ar_all_years')), years.map(function (y) { return h('option', { value: String(y), selected: A.year === String(y) ? true : null }, String(y)); }));
+    var st = h('select', { id: 'ar-status', onchange: function (e) { A.status = e.target.value; drawList(); } }, h('option', { value: '' }, t('ar_all_status')),
+      ['concluso', 'annullato', 'programmato'].map(function (k) { return h('option', { value: k, selected: A.status === k ? true : null }, t('st_' + k)); }));
+    root.appendChild(h('div', { class: 'list', style: 'padding:8px;display:flex;gap:8px;flex-wrap:wrap' }, h('div', { class: 'search', style: 'flex:1 1 100%;margin:0' }, q), yr, st));
+    var box = h('div'), cnt = h('div', { class: 'sm', style: 'padding:4px 8px' });
+    root.appendChild(cnt); root.appendChild(box);
+    function drawList() {
+      RB.clear(box);
+      var ql = A.q.trim().toLowerCase(), rows = past.filter(function (r) {
+        return (!A.year || String(new Date(r.run_date).getFullYear()) === A.year) && (!A.status || r.status === A.status) &&
+          (!ql || [r.title, r.meeting_point, r.destination, r.description].join(' ').toLowerCase().indexOf(ql) >= 0);
+      });
+      cnt.textContent = t('ar_count', rows.length);
+      if (!rows.length) box.appendChild(RB.empty('run', t('no_past'), ''));
+      rows.forEach(function (r, i) { box.appendChild(runCard(r, i)); });
+    }
+    drawList();
+  }
+
   RB.views.run = function (root) {
     var runs = RB.runs().slice(), next, past;
     next = runs.filter(function (r) { return !isPast(r); }).sort(function (a, b) { return new Date(a.run_date) - new Date(b.run_date); });
     past = runs.filter(isPast).sort(function (a, b) { return new Date(b.run_date) - new Date(a.run_date); });
     root.appendChild(RB.title(t('tab_run'), RB.chapterName(), RB.can('runs_edit') ? RB.iconBtn('plus', t('new_run'), function () { RB.runForm(null); }, true) : null));
-    root.appendChild(RB.seg([{ v: 'next', label: t('upcoming') + (next.length ? ' (' + next.length + ')' : '') }, { v: 'past', label: t('past') }], RB.ui.runTab, function (v) { RB.ui.runTab = v; RB.refresh(); }));
-    var list = RB.ui.runTab === 'next' ? next : past;
-    if (!list.length) root.appendChild(RB.empty('run', RB.ui.runTab === 'next' ? t('no_runs') : t('no_past'), RB.ui.runTab === 'next' && RB.can('runs_edit') ? t('no_runs_staff') : (RB.ui.runTab === 'next' ? t('no_runs_member') : '')));
-    list.forEach(function (r, i) { root.appendChild(runCard(r, i)); });
+    root.appendChild(RB.seg([{ v: 'next', label: t('upcoming') + (next.length ? ' (' + next.length + ')' : '') }, { v: 'past', label: t('archive') + (past.length ? ' (' + past.length + ')' : '') }], RB.ui.runTab, function (v) { RB.ui.runTab = v; RB.refresh(); }));
+    if (RB.ui.runTab === 'past') { archiveFilters(root, past); return; }
+    RB.wxBanners(root, next);
+    if (!next.length) root.appendChild(RB.empty('run', t('no_runs'), RB.can('runs_edit') ? t('no_runs_staff') : t('no_runs_member')));
+    next.forEach(function (r, i) { root.appendChild(runCard(r, i)); });
   };
 
   /* ---------- dettaglio ---------- */
@@ -155,6 +180,7 @@
     f.appendChild(info);
     if (r.description) f.appendChild(h('div', { class: 'card', style: 'white-space:pre-wrap' }, r.description));
 
+    RB.weatherSection(r, f, ctl);
     routeSection(r, f);
     navSection(r, f);
 
@@ -219,6 +245,7 @@
     acts.appendChild(RB.row({ lead: RB.icon('share'), title: t('share'), onclick: function () { shareRun(r); } }));
     if (cRun) {
       acts.appendChild(RB.row({ lead: RB.icon('edit'), title: t('edit_run'), onclick: function () { RB.runForm(r.id); } }));
+      acts.appendChild(RB.row({ lead: RB.icon('copy'), title: t('ar_reuse'), sub: t('ar_reuse_sub'), onclick: function () { RB.runForm(r.id, { clone: true }); } }));
       if (r.status === 'programmato') acts.appendChild(RB.row({ title: t('mark_done'), go: false, onclick: function () { setStatus(r, 'concluso'); } }));
       if (r.status !== 'annullato') acts.appendChild(RB.row({ title: t('cancel_run'), go: false, cls: 'dng', onclick: function () { RB.ask({ title: t('cancel_run'), msg: t('cancel_run_msg'), ok: t('cancel_run'), danger: true }).then(function (ok) { if (ok) setStatus(r, 'annullato'); }); } }));
       else acts.appendChild(RB.row({ title: t('reopen_run'), go: false, onclick: function () { setStatus(r, 'programmato'); } }));
@@ -280,8 +307,10 @@
   function nextSunday9() {
     var d = new Date(); d.setDate(d.getDate() + ((7 - d.getDay()) % 7 || 7)); d.setHours(9, 0, 0, 0); return d.toISOString();
   }
-  RB.runForm = function (id) {
-    var r = id ? RB.run(id) : null, ST = { days: r ? RBL.runDays(r) : 1, day: 1, dismissed: {}, dismissedOver: {}, kmTouched: !!(r && r.km), pub: !!(r && r.route_public) };
+  RB.runForm = function (id, opts) {
+    var r = id ? RB.run(id) : null;
+    if (r && opts && opts.clone) r = Object.assign({}, r, { id: null, status: 'programmato', run_date: nextSunday9(), km: r.km, formation: [], formation_published: false, title: r.title });
+    var ST = { days: r ? RBL.runDays(r) : 1, day: 1, dismissed: {}, dismissedOver: {}, kmTouched: !!(r && r.km), pub: !!(r && r.route_public) };
     var meeting = r ? (r.meeting || (r.meeting_point ? { name: '', addr: r.meeting_point, kind: 'altro' } : null)) : null;
     var dest = r ? (r.dest || (r.destination ? { name: '', addr: r.destination, kind: 'altro' } : null)) : null;
     var stops = r && r.stops ? r.stops.map(function (s) { return { time: s.time || '', name: s.name || '', addr: s.addr || '', kind: s.kind || 'altro', lat: s.lat, lng: s.lng, day: parseInt(s.day, 10) || 1, end: !!s.end }; }) : [];
@@ -418,13 +447,13 @@
     box.appendChild(h('div', { class: 'list', style: 'margin-top:12px' }, h('div', { class: 'row' }, h('span', { class: 'rt' }, h('b', null, t('route_public')), h('span', null, t('route_public_help'))), RB.toggle(ST.pub, function (v) { ST.pub = v; }))));
     box.appendChild(RB.secT(t('difficulty')));
     box.appendChild(RB.seg([{ v: 'facile', label: t('diff_facile') }, { v: 'media', label: t('diff_media') }, { v: 'impegnativa', label: t('diff_impegnativa') }], diff, function (v) { diff = v; }));
-    if (r) { box.appendChild(RB.secT(t('status'))); box.appendChild(RB.seg([{ v: 'programmato', label: t('st_programmato') }, { v: 'annullato', label: t('st_annullato') }, { v: 'concluso', label: t('st_concluso') }], status, function (v) { status = v; })); }
+    if (r && r.id) { box.appendChild(RB.secT(t('status'))); box.appendChild(RB.seg([{ v: 'programmato', label: t('st_programmato') }, { v: 'annullato', label: t('st_annullato') }, { v: 'concluso', label: t('st_concluso') }], status, function (v) { status = v; })); }
     box.appendChild(RB.secT(t('nav_tool')));
     box.appendChild(RB.seg([{ v: 'apple', label: t('nav_apple') }, { v: 'google', label: t('nav_google') }, { v: 'both', label: t('nav_both') }, { v: 'none', label: t('nav_none') }], nav, function (v) { nav = v; }));
     box.appendChild(h('p', { class: 'sm', style: 'padding:0 6px' }, t('nav_help')));
     box.appendChild(h('div', { class: 'list', style: 'margin-top:14px' }, RB.field(t('f_notes'), h('textarea', { id: 'rf-desc', maxlength: 1500, '.value': r ? r.description || '' : '' }))));
     drawAll();
-    var ctl = RB.sheet({ title: r ? t('edit_run') : t('new_run'), content: box, full: true, leftLabel: t('cancel'),
+    var ctl = RB.sheet({ title: r && r.id ? t('edit_run') : t('new_run'), content: box, full: true, leftLabel: t('cancel'),
       right: { label: t('save'), fn: function () {
         var title = RB.val('rf-title'), dtv = RB.val('rf-dt');
         if (!title || !dtv) { RB.toast(t('e_dati_mancanti'), 'err'); return; }

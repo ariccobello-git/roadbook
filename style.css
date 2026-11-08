@@ -286,3 +286,28 @@ html[data-th=garage] .list,html[data-th=garage] .card,html[data-th=garage] .run,
 .stopc{margin-bottom:10px}
 .stop-h{display:flex;justify-content:space-between;align-items:center;padding:0 4px 4px}
 .stop-h input{border:0;background:var(--fill);border-radius:9px;padding:6px 8px;width:100px;color:var(--tx)}
+
+/* meteo, archivio, dashboard e report */
+.wx-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:4px 0 8px}
+.wxc .wx-pt{padding:10px 0;border-top:1px solid var(--sep)}
+.wxc .wx-pt:first-child{border-top:0}
+.wx-l{display:flex;gap:6px;align-items:baseline;flex-wrap:wrap}
+.wx-m{font-size:15px;margin-top:2px;line-height:1.5;word-spacing:1px}
+.kpis{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}
+.kpi{background:var(--card);border-radius:16px;padding:14px;box-shadow:var(--sh);display:flex;flex-direction:column;gap:2px}
+.kpi b{font-size:28px;letter-spacing:-.5px;color:var(--acc-t)}
+.kpi span{font-size:13px;color:var(--mu)}
+.bars{display:flex;flex-direction:column;gap:8px}
+.bar-r{display:grid;grid-template-columns:90px 1fr 28px;gap:8px;align-items:center;text-align:left;font-size:13px}
+.bar-r .bl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bt{display:block;height:10px;background:var(--fill);border-radius:6px;overflow:hidden}
+.bt i{display:block;height:100%;background:var(--acc);border-radius:6px;transition:width .5s cubic-bezier(.2,.8,.2,1)}
+.bar-r b{text-align:right}
+.rv-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 10px}
+.tbl-wrap{overflow-x:auto;background:var(--card);border-radius:14px;box-shadow:var(--sh)}
+.tbl{border-collapse:collapse;width:100%;font-size:14px}
+.tbl th,.tbl td{padding:9px 12px;text-align:left;white-space:nowrap;border-bottom:1px solid var(--sep)}
+.tbl th{position:sticky;top:0;background:var(--card);font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--mu)}
+.tbl .n{text-align:right;font-variant-numeric:tabular-nums}
+.tbl tfoot td{font-weight:700;border-bottom:0}
+select{border:0;background:var(--fill);border-radius:10px;padding:9px 10px;color:var(--tx);font-size:15px;max-width:100%}

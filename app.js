@@ -2,10 +2,10 @@
 (function () {
   'use strict';
   var RB = window.RB, h = RB.h, t = RB.t, app = document.getElementById('app');
-  var TABS = [['run', 'run', 'tab_run'], ['soci', 'soci', 'tab_soci'], ['dir', 'dir', 'tab_dir'], ['quote', 'quote', 'tab_quote'], ['altro', 'altro', 'tab_altro']];
+  var TABS = [['run', 'run', 'tab_run'], ['soci', 'soci', 'tab_soci'], ['dir', 'dir', 'tab_dir'], ['quote', 'quote', 'tab_quote'], ['report', 'chart', 'tab_report'], ['altro', 'altro', 'tab_altro']];
   var lastSig = '', pending = false, installEvt = null, shellKey = '';
   /* Soci e Direttivo servono solo a chi può vedere l'elenco dei soci */
-  function visibleTabs() { return TABS.filter(function (x) { return (x[0] !== 'soci' && x[0] !== 'dir') || RB.can('members_view'); }); }
+  function visibleTabs() { return TABS.filter(function (x) { return x[0] === 'report' ? RB.can('reports_view') : ((x[0] !== 'soci' && x[0] !== 'dir') || RB.can('members_view')); }); }
 
   window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); installEvt = e; if (RB.S.code) RB.render(); });
 
@@ -94,7 +94,7 @@
 
   /* ---------- eventi dati ---------- */
   RB.on('data', function (r) {
-    var sig = JSON.stringify([r.me, r.profiles, r.members, r.runs, r.signups, r.payments, r.settings]);
+    var sig = JSON.stringify([r.me, r.profiles, r.members, r.runs, r.signups, r.payments, r.settings, r.weather, r.reports]);
     try { var c = r.settings && r.settings.chapter; if (c && c.logo) localStorage.setItem('rb.logo', c.logo); else localStorage.removeItem('rb.logo'); } catch (e) {}
     if (sig === lastSig) return;
     lastSig = sig;
