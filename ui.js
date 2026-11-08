@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   var RB = window.RB = window.RB || {};
-  RB.RELEASE = '2.8.0';
+  RB.RELEASE = '2.9.0';
 
   /* ---------- DOM sicuro: i testi sono sempre nodi di testo, mai HTML ---------- */
   function add(el, kids) {
@@ -186,8 +186,28 @@
       img.src = url;
     });
   };
-  RB.pickImage = function (cb) {
-    var inp = h('input', { type: 'file', accept: 'image/*', style: 'display:none', onchange: function () { var f = inp.files && inp.files[0]; if (inp.parentNode) inp.parentNode.removeChild(inp); if (f) cb(f); } });
+  /* foto tipo tessera: ritaglio verticale 3:4 (leggermente verso l'alto, dove sta il viso), 240x320, JPEG leggero (circa 10-25 KB) */
+  RB.tessera = function (file) {
+    return new Promise(function (res, rej) {
+      if (!file || !/^image\//.test(file.type)) return rej(new Error('not-image'));
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function () {
+        var w = img.naturalWidth, hh = img.naturalHeight, sw = w, sh = Math.round(w * 4 / 3), sx = 0, sy;
+        if (sh > hh) { sh = hh; sw = Math.round(hh * 3 / 4); sx = Math.round((w - sw) / 2); sy = 0; }
+        else sy = Math.round((hh - sh) * 0.3);
+        var c = document.createElement('canvas'); c.width = 240; c.height = 320;
+        var g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, 240, 320); g.drawImage(img, sx, sy, sw, sh, 0, 0, 240, 320);
+        URL.revokeObjectURL(url);
+        var q = 0.78, d = c.toDataURL('image/jpeg', q);
+        while (d.length > 36000 && q > 0.4) { q -= 0.08; d = c.toDataURL('image/jpeg', q); }
+        d.length > 60000 ? rej(new Error('too-big')) : res(d);
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); rej(new Error('bad-image')); };
+      img.src = url;
+    });
+  };
+  RB.pickImage = function (cb, camera) {
+    var inp = h('input', { type: 'file', accept: 'image/*', capture: camera ? 'user' : null, style: 'display:none', onchange: function () { var f = inp.files && inp.files[0]; if (inp.parentNode) inp.parentNode.removeChild(inp); if (f) cb(f); } });
     document.body.appendChild(inp); inp.click();
   };
 

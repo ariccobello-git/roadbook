@@ -121,7 +121,19 @@
     var opts = RB.profiles().filter(function (p) { return p.key === title || RB.covers(p.key); }).reverse();
     var sel = h('select', { id: 'mf-title' }, opts.map(function (p) { return h('option', { value: p.key, selected: p.key === title ? true : null }, RB.titleName(p.key)); }));
     sel.value = title; sel.addEventListener('change', function () { title = sel.value; });
-    var box = h('div', null, h('div', { class: 'list' },
+    var ph = { changed: false, data: null }, phBox = h('div', { class: 'tessrow' });
+    function drawPh() {
+      RB.clear(phBox);
+      var shown = ph.changed ? ph.data : (m ? RB.S.photos[m.id] : null);
+      var prev = h('div', { class: 'tess', style: '--ah:' + RB.hue(m ? m.id : 'x'), id: 'mf-photo' });
+      if (shown) prev.appendChild(h('img', { src: shown, alt: '' })); else prev.appendChild(RB.icon('cam'));
+      phBox.appendChild(prev);
+      phBox.appendChild(h('div', { style: 'flex:1;min-width:0' }, h('button', { type: 'button', class: 'btn sec', id: 'mf-photo-btn', style: 'margin-top:0', onclick: function () {
+        RB.pickPhoto(t('photo_id'), !!shown, function (d) { ph.changed = true; ph.data = d; drawPh(); });
+      } }, RB.icon('cam'), shown ? t('change_photo') : t('photo_id')), h('p', { class: 'sm' }, t('photo_hint'))));
+    }
+    drawPh();
+    var box = h('div', null, h('div', { class: 'list' }, phBox), h('div', { class: 'list', style: 'margin-top:14px' },
       RB.field(t('first_name'), RB.input('mf-fn', m ? m.first_name : '', { max: 60 })), RB.field(t('last_name'), RB.input('mf-ln', m ? m.last_name : '', { max: 60 })),
       RB.field(t('phone'), RB.input('mf-ph', m ? m.phone : '', { type: 'tel', mode: 'tel', max: 30 })), RB.field('Email', RB.input('mf-em', m ? m.email : '', { type: 'email', mode: 'email', max: 120 })),
       RB.field(t('bike'), RB.input('mf-bike', m ? m.bike : '', { max: 80 })), RB.field(t('tessera'), RB.input('mf-te', m ? m.tessera : '', { max: 30 })),
@@ -142,7 +154,12 @@
           title: title, joined_on: RB.val('mf-jo'), birth_date: RB.val('mf-bi'), notes: RB.val('mf-no'), active: active };
         if (!p.first_name || !p.last_name) { RB.toast(t('e_nome_mancante'), 'err'); return; }
         if (p.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(p.email)) { RB.toast(t('e_email'), 'err'); return; }
-        RB.act(ctl.right, function () { return RB.write('rc_member_save', { p: p }); }, t('saved')).then(function (x) {
+        RB.act(ctl.right, function () {
+          return RB.write('rc_member_save', { p: p }).then(function (x) {
+            if (x && x.ok && ph.changed) return RB.write('rc_member_photo', { p_member: x.id || (m && m.id), p_data: ph.data }).then(function (y) { RB.refreshPhotos(); if (!y.ok) RB.toast(RB.errMsg(y.error), 'err'); return x; });
+            return x;
+          });
+        }, t('saved')).then(function (x) {
           if (!x || !x.ok) return;
           ctl.close(true);
           if (!m) { var nm = RB.mem(x.id); if (nm) RB.memberDetail(nm.id); }
@@ -150,19 +167,52 @@
       } } });
   };
 
-  /* foto profilo */
+  /* foto tipo tessera: scattata con la fotocamera o scelta dalla libreria/file; cb(dataUrl) oppure cb(null) per rimuovere */
+  RB.pickPhoto = function (title, hasPhoto, cb) {
+    function take(camera) {
+      RB.pickImage(function (file) {
+        RB.tessera(file).then(cb, function () { RB.toast(t('e_foto_non_valida'), 'err'); });
+      }, camera);
+    }
+    RB.menu(title, [
+      { label: t('take_photo'), fn: function () { take(true); } },
+      { label: t('choose_photo'), fn: function () { take(false); } },
+      hasPhoto ? { label: t('remove_photo'), danger: true, fn: function () { cb(null); } } : null]);
+  };
   RB.photoMenu = function (m) {
-    RB.menu(RB.fullName(m), [
-      { label: t('choose_photo'), fn: function () {
-        RB.pickImage(function (file) {
-          RB.resizeImage(file, 256, 0.8, true).then(function (data) {
-            RB.write('rc_member_photo', { p_member: m.id, p_data: data }).then(function (x) { if (x.ok) { RB.refreshPhotos(); RB.toast(t('saved')); } else RB.toast(RB.errMsg(x.error), 'err'); });
-          }, function () { RB.toast(t('e_foto_non_valida'), 'err'); });
-        });
-      } },
-      RB.S.photos[m.id] ? { label: t('remove_photo'), danger: true, fn: function () {
-        RB.write('rc_member_photo', { p_member: m.id, p_data: null }).then(function (x) { if (x.ok) { RB.refreshPhotos(); RB.toast(t('saved')); } else RB.toast(RB.errMsg(x.error), 'err'); });
-      } } : null]);
+    RB.pickPhoto(RB.fullName(m), !!RB.S.photos[m.id], function (data) {
+      RB.write('rc_member_photo', { p_member: m.id, p_data: data }).then(function (x) { if (x.ok) { RB.refreshPhotos(); RB.toast(t('saved')); } else RB.toast(RB.errMsg(x.error), 'err'); });
+    });
+  };
+  /* foto tessera in grande (si apre toccando un nome nelle liste) */
+  RB.tess = function (m, big) {
+    var ph = m && RB.S.photos[m.id], el = h('div', { class: 'tess' + (big ? ' big' : ''), style: '--ah:' + RB.hue(m ? m.id : '') });
+    if (ph && /^data:image\//.test(ph)) el.appendChild(h('img', { src: ph, alt: '' }));
+    else el.textContent = m ? ((m.first_name || '').charAt(0) + (m.last_name || '').charAt(0)).toUpperCase() : '?';
+    return el;
+  };
+  RB.memberCard = function (m) {
+    var canEdit = m.id === RB.S.me.id || (RB.can('members_edit') && RB.covers(m.title)), box = h('div', { class: 'mcard' }), ctl;
+    function draw() {
+      RB.clear(box);
+      box.appendChild(h('div', { style: 'display:flex;justify-content:center;margin:6px 0 12px' }, RB.tess(m, true)));
+      box.appendChild(h('div', { style: 'text-align:center' }, h('b', { style: 'font-size:22px' }, RB.fullName(m)), h('div', { class: 'chips', style: 'justify-content:center' }, RB.chip(RB.titleName(m.title), 'acc'), m.bike ? RB.chip(m.bike, '', 'moto') : null)));
+      if (!RB.S.photos[m.id]) box.appendChild(h('p', { class: 'sm', style: 'text-align:center' }, t('no_photo')));
+      if (canEdit) box.appendChild(h('button', { type: 'button', class: 'btn sec', onclick: function () { RB.photoMenu(m); } }, RB.icon('cam'), t('change_photo')));
+    }
+    draw();
+    ctl = RB.sheet({ title: t('photo_id'), content: box, leftLabel: t('close') });
+    ctl.refresh = draw;
+    return ctl;
+  };
+  /* rende cliccabili avatar e nome di una riga */
+  RB.linkMember = function (row, m) {
+    ['.av', '.rt b'].forEach(function (sel) {
+      var el = row.querySelector(sel); if (!el) return;
+      el.style.cursor = 'pointer'; el.setAttribute('role', 'button'); el.setAttribute('tabindex', '0');
+      el.addEventListener('click', function (e) { e.stopPropagation(); RB.feel('tap'); RB.memberCard(m); });
+    });
+    return row;
   };
 
   /* ================= IMPORT EXCEL ================= */

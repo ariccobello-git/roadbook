@@ -221,7 +221,7 @@
         RB.write('rc_checkin', { p_run: r.id, p_member: m.id, p_value: on }).then(function (x) { if (!x.ok) { RB.toast(RB.errMsg(x.error), 'err'); RB.sync(); } });
       }));
       var row = RB.row({ lead: RB.av(m, 'sm'), title: RB.fullName(m), sub: RB.titleName(m.title), go: false, right: h('span', { class: 'chips', style: 'margin:0;align-items:center' }, right) });
-      pl2.appendChild(row);
+      pl2.appendChild(RB.linkMember(row, m));
     });
     if (!sorted.length) pl2.appendChild(h('div', { class: 'empty', style: 'padding:22px' }, t('no_participants')));
     f.appendChild(pl2);
@@ -497,7 +497,7 @@
     fm.forEach(function (s, i) {
       var m = s.member_id ? RB.mem(s.member_id) : null, pass = m ? (RB.signupsOf(RB.ui.fmRun || '').filter(function (x) { return x.member_id === m.id; })[0] || {}).passengers : 0;
       g.appendChild(h('div', { class: 'sl ' + s.kind + (m ? '' : ' empty0') }, h('span', { class: 'n' }, i + 1),
-        h('span', { class: 'nm' }, h('small', null, t(KIND[s.kind])), m ? RB.fullName(m) + (pass ? ' +1' : '') : t('to_assign'))));
+        h('span', { class: 'nm' }, h('small', null, t(KIND[s.kind])), m ? h('b', { class: 'fmn', style: 'font-weight:inherit;cursor:pointer', role: 'button', tabindex: '0', onclick: function (e) { e.stopPropagation(); RB.feel('tap'); RB.memberCard(m); } }, RB.fullName(m) + (pass ? ' +1' : '')) : t('to_assign'))));
     });
     return g;
   };
