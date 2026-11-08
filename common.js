@@ -25,6 +25,7 @@
     var link = !!(o.onclick || o.href);
     var tag = o.href ? 'a' : (o.onclick ? 'button' : 'div');
     var at = { class: 'row' + (o.cls ? ' ' + o.cls : '') };
+    if (o.id) at.id = o.id;
     if (tag === 'button') { at.type = 'button'; at.onclick = o.onclick; }
     if (tag === 'a') { at.href = o.href; at.target = '_blank'; at.rel = 'noopener'; }
     var chev = null;

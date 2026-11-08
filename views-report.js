@@ -163,6 +163,7 @@
       kp.appendChild(h('div', { class: 'kpi' }, h('b', null, k[0].toLocaleString(RB.loc())), h('span', null, k[1])));
     });
     root.appendChild(kp);
+    RB.payFresh(); RB.payDash(root);
     if (D.next) {
       var r = D.next, dt = new Date(r.run_date), c = RB.counts(RB.signupsOf(r.id)), dd = Math.ceil((dt.getTime() - ctx.now) / 86400000), s = RB.wxSum(r);
       var nx = h('div', { class: 'card', role: 'button', tabindex: '0', style: 'cursor:pointer', onclick: function () { RB.openRun(r.id); } },

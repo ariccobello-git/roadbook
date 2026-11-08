@@ -52,7 +52,7 @@
 
   function start() {
     RB.render();
-    RB.sync().then(function () { if (RB.S.code) { RB.render(); RB.startSync(); RB.sosStartPoll(); RB.sosFlush(); if (!RB.tourSeen()) setTimeout(RB.tour, 600); } });
+    RB.sync().then(function () { if (RB.S.code) { RB.render(); RB.startSync(); RB.sosStartPoll(); RB.sosFlush(); if (!RB.tourSeen()) setTimeout(RB.tour, 600); RB.payLoad().then(function (ok) { if (ok) RB.paySoftRender(); }); } });
   }
 
   /* ---------- struttura ---------- */

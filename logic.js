@@ -4,11 +4,12 @@
   var L = {};
 
   /* permessi dei profili di accesso (stessi nomi e stesse dipendenze del database) */
-  L.PERMS = ['members_view', 'phones_view', 'personal_view', 'route_view', 'formation_draft_view', 'runs_edit', 'formation_edit', 'signups_manage', 'photos_moderate', 'members_edit', 'settings_edit', 'profiles_manage', 'reports_view', 'emergency_manage'];
+  L.PERMS = ['members_view', 'phones_view', 'personal_view', 'route_view', 'formation_draft_view', 'runs_edit', 'formation_edit', 'signups_manage', 'photos_moderate', 'members_edit', 'settings_edit', 'profiles_manage', 'reports_view', 'emergency_manage', 'payments_manage'];
   L.PERM_DEPS = {
     runs_edit: ['route_view'], formation_edit: ['formation_draft_view', 'members_view'], signups_manage: ['members_view'],
     members_edit: ['members_view', 'phones_view', 'personal_view'],
     emergency_manage: ['members_view', 'phones_view', 'personal_view'],
+    payments_manage: ['members_view', 'personal_view', 'reports_view'],
     phones_view: ['members_view'], personal_view: ['members_view'], profiles_manage: ['members_view'], reports_view: ['members_view']
   };
   L.closePerms = function (list) {
@@ -44,6 +45,7 @@
     vice_direttore: ['vice direttore', 'vicedirettore', 'vice direttrice', 'vice director', 'vice directeur'],
     head_road_captain: ['head road captain', 'head road capitain', 'head road capitan', 'head roadcaptain', 'head road cap', 'head rc', 'hrc', 'capo road captain'],
     road_captain: ['road captain', 'road capitain', 'road capitan', 'roadcaptain', 'road cap', 'rc', 'capo strada'],
+    tesoriere: ['tesoriere', 'tesoriera', 'treasurer', 'tresorier', 'trésorier'],
     officer: ['officer', 'officers', 'ufficiale', 'officier']
   };
   /* testo libero (anche da Excel) -> chiave del profilo, oppure null se non riconosciuto.
@@ -205,6 +207,80 @@
   };
   /* una persona: importo dovuto e rate (importo + scadenza) */
   L.schedule = function (r, signup) { var due = L.dueOf(r, signup); return { due: due, rows: L.plan(r, due) }; };
+
+  /* ---------- stato dei pagamenti (tesoriere) ---------- */
+  var r2 = function (x) { return Math.round(x * 100) / 100; };
+  /* dovuto, versato e ritardo di una persona per un Run. Il ritardo c'è se è scaduta una rata non coperta
+     (senza rate: da 7 giorni prima del Run, o a Run già svolto). */
+  L.payState = function (run, signup, pays, hasReceipt, nowMs) {
+    var due = L.dueOf(run, signup), paid = 0, today = new Date(nowMs).toISOString().slice(0, 10);
+    (pays || []).forEach(function (p) { if (p.run_id === run.id && p.member_id === signup.member_id) paid += +p.amount || 0; });
+    paid = r2(paid);
+    var out = { due: due, paid: paid, left: Math.max(0, r2(due - paid)), state: 'none', late: false, lateAmount: 0, lateDays: 0, nextDue: null };
+    if (!due) return out;
+    var rows = L.plan(run, due), req = 0, nx = null;
+    rows.forEach(function (x) {
+      if (x.due_on) { if (x.due_on <= today) req = r2(req + x.amount); else if (!nx && x.cum > paid + 0.005) nx = x.due_on; }
+    });
+    var since = null;
+    rows.forEach(function (x) { if (!since && x.due_on && x.due_on <= today && x.cum > paid + 0.005) since = x.due_on; });
+    if (!rows[0].due_on && (new Date(run.run_date).getTime() - nowMs) <= 7 * 86400000) { req = due; since = new Date(new Date(run.run_date).getTime() - 7 * 86400000).toISOString().slice(0, 10); }
+    out.nextDue = nx;
+    if (paid >= due - 0.005) { out.state = 'paid'; return out; }
+    out.late = paid < req - 0.005; out.lateAmount = out.late ? r2(req - paid) : 0;
+    if (out.late && since) out.lateDays = Math.max(1, Math.round((Date.parse(today) - Date.parse(since)) / 86400000));
+    out.state = paid > 0 ? 'partial' : (hasReceipt ? 'declared' : 'unpaid');
+    return out;
+  };
+  /* riepilogo per Run (esclusi gli annullati) e totale */
+  L.payTotals = function (runs, signups, pays, receipts, nowMs) {
+    var tot = { due: 0, paid: 0, late: 0, lateAmount: 0, runs: [] };
+    (runs || []).forEach(function (r) {
+      if (r.status === 'annullato') return;
+      var o = { run: r, due: 0, paid: 0, n: 0, paidN: 0, late: 0, lateAmount: 0, declared: 0 };
+      (signups || []).forEach(function (sg) {
+        if (sg.run_id !== r.id || sg.status !== 'si') return;
+        var has = (receipts || []).some(function (x) { return x.run_id === r.id && x.member_id === sg.member_id; }), st = L.payState(r, sg, pays, has, nowMs);
+        if (!st.due) return;
+        o.n++; o.due = r2(o.due + st.due); o.paid = r2(o.paid + Math.min(st.paid, st.due));
+        if (st.state === 'paid') o.paidN++; if (st.late) { o.late++; o.lateAmount = r2(o.lateAmount + st.lateAmount); } if (st.state === 'declared') o.declared++;
+      });
+      if (!o.n) return;
+      tot.runs.push(o); tot.due = r2(tot.due + o.due); tot.paid = r2(tot.paid + o.paid); tot.late += o.late; tot.lateAmount = r2(tot.lateAmount + o.lateAmount);
+    });
+    tot.left = r2(tot.due - tot.paid);
+    return tot;
+  };
+  /* ritardi per fasce (1-7, 8-30, oltre 30 giorni) su tutti i Run */
+  L.payAging = function (runs, signups, pays, receipts, nowMs) {
+    var b = [{ n: 0, amount: 0 }, { n: 0, amount: 0 }, { n: 0, amount: 0 }];
+    (runs || []).forEach(function (r) {
+      if (r.status === 'annullato') return;
+      (signups || []).forEach(function (sg) {
+        if (sg.run_id !== r.id || sg.status !== 'si') return;
+        var st = L.payState(r, sg, pays, false, nowMs); if (!st.late) return;
+        var k = st.lateDays <= 7 ? 0 : st.lateDays <= 30 ? 1 : 2; b[k].n++; b[k].amount = r2(b[k].amount + st.lateAmount);
+      });
+    });
+    return b;
+  };
+  /* rimborsi da fare: chi ha versato ma ha rinunciato (o il Run è annullato) e ha un saldo positivo */
+  L.payRefunds = function (runs, signups, pays) {
+    var out = [], net = {};
+    (pays || []).forEach(function (p) { var k = p.run_id + '|' + p.member_id; net[k] = r2((net[k] || 0) + (+p.amount || 0)); });
+    Object.keys(net).forEach(function (k) {
+      if (net[k] <= 0.005) return; var a = k.split('|'), run = (runs || []).filter(function (r) { return r.id === a[0]; })[0]; if (!run) return;
+      var sg = (signups || []).filter(function (x) { return x.run_id === a[0] && x.member_id === a[1]; })[0];
+      if (run.status === 'annullato' || !sg || sg.status === 'no') out.push({ run: run, member_id: a[1], amount: net[k] });
+    });
+    return out;
+  };
+  /* spese e margine di un Run: incassato (al netto di rimborsi) meno spese; previsto = dovuto meno spese */
+  L.runMargin = function (run, signups, pays, expenses, nowMs) {
+    var o = L.payTotals([run], signups, pays, [], nowMs).runs[0] || { due: 0, paid: 0 }, sp = 0;
+    (expenses || []).forEach(function (e) { if (e.run_id === run.id) sp += +e.amount || 0; });
+    sp = r2(sp); return { due: o.due, paid: o.paid, spent: sp, margin: r2(o.paid - sp), forecast: r2(o.due - sp) };
+  };
   L.counts = function (signups) {
     var c = { si: 0, forse: 0, no: 0, riders: 0, pass: 0, total: 0, checked: 0 };
     (signups || []).forEach(function (s) {

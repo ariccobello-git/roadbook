@@ -296,6 +296,7 @@
   RB.views.quote = function (root) {
     var info = payInfo(), me = RB.S.me, runs = feeRuns();
     root.appendChild(RB.title(t('tab_quote'), t('fees_info')));
+    RB.payFresh(); RB.payBlock(root);
 
     /* le mie quote: importo e rate dei Run a cui partecipo */
     root.appendChild(RB.secT(t('my_fees')));
@@ -305,6 +306,7 @@
       if (!sg || !RBL.dueOf(r, sg)) return; n++;
       var l = h('div', { class: 'list', style: 'margin-bottom:10px' }, RB.row({ title: r.title, sub: RB.fmt.day(new Date(r.run_date)), onclick: function () { RB.openRun(r.id); } }));
       RB.feeRows(r, sg).forEach(function (x) { l.appendChild(x); });
+      RB.payMemberRows(r, sg).forEach(function (x) { l.appendChild(x); });
       root.appendChild(l);
     });
     if (!n) root.appendChild(h('div', { class: 'list' }, h('div', { class: 'empty', style: 'padding:22px' }, t('no_my_fees'))));
