@@ -29,7 +29,7 @@
 
   function respSeg(r, onchange) {
     var mine = mySignup(r.id);
-    return RB.seg([{ v: 'si', label: t('yes_go') }, { v: 'forse', label: t('maybe') }, { v: 'no', label: t('no_go') }], mine ? mine.status : '', function (v) {
+    return RB.seg([{ v: 'si', label: t('yes_go') }, { v: 'no', label: t('no_go') }], mine && mine.status !== 'forse' ? mine.status : '', function (v) {
       var m = mySignup(r.id); RB.respond(r.id, v, m ? m.passengers : 0); if (onchange) onchange();
     }, 'ac');
   }
@@ -85,6 +85,7 @@
     root.appendChild(RB.seg([{ v: 'next', label: t('upcoming') + (next.length ? ' (' + next.length + ')' : '') }, { v: 'past', label: t('archive') + (past.length ? ' (' + past.length + ')' : '') }], RB.ui.runTab, function (v) { RB.ui.runTab = v; RB.refresh(); }));
     if (RB.ui.runTab === 'past') { archiveFilters(root, past); return; }
     RB.wxBanners(root, next);
+    RB.reviewBanners(root);
     if (!next.length) root.appendChild(RB.empty('run', t('no_runs'), RB.can('runs_edit') ? t('no_runs_staff') : t('no_runs_member')));
     next.forEach(function (r, i) { root.appendChild(runCard(r, i)); });
   };
@@ -116,7 +117,6 @@
 
   /* percorso e tappe: solo organizzatori (route_view) o Run con percorso condiviso con tutti */
   function seeRoute(r) { return RB.can('route_view') || !!r.route_public; }
-  var NAV_OPEN = { apple: 'nav_open_apple', google: 'nav_open_google' };
   function navSection(r, f) {
     if (!seeRoute(r)) return;
     var edit = RB.can('runs_edit'), tool = r.nav_tool || 'both', days = RBL.runDays(r), tools = edit || tool === 'both' ? ['apple', 'google'] : (tool === 'none' ? [] : [tool]), d, any = false;
@@ -129,8 +129,8 @@
       any = true;
       var km = RBL.dayKm(r, days > 1 ? d : undefined), pre = days > 1 ? t('day_n', d) + ' · ' : '';
       tools.forEach(function (k) {
-        if (k === 'apple') l.appendChild(RB.row({ lead: RB.icon('route'), title: pre + t(NAV_OPEN.apple), sub: t('nav_points_n', pts.length) + (km ? ' · ~' + km + ' km' : ''), href: RBL.appleNav(pts) }));
-        else { var g = RBL.googleNav(pts); l.appendChild(RB.row({ lead: RB.icon('route'), title: pre + t(NAV_OPEN.google), sub: (g.dropped ? t('nav_dropped', g.dropped) : t('nav_points_n', pts.length)) + (km ? ' · ~' + km + ' km' : ''), href: g.url })); }
+        if (k === 'apple') l.appendChild(RB.row({ lead: RB.icon('route'), title: pre + t('nav_open_apple'), sub: t('nav_points_n', pts.length) + (km ? ' · ~' + km + ' km' : ''), href: RBL.appleNav(pts) }));
+        else { var g = RBL.googleNav(pts); l.appendChild(RB.row({ lead: RB.icon('route'), title: pre + t('nav_open_google'), sub: (g.dropped ? t('nav_dropped', g.dropped) : t('nav_points_n', pts.length)) + (km ? ' · ~' + km + ' km' : ''), href: g.url })); }
       });
     }
     if (!any) return;
@@ -202,6 +202,8 @@
       }
     }
 
+    RB.reviewCard(f, r);
+
     /* formazione */
     var fm = r.formation || [];
     if (fm.length || cFm) {
@@ -215,8 +217,8 @@
 
     /* partecipanti */
     f.appendChild(RB.secT(t('participants') + ' · ' + c.total, cSign ? h('span', null, c.checked + '/' + c.si + ' ' + t('present')) : null));
-    var order = { si: 0, forse: 1, no: 2 };
-    var sorted = signups.slice().sort(function (a, b) { return order[a.status] - order[b.status] || RB.fullName(RB.mem(a.member_id)).localeCompare(RB.fullName(RB.mem(b.member_id))); });
+    var order = { si: 0, no: 1 }, relTracked = RB.members().some(function (x) { return !!x.release_year; });
+    var sorted = signups.filter(function (s) { return s.status === 'si' || s.status === 'no'; }).sort(function (a, b) { return order[a.status] - order[b.status] || RB.fullName(RB.mem(a.member_id)).localeCompare(RB.fullName(RB.mem(b.member_id))); });
     var pl2 = h('div', { class: 'list' });
     sorted.forEach(function (s) {
       var m = RB.mem(s.member_id); if (!m) return;
@@ -229,7 +231,8 @@
         if (canRoom) { rc.setAttribute('role', 'button'); rc.style.cursor = 'pointer'; rc.addEventListener('click', function (e) { e.stopPropagation(); RB.roomPicker(r, m, s); }); }
         right.push(rc);
       }
-      if (s.status === 'forse') right.push(RB.chip(t('maybe'), 'wa')); else if (s.status === 'no') right.push(RB.chip(t('no_go'), 'er'));
+      if (s.status === 'si' && RB.can('personal_view')) { var dc = RBL.memberDocs(m, r.run_date, relTracked); if (dc.hog === 'expired') right.push(RB.chip(t('doc_hog_expired'), 'er')); if (dc.release === 'missing') right.push(RB.chip(t('doc_release_missing'), 'wa')); }
+      if (s.status === 'no') right.push(RB.chip(t('no_go'), 'er'));
       if (cSign && s.status === 'si') right.push(RB.toggle(!!s.checked_in, function (on) {
         s.checked_in = on;
         RB.write('rc_checkin', { p_run: r.id, p_member: m.id, p_value: on }).then(function (x) { if (!x.ok) { RB.toast(RB.errMsg(x.error), 'err'); RB.sync(); } });
@@ -397,7 +400,8 @@
   RB.planText = function (r) {
     var ins = (r.installments || []);
     if (!ins.length) return t('plan_single');
-    return ins.map(function (x) { return t('plan_row', +x.pct, RB.fmt.full(String(x.due_on).slice(0, 10))); }).join(' · ');
+    var today = new Date().toISOString().slice(0, 10);
+    return ins.map(function (x) { var d = String(x.due_on).slice(0, 10); return t('plan_row', +x.pct, RB.fmt.full(d)) + (d < today ? ' (' + t('rate_expired') + ')' : ''); }).join(' · ');
   };
   var PRESETS = ['rp_1', 'rp_2', 'rp_3', 'rp_4'];
   function newRoomId() { return 'r' + Math.random().toString(36).slice(2, 8); }
@@ -712,7 +716,7 @@
     }
     function swap(a, b) { var x = slots[a]; slots[a] = slots[b]; slots[b] = x; RB.feel('tap'); draw(); }
     function assign(i) {
-      RB.pickMember({ title: t('assign_person'), list: function () { var u = used(); return RB.members().filter(function (m) { return m.active && (!u[m.id] || slots[i].member_id === m.id); }); },
+      RB.pickMember({ title: t('assign_person'), list: function () { var u = used(); return RB.members().filter(function (m) { return m.active && (!u[m.id] || slots[i].member_id === m.id) && !(slots[i].kind === 'scopa' && RBL.isRC(m.title)); }); },
         onPick: function (m) { slots[i].member_id = m.id; draw(); } });
     }
     function slotMenu(i) {
@@ -722,7 +726,7 @@
         { label: t('k_rc'), fn: function () { slots[i].kind = 'road_captain'; draw(); } },
         { label: t('k_safety'), fn: function () { slots[i].kind = 'safety'; draw(); } },
         { label: t('k_socio'), fn: function () { slots[i].kind = 'socio'; draw(); } },
-        { label: t('k_scopa'), fn: function () { slots[i].kind = 'scopa'; draw(); } },
+        { label: t('k_scopa'), fn: function () { var m = slots[i].member_id && RB.mem(slots[i].member_id); if (m && RBL.isRC(m.title)) { RB.toast(t('fm_rc_no_scopa'), 'err'); return; } slots[i].kind = 'scopa'; draw(); } },
         { label: t('remove'), danger: true, fn: function () { slots.splice(i, 1); draw(); } }]);
     }
     function addMenu() {

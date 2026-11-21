@@ -528,3 +528,11 @@ html.bg *,html.bg *:before,html.bg *:after{animation-play-state:paused!important
 .who{min-height:44px}
 .seg button,.seg .sg,.sg{min-height:44px}
 input,select,textarea{min-height:44px}
+.org-h{margin:26px 6px 0;font-size:22px;font-weight:700;letter-spacing:-.01em}.org-h:first-child{margin-top:8px}
+.rv-row{padding:10px 0;border-bottom:1px solid var(--sep,rgba(128,128,128,.2))}.rv-row:last-of-type{border-bottom:0}.rv-h{display:flex;justify-content:space-between;align-items:center;gap:8px}.rv-acts{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}.rv-row input{width:100%;margin-top:8px}
+/* 4.0 – posizione del gruppo */
+.live-map{height:46vh;min-height:260px;border-radius:16px;overflow:hidden;margin:4px 0 10px;background:var(--fill,#e5e5ea)}
+.live-pin{display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:var(--acc,#0a84ff);color:#fff;font:700 11px/1 -apple-system,system-ui,sans-serif;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35)}
+.live-pin.lead{background:#30d158}.live-pin.sweep{background:#5e5ce6}.live-pin.stale{background:#ff9f0a}.live-pin.far{background:#ff3b30;animation:livePulse 1.4s ease-in-out infinite}
+@keyframes livePulse{50%{transform:scale(1.18)}}
+@media (prefers-reduced-motion:reduce){.live-pin.far{animation:none}}

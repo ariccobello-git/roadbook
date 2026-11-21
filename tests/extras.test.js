@@ -96,7 +96,7 @@ async function run(devName) {
   assert(/\.ics$/.test(d1.suggestedFilename())); const ics = fs.readFileSync(await d1.path(), 'utf8'); assert(ics.startsWith('BEGIN:VCALENDAR') && ics.includes('SUMMARY:Roma Chapter · Run 1') && ics.includes('LOCATION:Ostia')); ok('file calendario');
   const [d2] = await Promise.all([page.waitForEvent('download', { timeout: 15000 }), page.click('#x-run-tools .row:has-text("Excel")')]);
   const wb = XLSX.readFile(await d2.path()), rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1 }); assert(rows.length >= 3 && rows[0][0] === 'Cognome'); ok('elenco partecipanti Excel (' + (rows.length - 1) + ' righe)');
-  await page.click('#x-run-tools .row:has-text("QR")'); await page.waitForSelector('#x-video');
+  await page.click('#x-run-tools .row:has-text("QR"):not(:has-text("WhatsApp"))'); await page.waitForSelector('#x-video');
   await page.evaluate(id => RB.scanHandle('RBK1:' + id), ID(2)); await page.waitForSelector('#x-scan-out.ok'); assert(log.some(l => l.fn === 'rc_checkin' && l.body.p_member === ID(2) && l.body.p_value === true)); ok('scansione: presente');
   await page.evaluate(() => RB.scanHandle('http://evil')); await page.waitForSelector('#x-scan-out.ko'); await page.evaluate(() => RB.scanHandle('RBK1:00000000-0000-4000-8000-0000000000ff')); assert(/non trovato/.test(await page.textContent('#x-scan-out'))); ok('scansione: QR non valido/sconosciuto');
   await page.evaluate(id => RB.scanHandle('RBK1:' + id), ID(4)); await page.waitForSelector('#x-scan-add'); await page.click('#x-scan-add'); await page.waitForSelector('#x-scan-out.ok'); assert(log.some(l => l.fn === 'rc_signup' && l.body.p_member === ID(4))); ok('scansione: iscrizione al volo');

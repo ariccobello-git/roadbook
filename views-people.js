@@ -75,6 +75,8 @@
         if (m.email) info.appendChild(RB.row({ title: 'Email', value: m.email, href: 'mailto:' + m.email }));
         if (m.tessera) info.appendChild(RB.row({ title: t('tessera'), value: m.tessera, go: false }));
         if (m.joined_on) info.appendChild(RB.row({ title: t('joined'), value: RB.fmt.full(m.joined_on), go: false }));
+        if (m.hog_until) info.appendChild(RB.row({ title: t('hog_until'), value: RB.fmt.full(String(m.hog_until).slice(0, 10)) + (String(m.hog_until).slice(0, 10) < new Date().toISOString().slice(0, 10) ? ' · ' + t('doc_expired') : ''), go: false }));
+        if (m.release_year) info.appendChild(RB.row({ title: t('release_year'), value: String(m.release_year), go: false }));
         if (m.birth_date) info.appendChild(RB.row({ title: t('birth'), value: RB.fmt.full(m.birth_date), go: false }));
       }
       if (info.children.length) f.appendChild(info);
@@ -129,6 +131,8 @@
       RB.field(t('phone'), RB.input('mf-ph', m ? m.phone : '', { type: 'tel', mode: 'tel', max: 30 })), RB.field('Email', RB.input('mf-em', m ? m.email : '', { type: 'email', mode: 'email', max: 120 })),
       RB.field(t('bike'), RB.input('mf-bike', m ? m.bike : '', { max: 80 })), RB.field(t('tessera'), RB.input('mf-te', m ? m.tessera : '', { max: 30 })),
       RB.field(t('role'), sel),
+      RB.field(t('hog_until'), RB.input('mf-hog', m && m.hog_until ? String(m.hog_until).slice(0, 10) : '', { type: 'date' })),
+      RB.field(t('release_year'), RB.input('mf-rel', m && m.release_year ? String(m.release_year) : '', { type: 'text', mode: 'numeric', max: 4, ph: String(new Date().getFullYear()) })),
       RB.field(t('joined'), RB.input('mf-jo', m ? m.joined_on : '', { type: 'date' })), RB.field(t('birth'), RB.input('mf-bi', m ? m.birth_date : '', { type: 'date' })),
       RB.field(t('f_notes'), h('textarea', { id: 'mf-no', maxlength: 600, '.value': m ? m.notes || '' : '' }))));
     if (m) {
@@ -142,7 +146,8 @@
     var ctl = RB.sheet({ title: m ? t('edit') : t('add_member'), content: box, full: true, leftLabel: t('cancel'),
       right: { label: t('save'), fn: function () {
         var p = { id: m ? m.id : null, first_name: RB.val('mf-fn'), last_name: RB.val('mf-ln'), phone: RB.val('mf-ph'), email: RB.val('mf-em'), bike: RB.val('mf-bike'), tessera: RB.val('mf-te'),
-          title: title, joined_on: RB.val('mf-jo'), birth_date: RB.val('mf-bi'), notes: RB.val('mf-no'), active: active };
+          title: title, joined_on: RB.val('mf-jo'), birth_date: RB.val('mf-bi'), notes: RB.val('mf-no'), active: active, hog_until: RB.val('mf-hog'), release_year: RB.val('mf-rel') };
+        if (p.release_year && !/^20\d\d$/.test(p.release_year)) { RB.toast(t('e_release_year'), 'err'); return; }
         if (!p.first_name || !p.last_name) { RB.toast(t('e_nome_mancante'), 'err'); return; }
         if (p.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(p.email)) { RB.toast(t('e_email'), 'err'); return; }
         RB.act(ctl.right, function () {
@@ -270,20 +275,25 @@
   RB.views.dir = function (root) {
     root.appendChild(RB.title(t('tab_dir'), RB.chapterName()));
     var any = false;
-    RB.profiles().filter(function (p) { return p.in_direttivo; }).forEach(function (pr) {
-      var ti = pr.key, ms = RB.members().filter(function (m) { return m.active && m.title === ti; });
-      if (!ms.length) return;
-      any = true;
-      root.appendChild(RB.secT(RB.titleName(ti)));
-      var g = h('div', { class: 'org' });
-      ms.forEach(function (m, i) {
-        var can = RB.can('members_edit') || m.id === RB.S.me.id;
-        var av = RB.av(m, 'lg');
-        if (can) av.appendChild(h('span', { class: 'cam', role: 'button', 'aria-label': t('change_photo'), onclick: function (e) { e.stopPropagation(); RB.photoMenu(m); } }, RB.icon('cam')));
-        g.appendChild(h('div', { class: 'oc b', role: 'button', tabindex: '0', style: 'animation-delay:' + Math.min(i, 8) * 40 + 'ms', onclick: function () { RB.feel('tap'); RB.memberDetail(m.id); } },
-          av, h('b', null, RB.fullName(m)), RB.chip(RB.titleName(m.title), 'acc'), m.bike ? h('span', { class: 'sm', style: 'margin:0' }, m.bike) : null));
+    /* due organizzazioni distinte: direttivo e operativo (profili ordinati per rango) */
+    [[true, 'dir_direttivo'], [false, 'dir_operativo']].forEach(function (grp) {
+      var shown = false;
+      RB.profiles().filter(function (p) { return !!p.in_direttivo === grp[0] && p.key !== 'socio'; }).forEach(function (pr) {
+        var ti = pr.key, ms = RB.members().filter(function (m) { return m.active && m.title === ti; });
+        if (!ms.length) return;
+        any = true;
+        if (!shown) { shown = true; root.appendChild(h('h2', { class: 'org-h', id: 'org-' + (grp[0] ? 'dir' : 'op') }, t(grp[1]))); }
+        root.appendChild(RB.secT(RB.titleName(ti)));
+        var g = h('div', { class: 'org' });
+        ms.forEach(function (m, i) {
+          var can = RB.can('members_edit') || m.id === RB.S.me.id;
+          var av = RB.av(m, 'lg');
+          if (can) av.appendChild(h('span', { class: 'cam', role: 'button', 'aria-label': t('change_photo'), onclick: function (e) { e.stopPropagation(); RB.photoMenu(m); } }, RB.icon('cam')));
+          g.appendChild(h('div', { class: 'oc b', role: 'button', tabindex: '0', style: 'animation-delay:' + Math.min(i, 8) * 40 + 'ms', onclick: function () { RB.feel('tap'); RB.memberDetail(m.id); } },
+            av, h('b', null, RB.fullName(m)), RB.chip(RB.titleName(m.title), 'acc'), m.bike ? h('span', { class: 'sm', style: 'margin:0' }, m.bike) : null));
+        });
+        root.appendChild(g);
       });
-      root.appendChild(g);
     });
     if (!any) root.appendChild(RB.empty('dir', t('no_org'), RB.can('members_edit') ? t('no_org_admin') : ''));
   };

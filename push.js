@@ -1,4 +1,4 @@
-/* Roadbook · notifiche push delle emergenze (per chi gestisce le emergenze) */
+/* Roadbook · notifiche push: promemoria dei Run per tutti, emergenze per chi le gestisce */
 (function () {
   'use strict';
   var RB = window.RB, h = RB.h, t = RB.t;
@@ -41,7 +41,7 @@
     row.appendChild(btn); row.appendChild(tbtn);
     function paint() {
       RB.pushState().then(function (s) {
-        sub.textContent = t('push_s_' + s); btn.style.display = (s === 'on' || s === 'off') ? '' : 'none'; btn.textContent = s === 'on' ? t('push_off') : t('push_on'); btn.setAttribute('data-s', s); tbtn.style.display = s === 'on' ? '' : 'none';
+        sub.textContent = s === 'on' ? (RB.can('emergency_manage') ? t('push_s_on_mgr') : t('push_s_on')) : t('push_s_' + s); btn.style.display = (s === 'on' || s === 'off') ? '' : 'none'; btn.textContent = s === 'on' ? t('push_off') : t('push_on'); btn.setAttribute('data-s', s); tbtn.style.display = s === 'on' ? '' : 'none';
       });
     }
     btn.addEventListener('click', function () {

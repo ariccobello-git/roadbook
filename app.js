@@ -52,7 +52,7 @@
 
   function start() {
     RB.render();
-    RB.sync().then(function () { if (RB.S.code) { RB.render(); RB.startSync(); RB.sosStartPoll(); RB.sosFlush(); if (!RB.tourSeen()) setTimeout(RB.tour, 600); RB.payLoad().then(function (ok) { if (ok) RB.paySoftRender(); }); } });
+    RB.sync().then(function () { if (RB.S.code) { RB.render(); RB.startSync(); RB.sosStartPoll(); RB.sosFlush(); if (!RB.tourSeen()) setTimeout(RB.tour, 600); RB.payLoad().then(function (ok) { if (ok) RB.paySoftRender(); }); RB.openFromLink(); RB.liveResume(); } });
   }
 
   /* ---------- struttura ---------- */
@@ -135,12 +135,13 @@
     } }, t('show')));
     root.appendChild(h('div', { class: 'list' }, codeRow));
     RB.extrasSection(root);
+    root.appendChild(RB.secT(t('push_sec')));
+    root.appendChild(h('div', { class: 'list', id: 'push-list' }, RB.pushRow()));
     root.appendChild(RB.secT(t('sos_title')));
     var emgRow = RB.row({ lead: h('span', { class: 'sos-ic' }, RB.icon('alert')), title: t('sos_title'), sub: RB.emgStatusText(), onclick: function () { RB.emergencyForm(); } });
     root.appendChild(h('div', { class: 'list', id: 'emg-list' }, emgRow));
     if (RB.emg.state === null) RB.emgLoad().then(function (r) { var sb = emgRow.querySelector('.rt span'); if (r && sb) sb.textContent = RB.emgStatusText(); });
     if (RB.can('emergency_manage')) root.appendChild(h('div', { class: 'list', id: 'sos-manage', style: 'margin-top:10px' }, RB.row({ lead: h('span', { class: 'sos-ic' }, RB.icon('alert')), title: t('sos_manage'), sub: RB.sosCount ? t('sos_open_n', RB.sosCount) : t('sos_manage_sub'), onclick: function () { RB.sosList(); } })));
-    if (RB.can('emergency_manage')) root.appendChild(h('div', { class: 'list', id: 'push-list', style: 'margin-top:10px' }, RB.pushRow()));
     root.appendChild(RB.secT(t('dealer')));
     root.appendChild(h('div', { class: 'list', id: 'dealer-list' }, RB.row({ lead: RB.icon('store'), title: RB.dealerName(), sub: t('dealer_sub'), onclick: function () { RB.dealerSheet(); } })));
 

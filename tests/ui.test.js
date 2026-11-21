@@ -255,7 +255,7 @@ async function newPage(browser, vp, level, log, errors) {
   [dl] = await Promise.all([page.waitForEvent('download'), tclick('text=Scarica modello Excel')]);
   wbx = XLSX.readFile(await dl.path()); assert.deepStrictEqual(wbx.SheetNames, ['Soci', 'Istruzioni', 'Ruoli']);
   const roles = XLSX.utils.sheet_to_json(wbx.Sheets['Ruoli'], { header: 1 }); assert.ok(roles.length === 12 && roles.some(r => r[0] === 'Tesoriere' && /soci/.test(r[1])) && roles.some(r => r[0] === 'Segreteria')); step('modello Excel con foglio Ruoli (profili personalizzati inclusi)');
-  assert.deepStrictEqual(XLSX.utils.sheet_to_json(wbx.Sheets['Soci'], { header: 1 })[0], ['Nome', 'Cognome', 'Telefono', 'Email', 'Data di nascita', 'N. Tessera', 'Moto', 'Ruolo', 'Data iscrizione', 'Note']);
+  assert.deepStrictEqual(XLSX.utils.sheet_to_json(wbx.Sheets['Soci'], { header: 1 })[0], ['Nome', 'Cognome', 'Telefono', 'Email', 'Data di nascita', 'N. Tessera', 'Moto', 'Ruolo', 'Data iscrizione', 'Scadenza HOG', 'Liberatoria', 'Note']);
   await page.keyboard.press('Escape'); await page.waitForTimeout(300);
 
   /* altro: lingua e temi */

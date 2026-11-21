@@ -159,18 +159,20 @@
   /* ---------- elenco partecipanti in Excel ---------- */
   RB.exportParticipants = function (run) {
     var head = [t('last_name'), t('first_name'), t('phone'), t('bike'), t('x2_answer'), t('passenger'), t('x2_checked')], ph = RB.can('phones_view');
-    var map = { si: t('x2_yes'), forse: t('maybe'), no: t('no_go') };
-    var rows = RB.signupsOf(run.id).map(function (s) { var m = RB.mem(s.member_id); return m ? [m.last_name, m.first_name, ph ? m.phone || '' : '', m.bike || '', map[s.status] || s.status, s.passengers ? '+1' : '', s.checked_in ? t('x2_yes') : ''] : null; })
+    var map = { si: t('x2_yes'), no: t('no_go') };
+    var rows = RB.signupsOf(run.id).filter(function (s) { return s.status !== 'forse'; }).map(function (s) { var m = RB.mem(s.member_id); return m ? [m.last_name, m.first_name, ph ? m.phone || '' : '', m.bike || '', map[s.status] || s.status, s.passengers ? '+1' : '', s.checked_in ? t('x2_yes') : ''] : null; })
       .filter(Boolean).sort(function (a, b) { return String(a[0]).localeCompare(String(b[0])); });
     return RB.xls.exportTable(run.title, head, rows).then(function () { RB.toast(t('exported')); }, function () { RB.toast(t('e_xls'), 'err'); });
   };
 
   /* righe aggiunte alla scheda del Run */
   RB.runExtras = function (f, r, canSign) {
+    if (RB.liveRows) RB.liveRows(f, r);
     var l = h('div', { class: 'list', id: 'x-run-tools' });
     if (r.status !== 'annullato') l.appendChild(RB.row({ lead: RB.icon('clock'), title: t('x2_ics'), sub: t('x2_ics_d'), go: false, onclick: function () { RB.icsDownload(r); } }));
     if (canSign && r.status === 'programmato') l.appendChild(RB.row({ lead: RB.icon('check'), title: t('x2_scan'), sub: t('x2_scan_d'), go: false, onclick: function () { RB.scanSheet(r); } }));
     if (canSign) l.appendChild(RB.row({ lead: RB.icon('file'), title: t('x2_export_p'), sub: t('x2_export_p_d'), go: false, onclick: function () { RB.exportParticipants(r); } }));
+    if (r.status === 'programmato' && new Date(r.run_date).getTime() > Date.now() - 3 * 3600000 && (RB.can('signups_manage') || RB.can('runs_edit'))) l.appendChild(RB.row({ lead: RB.icon('share'), title: t('inv_title'), sub: t('inv_row_d'), onclick: function () { RB.inviteSheet(r); } }));
     if (l.children.length) f.appendChild(l);
   };
 

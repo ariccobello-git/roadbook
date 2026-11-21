@@ -34,9 +34,9 @@
     return out;
   };
 
-  function metric(rec) {
+  function metric(rec, dark) {
     if (!rec) return t('wx_nodata');
-    var kind = L.wxKind(rec.code), parts = [L.WX_ICON[kind] + ' ' + (rec.temp !== null ? Math.round(rec.temp) + '°' : '—') + (rec.feels !== null && Math.abs(rec.feels - rec.temp) >= 2 ? ' (' + t('wx_feels') + ' ' + Math.round(rec.feels) + '°)' : '')];
+    var kind = L.wxKind(rec.code), parts = [L.wxIconFor(kind, dark) + ' ' + (rec.temp !== null ? Math.round(rec.temp) + '°' : '—') + (rec.feels !== null && Math.abs(rec.feels - rec.temp) >= 2 ? ' (' + t('wx_feels') + ' ' + Math.round(rec.feels) + '°)' : '')];
     parts.push('💧 ' + (rec.pop !== null ? rec.pop + '%' : '—') + (rec.precip ? ' · ' + (Math.round(rec.precip * 10) / 10) + ' mm' : ''));
     parts.push('💨 ' + (rec.wind !== null ? Math.round(rec.wind) : '—') + (rec.gust !== null ? ' (' + t('wx_gust') + ' ' + Math.round(rec.gust) + ')' : '') + ' km/h');
     if (rec.vis !== null) parts.push('👁 ' + (rec.vis >= 10000 ? '10+' : (Math.round(rec.vis / 100) / 10)) + ' km');
@@ -79,7 +79,7 @@
       if (L.runDays(r) > 1 && p.day !== day) { day = p.day; card.appendChild(h('div', { class: 'sec-t', style: 'margin:6px 0' }, h('span', null, t('day_n', day)))); }
       var fl = p.flags.length ? h('div', { class: 'chips' }, p.flags.map(function (k) { return RB.chip(t('wxf_' + k), (k === 'rain' || k === 'cold' || k === 'heat' || k === 'lowvis' || (k === 'gust' && p.level === 1) || (k === 'wind' && p.level === 1)) ? 'wa' : 'er'); })) : null;
       card.appendChild(h('div', { class: 'wx-pt' }, h('div', { class: 'wx-l' }, h('b', null, hhmm(p.eta)), h('span', null, ' ' + (p.label || t(p.role === 'dest' ? 'destination' : p.role === 'meeting' ? 'meeting' : 'stops'))),
-        p.dark ? h('span', { class: 'sm' }, ' 🌙') : null), h('div', { class: 'wx-m' }, metric(p.rec)), fl));
+        p.dark && !(p.rec && /^(clear|cloud)$/.test(L.wxKind(p.rec.code))) ? h('span', { class: 'sm' }, ' 🌙') : null), h('div', { class: 'wx-m' }, metric(p.rec, p.dark)), fl));
     });
     box.appendChild(card);
     box.appendChild(h('p', { class: 'sm', style: 'padding:0 6px' }, t('wx_note')));

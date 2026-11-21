@@ -68,7 +68,17 @@ t('import righe', ()=>{
   assert.strictEqual(r.invalid[0].row,5);
 });
 t('import senza colonne', ()=>{ assert.deepStrictEqual(L.rowsFromMatrix([['Telefono']]).missing,['first_name','last_name']); assert.deepStrictEqual(L.rowsFromMatrix([]).missing,['first_name','last_name']); assert.deepStrictEqual(L.rowsFromMatrix([[''],['']]).missing,['first_name','last_name']); });
-t('conteggi', ()=>{ const c=L.counts([{status:'si',passengers:1,checked_in:true},{status:'si',passengers:0},{status:'forse'},{status:'no'}]); assert.deepStrictEqual(c,{si:2,forse:1,no:1,riders:2,pass:1,total:3,checked:1}); assert.strictEqual(L.counts().total,0); });
+t('tessera HOG e liberatoria', ()=>{
+  assert.strictEqual(L.parseYear(2026),'2026'); assert.strictEqual(L.parseYear('2025'),'2025'); assert.strictEqual(L.parseYear('15/03/2026'),'2026'); assert.strictEqual(L.parseYear('si'),''); assert.strictEqual(L.parseYear(''),'');
+  let d=L.memberDocs({hog_until:'2026-12-01',release_year:2026},'2026-12-10T07:30:00Z',true); assert.deepStrictEqual(d,{hog:'expired',release:'ok'});
+  d=L.memberDocs({hog_until:'2027-01-31'},'2026-12-10',true); assert.deepStrictEqual(d,{hog:'ok',release:'missing'});
+  d=L.memberDocs({},'2026-12-10',false); assert.deepStrictEqual(d,{hog:'',release:''});
+  d=L.memberDocs({hog_until:'2026-12-10'},'2026-12-10',false); assert.strictEqual(d.hog,'ok');
+  const o=L.rowsFromMatrix([['Nome','Cognome','Scadenza HOG','Liberatoria'],['Anna','Rossi','31/01/2027',2026],['Bea','Neri','boh','']],[]);
+  assert.strictEqual(o.rows.length,1); assert.strictEqual(o.rows[0].hog_until,'2027-01-31'); assert.strictEqual(o.rows[0].release_year,'2026'); assert.strictEqual(o.invalid[0].reason,'data_non_valida');
+  assert.strictEqual(L.resolveRole('Segretaria'),'segretario');
+});
+t('conteggi', ()=>{ const c=L.counts([{status:'si',passengers:1,checked_in:true},{status:'si',passengers:0},{status:'forse'},{status:'no'}]); assert.deepStrictEqual(c,{si:2,no:1,riders:2,pass:1,total:3,checked:1}); assert.strictEqual(L.counts().total,0); });
 t('formazione', ()=>{
   const P=(id,title,j)=>({id,title,joined_on:j});
   let f=L.autoFormation([P('rc','road_captain','2015-01-01'),P('hrc','head_road_captain'),P('o1','officer'),P('o2','officer'),P('s1','socio','2020-01-01'),P('s2','socio','2024-01-01'),P('s3','socio','2018-01-01'),P('s4','socio','2022-01-01'),P('s5','socio','2010-01-01'),P('s6','socio','2023-06-01')]);
@@ -80,6 +90,8 @@ t('formazione', ()=>{
   f=L.autoFormation([]); assert.deepStrictEqual(f,[{kind:'road_captain',member_id:null},{kind:'scopa',member_id:null}]);
   f=L.autoFormation([P('a','socio')]); assert.deepStrictEqual(f.map(x=>x.kind),['road_captain','socio','scopa']);
   f=L.autoFormation([P('o','officer')]); assert.strictEqual(f[0].member_id,null); assert.strictEqual(f[f.length-1].member_id,'o');
+  f=L.autoFormation([P('h','head_road_captain'),P('r','road_captain'),P('r2','road_captain'),P('x','socio')]); assert.strictEqual(f[f.length-1].member_id,null); assert.ok(f.every(x=>x.kind!=='scopa'||!x.member_id));
+  f=L.autoFormation([P('h','head_road_captain'),P('r','road_captain'),P('o','officer')]); assert.strictEqual(f[f.length-1].member_id,'o');
   f=L.autoFormation([P('r','road_captain'),P('x','socio')]); assert.strictEqual(f[0].member_id,'r'); assert.strictEqual(f[f.length-1].member_id,null);
 });
 
@@ -207,7 +219,7 @@ t('dashboard e report', ()=>{
   const ctx={runs,signups,members,titleName:k=>k.toUpperCase()};
   const D=R.dashboard(ctx,Date.now()); assert.strictEqual(D.runs,2); assert.strictEqual(D.km,150); assert.strictEqual(D.members,2); assert.strictEqual(D.avg,2); assert.strictEqual(D.next.id,'z'); assert.strictEqual(D.cancelled,1); assert.strictEqual(D.top[0].id,'m1'); assert.ok(D.series.length>=3&&D.series.every(s=>typeof s.value==='number'));
   assert.strictEqual(R.dashboard({runs:[],signups:[],members:[]},Date.now()).runs,0);
-  const rr=R.rows(ctx,{ds:'run',filters:{year:String(y)},sort:{key:'date',dir:'asc'}}); assert.deepStrictEqual(rr.map(r=>r.title),['Uno','Due','Annullato','Prossimo']); assert.strictEqual(rr[0].total,3); assert.strictEqual(rr[0].fill,30); assert.strictEqual(rr[0].checked,1); assert.strictEqual(rr[0].maybe,1); assert.strictEqual(rr[0].fee,null);
+  const rr=R.rows(ctx,{ds:'run',filters:{year:String(y)},sort:{key:'date',dir:'asc'}}); assert.deepStrictEqual(rr.map(r=>r.title),['Uno','Due','Annullato','Prossimo']); assert.strictEqual(rr[0].total,3); assert.strictEqual(rr[0].fill,30); assert.strictEqual(rr[0].checked,1); assert.strictEqual(rr[0].fee,null);
   assert.strictEqual(R.rows(ctx,{ds:'run',filters:{status:'annullato'}}).length,1); assert.strictEqual(R.rows(ctx,{ds:'run',filters:{year:String(y-1)}}).length,1);
   const so=R.rows(ctx,{ds:'socio',filters:{year:String(y),active:'yes'},sort:{key:'attended',dir:'desc'}}); assert.deepStrictEqual(so.map(s=>[s.last_name,s.attended,s.signed]),[['Blu',2,2],['Rossi',0,1]]); assert.strictEqual(so[0].title,'SOCIO');
   assert.strictEqual(R.rows(ctx,{ds:'socio',filters:{role:'officer'}}).length,1); assert.strictEqual(R.rows(ctx,{ds:'socio',filters:{active:'no'}}).length,1);

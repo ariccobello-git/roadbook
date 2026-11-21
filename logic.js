@@ -4,13 +4,20 @@
   var L = {};
 
   /* permessi dei profili di accesso (stessi nomi e stesse dipendenze del database) */
-  L.PERMS = ['members_view', 'phones_view', 'personal_view', 'route_view', 'formation_draft_view', 'runs_edit', 'formation_edit', 'signups_manage', 'photos_moderate', 'members_edit', 'settings_edit', 'profiles_manage', 'reports_view', 'emergency_manage', 'payments_manage'];
+  L.PERMS = ['members_view', 'phones_view', 'personal_view', 'route_view', 'formation_draft_view', 'runs_edit', 'formation_edit', 'signups_manage', 'photos_moderate', 'members_edit', 'settings_edit', 'profiles_manage', 'reports_view', 'emergency_manage', 'payments_manage', 'route_author', 'review_approve'];
   L.PERM_DEPS = {
     runs_edit: ['route_view'], formation_edit: ['formation_draft_view', 'members_view'], signups_manage: ['members_view'],
     members_edit: ['members_view', 'phones_view', 'personal_view'],
     emergency_manage: ['members_view', 'phones_view', 'personal_view'],
     payments_manage: ['members_view', 'personal_view', 'reports_view'],
+    route_author: ['runs_edit', 'route_view', 'members_view'], review_approve: ['route_view', 'formation_draft_view', 'members_view'],
     phones_view: ['members_view'], personal_view: ['members_view'], profiles_manage: ['members_view'], reports_view: ['members_view']
+  };
+  /* revisione di percorso e formazione: stato per sezione e rilascio a direttivo/operativo */
+  L.reviewOf = function (run) {
+    var rv = (run && run.review) || {}, st = function (k) { return (rv[k] && rv[k].st) || 'bozza'; };
+    var ro = st('route'), fo = st('formation');
+    return { route: ro, formation: fo, released: !!rv.release, ready: ro === 'approvato' && fo === 'approvato', note: { route: rv.route && rv.route.note || '', formation: rv.formation && rv.formation.note || '' } };
   };
   L.closePerms = function (list) {
     var set = {}, out = [];
@@ -45,6 +52,8 @@
     vice_direttore: ['vice direttore', 'vicedirettore', 'vice direttrice', 'vice director', 'vice directeur'],
     head_road_captain: ['head road captain', 'head road capitain', 'head road capitan', 'head roadcaptain', 'head road cap', 'head rc', 'hrc', 'capo road captain'],
     road_captain: ['road captain', 'road capitain', 'road capitan', 'roadcaptain', 'road cap', 'rc', 'capo strada'],
+    safety: ['safety', 'safety officer', 'responsabile sicurezza', 'responsable securite'],
+    segretario: ['segretario', 'segretaria', 'secretary', 'secretaire', 'secrétaire'],
     tesoriere: ['tesoriere', 'tesoriera', 'treasurer', 'tresorier', 'trésorier'],
     officer: ['officer', 'officers', 'ufficiale', 'officier']
   };
@@ -79,7 +88,9 @@
     bike: ['moto', 'motocicletta', 'modello moto', 'bike', 'motorcycle', 'modello'],
     title: ['ruolo', 'titolo', 'carica', 'role', 'title', 'fonction', 'qualifica'],
     joined_on: ['data iscrizione', 'iscritto dal', 'data di iscrizione', 'iscrizione', 'joined', 'join date', 'member since', 'date d adhesion', 'inscrit depuis'],
-    notes: ['note', 'notes', 'annotazioni', 'remarques', 'osservazioni']
+    notes: ['note', 'notes', 'annotazioni', 'remarques', 'osservazioni'],
+    hog_until: ['scadenza hog', 'scadenza tessera hog', 'hog scadenza', 'tessera hog scadenza', 'hog fino al', 'hog expiry', 'hog expiration', 'expiration hog', 'expiration h o g'],
+    release_year: ['liberatoria', 'anno liberatoria', 'liberatoria anno', 'release', 'waiver', 'decharge', 'annee decharge']
   };
   L.FIELDS = Object.keys(SYN);
 
@@ -124,6 +135,22 @@
     return '';
   };
 
+  /* anno della liberatoria: 2026, "2026", una data (si prende l'anno), "sì" non basta */
+  L.parseYear = function (v) {
+    if (v == null || v === '') return '';
+    if (typeof v === 'number' && v >= 2000 && v <= 2100 && Math.floor(v) === v) return String(v);
+    var d = L.parseDate(v); if (d) return d.slice(0, 4);
+    var m = /^\s*(20\d\d)\s*$/.exec(String(v)); return m ? m[1] : '';
+  };
+  /* documenti del socio per un Run: tessera HOG valida alla data del Run e liberatoria dell'anno del Run.
+     La liberatoria si controlla solo se il chapter ha iniziato a registrarla (almeno un socio con l'anno). */
+  L.memberDocs = function (m, runDate, releaseTracked) {
+    var d = String(runDate || '').slice(0, 10), y = +d.slice(0, 4), out = { hog: '', release: '' };
+    if (!m || !d) return out;
+    if (m.hog_until) out.hog = String(m.hog_until).slice(0, 10) < d ? 'expired' : 'ok';
+    if (releaseTracked) out.release = +m.release_year === y ? 'ok' : 'missing';
+    return out;
+  };
   function cell(row, idx) {
     if (idx === undefined) return '';
     var v = row[idx];
@@ -159,13 +186,15 @@
         phone: text(cell(row, map.phone)), email: text(cell(row, map.email)), tessera: text(cell(row, map.tessera)),
         bike: text(cell(row, map.bike)), notes: text(cell(row, map.notes)),
         title: L.resolveRole(text(cell(row, map.title)), profiles),
-        birth_date: L.parseDate(cell(row, map.birth_date)), joined_on: L.parseDate(cell(row, map.joined_on))
+        birth_date: L.parseDate(cell(row, map.birth_date)), joined_on: L.parseDate(cell(row, map.joined_on)),
+        hog_until: L.parseDate(cell(row, map.hog_until)), release_year: L.parseYear(cell(row, map.release_year))
       };
       var bd = map.birth_date !== undefined ? cell(row, map.birth_date) : '', jd = map.joined_on !== undefined ? cell(row, map.joined_on) : '';
       if (!o.first_name || !o.last_name) { out.invalid.push({ row: r + 1, reason: 'nome_mancante' }); continue; }
       if (o.title === null) { out.invalid.push({ row: r + 1, reason: 'ruolo_sconosciuto', value: text(cell(row, map.title)) }); continue; }
       if (o.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(o.email)) { out.invalid.push({ row: r + 1, reason: 'email_non_valida' }); continue; }
-      if ((bd !== '' && !o.birth_date) || (jd !== '' && !o.joined_on)) { out.invalid.push({ row: r + 1, reason: 'data_non_valida' }); continue; }
+      var hd = map.hog_until !== undefined ? cell(row, map.hog_until) : '';
+      if ((bd !== '' && !o.birth_date) || (jd !== '' && !o.joined_on) || (hd !== '' && !o.hog_until)) { out.invalid.push({ row: r + 1, reason: 'data_non_valida' }); continue; }
       var key = o.tessera ? 't:' + o.tessera.toLowerCase() : 'n:' + norm(o.first_name) + '|' + norm(o.last_name);
       if (seen[key]) { out.invalid.push({ row: r + 1, reason: 'doppione' }); continue; }
       seen[key] = true;
@@ -282,16 +311,16 @@
     sp = r2(sp); return { due: o.due, paid: o.paid, spent: sp, margin: r2(o.paid - sp), forecast: r2(o.due - sp) };
   };
   L.counts = function (signups) {
-    var c = { si: 0, forse: 0, no: 0, riders: 0, pass: 0, total: 0, checked: 0 };
+    var c = { si: 0, no: 0, riders: 0, pass: 0, total: 0, checked: 0 };
     (signups || []).forEach(function (s) {
       if (s.status === 'si') { c.si++; c.riders++; c.pass += s.passengers || 0; if (s.checked_in) c.checked++; }
-      else if (s.status === 'forse') c.forse++;
       else if (s.status === 'no') c.no++;
     });
     c.total = c.riders + c.pass;
     return c;
   };
 
+  L.isRC = function (title) { return title === 'road_captain' || title === 'head_road_captain'; };
   /* formazione automatica: capofila, soci (i più nuovi davanti), safety distribuiti, scopa in coda */
   L.autoFormation = function (people) {
     var duty = [], regular = [], lead = null;
@@ -303,7 +332,9 @@
     var rcIdx = -1;
     for (var i = 0; i < duty.length; i++) if (duty[i].title !== 'officer') { rcIdx = i; break; }
     if (rcIdx >= 0) lead = duty.splice(rcIdx, 1)[0];
-    var scopa = duty.length ? duty.pop() : null;
+    /* la scopa non è mai un Road Captain: si sceglie tra gli officer */
+    var scopa = null;
+    for (var j = duty.length - 1; j >= 0; j--) if (!L.isRC(duty[j].title)) { scopa = duty.splice(j, 1)[0]; break; }
     var safeties = duty.slice(0, 2);
     duty.slice(2).forEach(function (p) { regular.push(p); });
     regular.sort(function (a, b) { return String(b.joined_on || '').localeCompare(String(a.joined_on || '')) || (a.order || 0) - (b.order || 0); });
@@ -532,6 +563,8 @@
     if (c >= 95 && c <= 99) return 'thunder';
     return 'unknown';
   };
+  /* icona del meteo: di notte il sereno è la luna e il poco nuvoloso una nuvola */
+  L.wxIconFor = function (kind, dark) { return dark && kind === 'clear' ? '🌙' : dark && kind === 'cloud' ? '☁️' : L.WX_ICON[kind] || L.WX_ICON.unknown; };
   L.WX_ICON = { clear: '☀️', cloud: '⛅', fog: '🌫️', freezing: '🧊', drizzle: '🌦️', rain: '🌧️', snow: '❄️', thunder: '⛈️', unknown: '·' };
   function at(a, i) { return a && a[i] !== undefined && a[i] !== null ? Number(a[i]) : null; }
   /* dati orari di un punto per l'ora indicata (ms) */
@@ -685,7 +718,7 @@
     run: [
       { k: 'date', ty: 'date' }, { k: 'title', ty: 'text' }, { k: 'status', ty: 'text' }, { k: 'days', ty: 'num' }, { k: 'km', ty: 'num' }, { k: 'difficulty', ty: 'text' },
       { k: 'meeting', ty: 'text' }, { k: 'destination', ty: 'text' }, { k: 'riders', ty: 'num' }, { k: 'passengers', ty: 'num' }, { k: 'total', ty: 'num' },
-      { k: 'checked', ty: 'num' }, { k: 'maybe', ty: 'num' }, { k: 'max', ty: 'num' }, { k: 'fill', ty: 'num' }, { k: 'wx', ty: 'text' },
+      { k: 'checked', ty: 'num' }, { k: 'max', ty: 'num' }, { k: 'fill', ty: 'num' }, { k: 'wx', ty: 'text' },
       { k: 'fee', ty: 'num' }],
     socio: [
       { k: 'last_name', ty: 'text' }, { k: 'first_name', ty: 'text' }, { k: 'title', ty: 'text' }, { k: 'active', ty: 'text' }, { k: 'bike', ty: 'text' }, { k: 'joined_on', ty: 'date' },
@@ -713,7 +746,7 @@
         if (f.status && r.status !== f.status) return;
         var c = L.counts(byRun[r.id] || []), W = ctx.weather && ctx.weather[r.id], sm = W ? L.wxSummary(r, W, ctx.now) : null;
         rows.push({ date: dstr(r.run_date), title: r.title, status: r.status, days: L.runDays(r), km: r.km == null ? null : +r.km, difficulty: r.difficulty, meeting: r.meeting_point || '', destination: r.destination || '',
-          riders: c.riders, passengers: c.pass, total: c.total, checked: c.checked, maybe: c.forse, max: r.max_participants == null ? null : +r.max_participants,
+          riders: c.riders, passengers: c.pass, total: c.total, checked: c.checked, max: r.max_participants == null ? null : +r.max_participants,
           fill: r.max_participants ? Math.round(c.total * 100 / r.max_participants) : null, wx: sm && sm.covered ? ['ok', 'warn', 'crit'][sm.level] : '',
           fee: L.runFee(r) || null });
       });
@@ -864,7 +897,7 @@
     var lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Roadbook//Roma Chapter//IT', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'BEGIN:VEVENT',
       'UID:' + run.id + '@roadbook', 'DTSTAMP:' + icsUtc(new Date(now || Date.now())), 'DTSTART:' + icsUtc(st), 'DTEND:' + icsUtc(en), 'SUMMARY:' + icsEsc((chapter ? chapter + ' · ' : '') + run.title),
       run.meeting_point ? 'LOCATION:' + icsEsc(run.meeting_point) : '', desc ? 'DESCRIPTION:' + icsEsc(desc) : '', run.status === 'annullato' ? 'STATUS:CANCELLED' : 'STATUS:CONFIRMED',
-      'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsEsc(run.title), 'TRIGGER:-P1D', 'END:VALARM', 'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsEsc(run.title), 'TRIGGER:-PT2H', 'END:VALARM', 'END:VEVENT', 'END:VCALENDAR'];
+      'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsEsc(run.title), 'TRIGGER:-P1D', 'END:VALARM', 'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsEsc(run.title), 'TRIGGER:-PT2H', 'END:VALARM', 'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsEsc(run.title), 'TRIGGER:-PT1H', 'END:VALARM', 'END:VEVENT', 'END:VCALENDAR'];
     return lines.filter(Boolean).map(icsFold).join('\r\n') + '\r\n';
   };
 

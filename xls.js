@@ -40,7 +40,7 @@
   function template() {
     return lib().then(function (X) {
       var wb = X.utils.book_new();
-      var head = ['Nome', 'Cognome', 'Telefono', 'Email', 'Data di nascita', 'N. Tessera', 'Moto', 'Ruolo', 'Data iscrizione', 'Note'];
+      var head = ['Nome', 'Cognome', 'Telefono', 'Email', 'Data di nascita', 'N. Tessera', 'Moto', 'Ruolo', 'Data iscrizione', 'Scadenza HOG', 'Liberatoria', 'Note'];
       var ws = X.utils.aoa_to_sheet([head]);
       ws['!cols'] = head.map(function (h) { return { wch: Math.max(14, h.length + 2) }; });
       X.utils.book_append_sheet(wb, ws, 'Soci');
@@ -59,12 +59,12 @@
 
   function exportMembers() {
     return lib().then(function (X) {
-      var rows = [['Nome', 'Cognome', 'Telefono', 'Email', 'Data di nascita', 'N. Tessera', 'Moto', 'Ruolo', 'Data iscrizione', 'Attivo', 'Note']];
+      var rows = [['Nome', 'Cognome', 'Telefono', 'Email', 'Data di nascita', 'N. Tessera', 'Moto', 'Ruolo', 'Data iscrizione', 'Scadenza HOG', 'Liberatoria', 'Attivo', 'Note']];
       RB.members().forEach(function (m) {
-        rows.push([m.first_name, m.last_name, m.phone || '', m.email || '', m.birth_date || '', m.tessera || '', m.bike || '', RB.titleName(m.title), m.joined_on || '', m.active ? 'Si' : 'No', m.notes || '']);
+        rows.push([m.first_name, m.last_name, m.phone || '', m.email || '', m.birth_date || '', m.tessera || '', m.bike || '', RB.titleName(m.title), m.joined_on || '', m.hog_until || '', m.release_year || '', m.active ? 'Si' : 'No', m.notes || '']);
       });
       var wb = X.utils.book_new(), ws = X.utils.aoa_to_sheet(rows);
-      ws['!cols'] = [14, 16, 16, 26, 14, 12, 18, 18, 14, 8, 30].map(function (w) { return { wch: w }; });
+      ws['!cols'] = [14, 16, 16, 26, 14, 12, 18, 18, 14, 14, 11, 8, 30].map(function (w) { return { wch: w }; });
       X.utils.book_append_sheet(wb, ws, 'Soci');
       save(X, wb, 'roadbook-soci.xlsx');
     });
