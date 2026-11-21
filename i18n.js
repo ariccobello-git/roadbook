@@ -368,6 +368,7 @@
     sos_req: ["Nome e telefono della persona da avvisare sono obbligatori", "Name and phone of the person to notify are required", "Nom et téléphone de la personne à prévenir obligatoires"],
     sos_delete: ["Elimina i miei dati di emergenza", "Delete my emergency details", "Supprimer mes données d'urgence"],
     sos_delete_msg: ["Verranno cancellati definitivamente dal server.", "They will be permanently erased from the server.", "Elles seront définitivement effacées du serveur."],
+    al_more: ["Altri {0} avvisi", "{0} more alerts", "{0} autres alertes"], al_less: ["Mostra meno avvisi", "Show fewer alerts", "Moins d'alertes"],
     sos_btn: ["Emergenza", "Emergency", "Urgence"],
     sos_public_intro: ["Scrivi nome e cognome per segnalare un'emergenza anche senza accedere.", "Enter your name to report an emergency even without signing in.", "Saisissez votre nom pour signaler une urgence, même sans connexion."],
     sos_your_name: ["Il tuo nome e cognome", "Your full name", "Votre nom et prénom"],

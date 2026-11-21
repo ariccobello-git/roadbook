@@ -40,10 +40,11 @@
     var chips = h('div', { class: 'chips' });
     if (off) chips.appendChild(RB.chip(t('st_annullato'), 'er'));
     else if (r.status === 'concluso') chips.appendChild(RB.chip(t('st_concluso'), ''));
-    if (r.km) chips.appendChild(RB.chip(r.km + ' km', '', 'route'));
+    /* una sola riga di etichette, in ordine di importanza: quelle che non ci stanno si nascondono intere (vedi .run .chips) */
     var wc = past ? null : RB.wxChip(r); if (wc) chips.appendChild(wc);
-    chips.appendChild(RB.chip(t(DIFF[r.difficulty] || 'diff_media'), 'acc'));
     chips.appendChild(RB.chip(c.total + ' ' + t('persons') + (r.max_participants ? ' / ' + r.max_participants : ''), c.total ? 'ok' : '', 'soci'));
+    if (r.km) chips.appendChild(RB.chip(r.km + ' km', '', 'route'));
+    chips.appendChild(RB.chip(t(DIFF[r.difficulty] || 'diff_media'), 'acc'));
     if (r.formation_published) chips.appendChild(RB.chip(t('formation'), '', 'moto'));
     var me = null;
     if (!off && !past && r.status === 'programmato') me = h('div', { class: 'me', onclick: function (e) { e.stopPropagation(); } }, respSeg(r));
@@ -84,8 +85,14 @@
     root.appendChild(RB.title(t('tab_run'), RB.chapterName(), RB.can('runs_edit') ? RB.iconBtn('plus', t('new_run'), function () { RB.newRun(); }, true) : null));
     root.appendChild(RB.seg([{ v: 'next', label: t('upcoming') + (next.length ? ' (' + next.length + ')' : '') }, { v: 'past', label: t('archive') + (past.length ? ' (' + past.length + ')' : '') }], RB.ui.runTab, function (v) { RB.ui.runTab = v; RB.refresh(); }));
     if (RB.ui.runTab === 'past') { archiveFilters(root, past); return; }
-    RB.wxBanners(root, next);
-    RB.reviewBanners(root);
+    /* avvisi compatti: una riga sola con il primo avviso e "+N"; gli altri a richiesta */
+    var al = h('div', { class: 'alerts' + (RB.ui.alertsAll ? ' all' : '') });
+    RB.wxBanners(al, next);
+    RB.reviewBanners(al);
+    var na = al.children.length;
+    if (na > 1) al.appendChild(h('button', { type: 'button', class: 'al-more', id: 'al-more', 'aria-label': RB.ui.alertsAll ? t('al_less') : t('al_more', na - 1), onclick: function () { RB.ui.alertsAll = !RB.ui.alertsAll; RB.feel('tap'); RB.refresh(); } },
+      RB.ui.alertsAll ? t('al_less') : '+' + (na - 1)));
+    if (na) root.appendChild(al);
     if (!next.length) root.appendChild(RB.empty('run', t('no_runs'), RB.can('runs_edit') ? t('no_runs_staff') : t('no_runs_member')));
     next.forEach(function (r, i) { root.appendChild(runCard(r, i)); });
   };

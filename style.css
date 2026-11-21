@@ -550,3 +550,44 @@ input,select,textarea{min-height:44px}
 .whobar .who-n{font-size:15px;line-height:1.15}
 .whobar .who-p{justify-self:start;max-width:100%;overflow:hidden;text-overflow:ellipsis;line-height:1.3}
 @media(max-width:360px){.who-sos{min-width:80px;padding:0 14px;font-size:18px}}
+
+/* 4.1.1 – pagina Run in una schermata: avvisi su una riga, schede compatte, niente scorrimento */
+.alerts{display:flex;gap:8px;align-items:stretch;margin:0 0 10px}
+.alerts.all{flex-direction:column;gap:0}
+.alerts .banner{flex:1;min-width:0;display:flex;align-items:center;gap:6px;min-height:44px;margin:0;padding:9px 14px;white-space:nowrap;overflow:hidden;font-size:14.5px}
+.alerts.all .banner{margin:0 0 8px}
+.alerts .banner>*{flex:none;margin:0!important;white-space:nowrap}
+.alerts .banner>b{flex:0 1 auto;min-width:0;max-width:55%;overflow:hidden;text-overflow:ellipsis}
+.alerts:not(.all) .banner>.sm+.sm{display:none}
+.alerts .banner>.sm{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;font-weight:500}
+.alerts .banner>.sm:before{content:"· "}
+.alerts .banner>.sm+.sm{flex:none;font-weight:700}
+.alerts .banner>.sm+.sm:before{content:""}
+.alerts:not(.all) .banner:nth-of-type(n+2){display:none}
+.al-more{flex:none;min-width:52px;min-height:44px;padding:0 12px;border:0;border-radius:12px;background:var(--fill);color:inherit;font:inherit;font-size:15px;font-weight:700;cursor:pointer}
+.alerts.all .al-more{width:100%}
+.view>.seg{margin-bottom:12px}
+.view>.run{padding:13px 14px;gap:12px;margin-bottom:12px}
+.view>.run .chips{flex-wrap:wrap;row-gap:20px;max-height:var(--chip-h,30px);overflow:hidden;margin-top:6px}
+.view>.run .chips .chip{flex:none}
+.view>.run .me{margin-top:8px}
+@media(max-width:899px) and (max-height:960px){.view>.top small{display:none}.view>.top{margin:2px 0 10px}}
+@media(max-height:720px){
+  .view .top h1{font-size:28px}
+  .view>.run h3{font-size:17px}
+  .view>.run .wh{font-size:14px}
+  .who-sos{height:60px}
+  .whobar{margin-bottom:6px}
+  .view>.top h1{font-size:26px}
+  .view>.top{margin:0 0 6px}
+  .view>.seg{padding:3px;margin-bottom:10px}
+  .view>.run{padding:11px 13px;margin-bottom:10px}
+  .view>.run:not(.hero) .chips{display:none}
+}
+.login{min-height:100vh;min-height:100dvh;padding:max(16px,env(safe-area-inset-top)) 24px max(16px,env(safe-area-inset-bottom))}
+@media(max-height:720px){.login .logo{width:72px;height:72px;margin-bottom:12px}.login h1{font-size:30px}.login .sub{margin-bottom:16px}.login .btn.sos-login{margin-top:20px}.login .lg{margin-top:16px}}
+@media(max-height:600px){.view>.top h1{font-size:22px}.view>.top .ib{width:44px;height:44px}.view>.run .chips{display:none}.view>.run .wh{display:none}.login .logo{width:56px;height:56px;margin-bottom:8px}.login h1{font-size:26px}.login .sub{margin-bottom:10px}}
+@media(max-height:600px){.login .btn.sos-login{margin-top:12px;min-height:60px}.login .lg{margin-top:10px}.login #rel{margin-top:6px!important}.login .list{margin-bottom:0}}
+.view{padding-bottom:calc(86px + env(safe-area-inset-bottom))}
+.view>:last-child{margin-bottom:0}
+@media(min-width:900px){.view{padding-bottom:60px}}
