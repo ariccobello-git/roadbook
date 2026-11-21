@@ -215,7 +215,6 @@
     invite: ["Invito", "Invitation", "Invitation"],
     invite_text: ["Ciao {0}! Ecco Roadbook, l'app del {1}. Apri {2} e usa il codice {3}.", "Hi {0}! Here's Roadbook, the {1} app. Open {2} and use code {3}.", "Salut {0} ! Voici Roadbook, l'appli du {1}. Ouvre {2} et utilise le code {3}."],
     joined: ["Iscritto dal", "Member since", "Membre depuis"],
-    fm_rc_no_scopa: ["Il Road Captain non fa mai la scopa: scegli un officer.", "A Road Captain never rides sweep: pick an officer.", "Un Road Captain ne fait jamais le serre-file : choisissez un officier."],
     k_rc: ["Road Captain", "Road Captain", "Road Captain"], k_safety: ["Safety", "Safety", "Safety"], k_scopa: ["Scopa", "Sweep", "Serre-file"], k_socio: ["Socio", "Member", "Membre"],
     language: ["Lingua", "Language", "Langue"],
     last_name: ["Cognome", "Last name", "Nom"],

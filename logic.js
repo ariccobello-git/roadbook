@@ -320,7 +320,6 @@
     return c;
   };
 
-  L.isRC = function (title) { return title === 'road_captain' || title === 'head_road_captain'; };
   /* formazione automatica: capofila, soci (i più nuovi davanti), safety distribuiti, scopa in coda */
   L.autoFormation = function (people) {
     var duty = [], regular = [], lead = null;
@@ -332,9 +331,7 @@
     var rcIdx = -1;
     for (var i = 0; i < duty.length; i++) if (duty[i].title !== 'officer') { rcIdx = i; break; }
     if (rcIdx >= 0) lead = duty.splice(rcIdx, 1)[0];
-    /* la scopa non è mai un Road Captain: si sceglie tra gli officer */
-    var scopa = null;
-    for (var j = duty.length - 1; j >= 0; j--) if (!L.isRC(duty[j].title)) { scopa = duty.splice(j, 1)[0]; break; }
+    var scopa = duty.length ? duty.pop() : null;
     var safeties = duty.slice(0, 2);
     duty.slice(2).forEach(function (p) { regular.push(p); });
     regular.sort(function (a, b) { return String(b.joined_on || '').localeCompare(String(a.joined_on || '')) || (a.order || 0) - (b.order || 0); });

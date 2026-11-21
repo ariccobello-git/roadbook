@@ -716,7 +716,7 @@
     }
     function swap(a, b) { var x = slots[a]; slots[a] = slots[b]; slots[b] = x; RB.feel('tap'); draw(); }
     function assign(i) {
-      RB.pickMember({ title: t('assign_person'), list: function () { var u = used(); return RB.members().filter(function (m) { return m.active && (!u[m.id] || slots[i].member_id === m.id) && !(slots[i].kind === 'scopa' && RBL.isRC(m.title)); }); },
+      RB.pickMember({ title: t('assign_person'), list: function () { var u = used(); return RB.members().filter(function (m) { return m.active && (!u[m.id] || slots[i].member_id === m.id); }); },
         onPick: function (m) { slots[i].member_id = m.id; draw(); } });
     }
     function slotMenu(i) {
@@ -726,7 +726,7 @@
         { label: t('k_rc'), fn: function () { slots[i].kind = 'road_captain'; draw(); } },
         { label: t('k_safety'), fn: function () { slots[i].kind = 'safety'; draw(); } },
         { label: t('k_socio'), fn: function () { slots[i].kind = 'socio'; draw(); } },
-        { label: t('k_scopa'), fn: function () { var m = slots[i].member_id && RB.mem(slots[i].member_id); if (m && RBL.isRC(m.title)) { RB.toast(t('fm_rc_no_scopa'), 'err'); return; } slots[i].kind = 'scopa'; draw(); } },
+        { label: t('k_scopa'), fn: function () { slots[i].kind = 'scopa'; draw(); } },
         { label: t('remove'), danger: true, fn: function () { slots.splice(i, 1); draw(); } }]);
     }
     function addMenu() {

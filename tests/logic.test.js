@@ -90,7 +90,7 @@ t('formazione', ()=>{
   f=L.autoFormation([]); assert.deepStrictEqual(f,[{kind:'road_captain',member_id:null},{kind:'scopa',member_id:null}]);
   f=L.autoFormation([P('a','socio')]); assert.deepStrictEqual(f.map(x=>x.kind),['road_captain','socio','scopa']);
   f=L.autoFormation([P('o','officer')]); assert.strictEqual(f[0].member_id,null); assert.strictEqual(f[f.length-1].member_id,'o');
-  f=L.autoFormation([P('h','head_road_captain'),P('r','road_captain'),P('r2','road_captain'),P('x','socio')]); assert.strictEqual(f[f.length-1].member_id,null); assert.ok(f.every(x=>x.kind!=='scopa'||!x.member_id));
+  f=L.autoFormation([P('h','head_road_captain'),P('r','road_captain'),P('r2','road_captain'),P('x','socio')]); assert.strictEqual(f[f.length-1].member_id,'r2');
   f=L.autoFormation([P('h','head_road_captain'),P('r','road_captain'),P('o','officer')]); assert.strictEqual(f[f.length-1].member_id,'o');
   f=L.autoFormation([P('r','road_captain'),P('x','socio')]); assert.strictEqual(f[0].member_id,'r'); assert.strictEqual(f[f.length-1].member_id,null);
 });
