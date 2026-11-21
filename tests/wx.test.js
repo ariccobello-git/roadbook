@@ -85,6 +85,7 @@ function omMock() {
 async function newPage(browser, vp, level, log, errors) {
   const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: 2, locale: 'it-IT', timezoneId: 'Europe/Rome', permissions: ['geolocation'], geolocation: { latitude: 41.9, longitude: 12.5 } });
   const page = await ctx.newPage();
+  await page.addInitScript(() => { try { localStorage.setItem('rb.tour', '1'); } catch (e) {} });
   page.on('pageerror', e => errors.push('pageerror: ' + e.message));
   page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource|favicon/.test(m.text())) errors.push('console: ' + m.text()); });
   await page.route('**/router.project-osrm.org/**', r => r.fulfill({ contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ code: 'Ok', routes: [{ distance: 100000, duration: 3600, legs: [{ duration: 3600 }] }] }) }));

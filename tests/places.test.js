@@ -71,6 +71,7 @@ function backend(page, level, log) {
 async function newPage(browser, vp, level, log, errors) {
   const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: 2, locale: 'it-IT', timezoneId: 'Europe/Rome', permissions: [] });
   const page = await ctx.newPage();
+  await page.addInitScript(() => { try { localStorage.setItem('rb.tour', '1'); } catch (e) {} });
   page.on('pageerror', e => errors.push('pageerror: ' + e.message));
   page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource|favicon/.test(m.text())) errors.push('console: ' + m.text()); });
   await page.route('**/cdnjs.cloudflare.com/**/xlsx.full.min.js', r => r.fulfill({ contentType: 'application/javascript', body: fs.readFileSync('./node_modules/xlsx/dist/xlsx.full.min.js') }));

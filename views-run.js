@@ -734,7 +734,7 @@
         { label: t('add_from_participants'), fn: function () {
           RB.pickMember({ title: t('participants'), multi: true,
             list: function () { var u = used(); return RB.signupsOf(runId).filter(function (s) { return s.status === 'si' && !u[s.member_id]; }).map(function (s) { return RB.mem(s.member_id); }).filter(Boolean); },
-            onPick: function (m) { slots.splice(Math.max(0, slots.length - (slots.length && slots[slots.length - 1].kind === 'scopa' ? 1 : 0)), 0, { kind: m.title === 'road_captain' || m.title === 'head_road_captain' ? 'road_captain' : 'socio', member_id: m.id }); draw(); } });
+            onPick: function (m) { slots.splice(Math.max(0, slots.length - (slots.length && slots[slots.length - 1].kind === 'scopa' ? 1 : 0)), 0, { kind: m.title === 'road_captain' || m.title === 'head_road_captain' ? 'road_captain' : m.title === 'safety' ? 'safety' : 'socio', member_id: m.id }); draw(); } });
         } },
         { label: t('add_anyone'), fn: function () {
           RB.pickMember({ title: t('tab_soci'), multi: true, list: function () { var u = used(); return RB.members().filter(function (m) { return m.active && !u[m.id]; }); },

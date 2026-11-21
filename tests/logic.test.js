@@ -92,6 +92,13 @@ t('formazione', ()=>{
   f=L.autoFormation([P('o','officer')]); assert.strictEqual(f[0].member_id,null); assert.strictEqual(f[f.length-1].member_id,'o');
   f=L.autoFormation([P('h','head_road_captain'),P('r','road_captain'),P('r2','road_captain'),P('x','socio')]); assert.strictEqual(f[f.length-1].member_id,'r2');
   f=L.autoFormation([P('h','head_road_captain'),P('r','road_captain'),P('o','officer')]); assert.strictEqual(f[f.length-1].member_id,'o');
+  /* Safety Officer iscritti: sempre posti Safety, distribuiti nel gruppo; gli officer tornano soci se i safety bastano */
+  f=L.autoFormation([P('r','road_captain'),P('sf1','safety'),P('sf2','safety'),P('sf3','safety'),P('o','officer'),P('o2','officer'),P('a','socio'),P('b','socio'),P('c','socio'),P('d','socio')]);
+  assert.deepStrictEqual(f.filter(x=>x.kind==='safety').map(x=>x.member_id),['sf1','sf2','sf3']); assert.strictEqual(f[f.length-1].member_id,'o2'); assert.ok(f.some(x=>x.kind==='socio'&&x.member_id==='o'));
+  assert.ok(f[1].kind!=='safety'&&f[f.length-2].kind!=='safety'); assert.strictEqual(new Set(f.filter(x=>x.member_id).map(x=>x.member_id)).size,10);
+  f=L.autoFormation([P('r','road_captain'),P('sf','safety'),P('o1','officer'),P('o2','officer'),P('o3','officer'),P('a','socio')]);
+  assert.deepStrictEqual(f.filter(x=>x.kind==='safety').map(x=>x.member_id),['sf','o1']); assert.strictEqual(f[f.length-1].member_id,'o3');
+  f=L.autoFormation([P('sf','safety')]); assert.deepStrictEqual(f.map(x=>x.kind),['road_captain','safety','scopa']);
   f=L.autoFormation([P('r','road_captain'),P('x','socio')]); assert.strictEqual(f[0].member_id,'r'); assert.strictEqual(f[f.length-1].member_id,null);
 });
 

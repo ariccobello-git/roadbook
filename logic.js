@@ -320,11 +320,13 @@
     return c;
   };
 
-  /* formazione automatica: capofila, soci (i più nuovi davanti), safety distribuiti, scopa in coda */
+  /* formazione automatica: capofila, soci (i più nuovi davanti), safety distribuiti, scopa in coda.
+     I Safety Officer iscritti sono sempre posti Safety; se mancano, fanno da safety fino a 2 officer/road captain liberi. */
   L.autoFormation = function (people) {
-    var duty = [], regular = [], lead = null;
+    var duty = [], regular = [], safetyOff = [], lead = null;
     people.forEach(function (p) {
-      if (p.title === 'head_road_captain' || p.title === 'road_captain' || p.title === 'officer') duty.push(p); else regular.push(p);
+      if (p.title === 'safety') safetyOff.push(p);
+      else if (p.title === 'head_road_captain' || p.title === 'road_captain' || p.title === 'officer') duty.push(p); else regular.push(p);
     });
     var rank = { head_road_captain: 0, road_captain: 1, officer: 2 };
     duty.sort(function (a, b) { return rank[a.title] - rank[b.title]; });
@@ -332,11 +334,11 @@
     for (var i = 0; i < duty.length; i++) if (duty[i].title !== 'officer') { rcIdx = i; break; }
     if (rcIdx >= 0) lead = duty.splice(rcIdx, 1)[0];
     var scopa = duty.length ? duty.pop() : null;
-    var safeties = duty.slice(0, 2);
-    duty.slice(2).forEach(function (p) { regular.push(p); });
+    var extra = Math.max(0, 2 - safetyOff.length), safeties = safetyOff.concat(duty.slice(0, extra));
+    duty.slice(extra).forEach(function (p) { regular.push(p); });
     regular.sort(function (a, b) { return String(b.joined_on || '').localeCompare(String(a.joined_on || '')) || (a.order || 0) - (b.order || 0); });
     var mid = regular.slice(), n = mid.length, res = [];
-    var pos = safeties.length === 1 ? [Math.round(n / 2)] : safeties.length === 2 ? [Math.round(n / 3), Math.round(2 * n / 3)] : [];
+    var pos = safeties.map(function (_, j) { return Math.round((j + 1) * n / (safeties.length + 1)); });
     var out = [], si = 0;
     for (var k = 0; k <= n; k++) {
       while (si < safeties.length && pos[si] === k) { out.push({ kind: 'safety', member_id: safeties[si].id }); si++; }

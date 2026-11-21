@@ -46,7 +46,8 @@
       h('img', { class: 'logo' + (RB.logoSrc() === 'icon-180.png' ? '' : ' logo-img'), src: RB.logoSrc(), alt: '' }),
       h('h1', null, 'Roadbook'), h('p', { class: 'sub' }, t('login_sub')),
       h('div', { class: 'list' }, h('label', { class: 'field' }, h('span', null, t('access_code')), code)),
-      err, btn, resumeBtn, h('button', { type: 'button', class: 'btn sos-btn sos-login', id: 'sos-public', onclick: function () { RB.sosOpen('public'); } }, RB.icon('alert'), t('sos_btn')), h('p', { class: 'sm', style: 'text-align:center' }, t('login_help')), h('div', { class: 'lg' }, langs), h('p', { class: 'sm', style: 'text-align:center;opacity:.45;font-size:11px;margin-top:14px', id: 'rel' }, 'Release ' + RB.RELEASE)));
+      err, btn, resumeBtn, h('p', { class: 'sm', style: 'text-align:center' }, t('login_help')),
+      h('button', { type: 'button', class: 'btn sos-btn sos-login', id: 'sos-public', onclick: function () { RB.feel('tap'); RB.sosOpen('public'); } }, RB.icon('alert'), t('sos_btn')), h('div', { class: 'lg' }, langs), h('p', { class: 'sm', style: 'text-align:center;opacity:.45;font-size:11px;margin-top:14px', id: 'rel' }, 'Release ' + RB.RELEASE)));
     setTimeout(function () { try { code.focus(); } catch (e) {} }, 300);
   }
 
@@ -65,6 +66,7 @@
         if (RB.ui.tab !== x[0]) { RB.ui.tab = x[0]; RB.feel('tap'); } window.scrollTo(0, 0); RB.render();
       } }, RB.icon(x[1]), h('span', null, t(x[2]))));
     });
+    tabs.appendChild(h('button', { type: 'button', class: 'side-out', id: 'side-out', onclick: askLogout }, RB.icon('out'), h('span', null, t('logout'))));
     app.appendChild(h('div', { class: 'shell' }, tabs, h('main', { class: 'view', id: 'view' })));
   }
 
@@ -95,8 +97,7 @@
     if (!RB.S.d) { main.appendChild(h('div', { class: 'empty' }, RB.icon('clock'), h('b', null, t('loading')))); return; }
     if (RB.S.me) main.appendChild(h('div', { class: 'whobar' }, h('button', { type: 'button', class: 'who', id: 'who', 'aria-label': t('profile_in_use'), onclick: function () { if (RB.ui.tab !== 'altro') { RB.ui.tab = 'altro'; RB.feel('tap'); window.scrollTo(0, 0); RB.render(); } } },
       h('span', { class: 'who-dot' }, ((RB.S.me.first_name || '?')[0] + (RB.S.me.last_name || '')[0]).toUpperCase()), h('span', { class: 'who-n' }, (RB.S.me.first_name + ' ' + RB.S.me.last_name).trim()), h('span', { class: 'who-p' }, RB.titleName(RB.S.me.title))),
-      h('button', { type: 'button', class: 'who-sos', id: 'sos-btn', 'aria-label': t('sos_btn'), title: t('sos_btn'), onclick: function () { RB.sosOpen('in'); } }, RB.icon('alert')),
-      h('button', { type: 'button', class: 'who-out', id: 'who-out', 'aria-label': t('logout'), title: t('logout'), onclick: askLogout }, RB.icon('out'))));
+      h('button', { type: 'button', class: 'who-sos', id: 'sos-btn', 'aria-label': t('sos_btn'), title: t('sos_btn'), onclick: function () { RB.feel('tap'); RB.sosOpen('in'); } }, RB.icon('alert'), h('span', null, 'SOS'))));
     if (!RB.S.online) main.appendChild(h('div', { class: 'off-bar' }, t('offline')));
     var sb = RB.sosBanner(); if (sb) main.appendChild(sb);
     if (RB.ui.tab === 'run') { var nb = RB.noticesBlock(); if (nb) main.appendChild(nb); hint(main); }
@@ -126,7 +127,8 @@
     var av = RB.av(RB.mem(me.id), 'lg');
     root.appendChild(h('div', { class: 'card', style: 'display:flex;align-items:center;gap:14px' },
       h('button', { type: 'button', 'aria-label': t('change_photo'), onclick: function () { if (RB.mem(me.id)) RB.photoMenu(RB.mem(me.id)); } }, av),
-      h('div', { style: 'min-width:0' }, h('b', { style: 'font-size:19px' }, RB.fullName(m)), h('div', { class: 'chips', style: 'margin-top:4px' }, RB.chip(RB.titleName(me.title), 'acc'), RB.chip(anyTool ? t('area_staff') : t('area_member'), '')))));
+      h('div', { style: 'min-width:0;flex:1' }, h('b', { style: 'font-size:19px' }, RB.fullName(m)), h('div', { class: 'chips', style: 'margin-top:4px' }, RB.chip(RB.titleName(me.title), 'acc'), RB.chip(anyTool ? t('area_staff') : t('area_member'), ''))),
+      h('button', { type: 'button', class: 'card-out', id: 'card-out', 'aria-label': t('logout'), title: t('logout'), onclick: askLogout }, RB.icon('out'), h('span', null, t('logout')))));
 
     var shown = false, codeRow = RB.row({ lead: RB.icon('user'), title: t('my_code'), sub: '••••-••••', go: false });
     var csub = codeRow.querySelector('.rt span');

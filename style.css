@@ -429,9 +429,8 @@ select{border:0;background:var(--fill);border-radius:10px;padding:9px 10px;color
 .hcell .hi{font-size:22px;line-height:1.3}.hcell b{display:block;font-size:16px}.hcell small{display:block;color:var(--mu);font-size:11px}
 
 /* profilo in uso, sempre visibile */
-.whobar{position:sticky;top:max(6px,env(safe-area-inset-top));z-index:30;display:flex;align-items:center;justify-content:flex-end;gap:6px;margin:0 0 10px auto;max-width:100%}
-.who-out{width:34px;height:34px;flex:none;display:grid;place-items:center;border-radius:50%;background:var(--gl);border:1px solid var(--gb);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);color:inherit;cursor:pointer;padding:0}
-.who-out .ic{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.whobar{position:sticky;top:max(6px,env(safe-area-inset-top));z-index:30;display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 10px;max-width:100%;pointer-events:none}
+.whobar>*{pointer-events:auto}
 .who{position:static;display:flex;align-items:center;gap:8px;margin:0;min-width:0;padding:4px 12px 4px 4px;border-radius:99px;background:var(--gl);border:1px solid var(--gb);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);font:inherit;font-size:13px;color:inherit;cursor:pointer;max-width:100%}
 .who-dot{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,var(--g1),var(--g2));color:#fff;font-size:11px;font-weight:700}
 .who-n{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -451,11 +450,12 @@ html.bg *,html.bg *:before,html.bg *:after{animation-play-state:paused!important
 .sos-seg,.sos-blood{flex-wrap:wrap}
 .sos-blood button{min-width:44px}
 /* SOS: segnalazione e gestione (il rosso solo per la sicurezza) */
-.btn.sos-login{margin-top:14px;display:flex;align-items:center;justify-content:center;gap:8px}
+.btn.sos-login{margin-top:30px;min-height:64px;font-size:19px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:10px}
+.btn.sos-login .ic{width:24px;height:24px}
 .btn.sos-login .ic,.btn.sos-btn .ic{width:20px;height:20px;stroke:#fff}
-.who-sos{width:44px;height:44px;border-radius:50%;border:0;background:var(--sos);color:#fff;display:grid;place-items:center;flex:none;box-shadow:0 4px 12px rgba(229,53,43,.35);transition:transform .2s cubic-bezier(.2,.8,.2,1)}
+.who-sos{min-width:96px;height:64px;padding:0 18px;border-radius:32px;border:2px solid rgba(255,255,255,.75);background:linear-gradient(180deg,#f0483d,#d02a20);color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;flex:none;font:800 20px/1 -apple-system,system-ui,sans-serif;letter-spacing:.04em;box-shadow:0 8px 22px rgba(229,53,43,.42);transition:transform .2s cubic-bezier(.2,.8,.2,1);cursor:pointer}
 .who-sos:active{transform:scale(.9)}
-.who-sos .ic{width:20px;height:20px;stroke:#fff}
+.who-sos .ic{width:26px;height:26px;stroke:#fff;stroke-width:2.4}
 .sos-kinds{display:flex;flex-direction:column;gap:10px;margin:8px 0}
 .sos-kind{display:flex;align-items:center;gap:12px;text-align:left;border:1px solid rgba(229,53,43,.3);background:var(--card);border-radius:18px;padding:14px;color:inherit;font:inherit;min-height:64px;transition:transform .2s cubic-bezier(.2,.8,.2,1)}
 .sos-kind:active{transform:scale(.98)}
@@ -524,7 +524,6 @@ html.bg *,html.bg *:before,html.bg *:after{animation-play-state:paused!important
 .tab{font-size:12px}
 .sb{min-height:44px;min-width:44px;display:inline-flex;align-items:center;justify-content:center;padding:0 8px}
 .btn.sm2{min-height:44px;font-size:16px}
-.who-out{width:44px;height:44px}
 .who{min-height:44px}
 .seg button,.seg .sg,.sg{min-height:44px}
 input,select,textarea{min-height:44px}
@@ -536,3 +535,18 @@ input,select,textarea{min-height:44px}
 .live-pin.lead{background:#30d158}.live-pin.sweep{background:#5e5ce6}.live-pin.stale{background:#ff9f0a}.live-pin.far{background:#ff3b30;animation:livePulse 1.4s ease-in-out infinite}
 @keyframes livePulse{50%{transform:scale(1.18)}}
 @media (prefers-reduced-motion:reduce){.live-pin.far{animation:none}}
+
+/* 4.1.0 – SOS grande (anche con i guanti) lontano da Esci; Esci nella scheda profilo e in fondo alla barra laterale */
+.side-out{display:none}
+.card-out{flex:none;display:flex;flex-direction:column;align-items:center;gap:3px;min-width:56px;min-height:52px;padding:6px 8px;border:0;border-radius:14px;background:var(--fill);color:var(--mu);font:inherit;font-size:12px;cursor:pointer}
+.card-out .ic{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+@media(min-width:900px){
+  .side-out{display:flex;align-items:center;gap:12px;margin-top:auto;padding:11px 14px;border:0;border-radius:14px;background:none;color:var(--mu);font:inherit;font-size:16px;cursor:pointer;min-height:44px}
+  .side-out:hover{background:var(--fill)}
+  .side-out .ic{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+}
+.whobar .who{display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:auto auto;column-gap:8px;row-gap:2px;align-items:center;min-height:52px;padding:5px 14px 5px 5px;border-radius:26px;text-align:left}
+.whobar .who-dot{grid-row:1/3;width:40px;height:40px;font-size:14px}
+.whobar .who-n{font-size:15px;line-height:1.15}
+.whobar .who-p{justify-self:start;max-width:100%;overflow:hidden;text-overflow:ellipsis;line-height:1.3}
+@media(max-width:360px){.who-sos{min-width:80px;padding:0 14px;font-size:18px}}
