@@ -131,5 +131,25 @@
     });
   }
 
-  RB.xls = { readBook: readBook, runTemplate: runTemplate, exportTable: exportTable, read: read, template: template, exportMembers: exportMembers, exportCodes: exportCodes };
+  /* copia completa prima di un reset: soci, Run, iscrizioni, pagamenti, spese (un foglio ciascuno) */
+  function exportAll() {
+    return lib().then(function (X) {
+      var d = RB.S.d || {}, p = RB.S.pay || {}, wb = X.utils.book_new();
+      function sheet(name, head, rows) { var ws = X.utils.aoa_to_sheet([head].concat(rows)); ws['!cols'] = head.map(function (h0) { return { wch: Math.max(12, String(h0).length + 4) }; }); X.utils.book_append_sheet(wb, ws, name); }
+      function mn(id) { var m = RB.mem(id); return m ? [m.last_name, m.first_name] : ['', '']; }
+      function rn(id) { var r = RB.run(id); return r ? r.title : ''; }
+      sheet('Soci', ['Nome', 'Cognome', 'Telefono', 'Email', 'Data di nascita', 'N. Tessera', 'Moto', 'Ruolo', 'Data iscrizione', 'Scadenza HOG', 'Liberatoria', 'Attivo', 'Note'],
+        RB.members().map(function (m) { return [m.first_name, m.last_name, m.phone || '', m.email || '', m.birth_date || '', m.tessera || '', m.bike || '', RB.titleName(m.title), m.joined_on || '', m.hog_until || '', m.release_year || '', m.active ? 'Si' : 'No', m.notes || '']; }));
+      sheet('Run', ['Titolo', 'Data', 'Giorni', 'Stato', 'Ritrovo', 'Destinazione', 'Km', 'Difficoltà', 'Quota'],
+        (d.runs || []).map(function (r) { return [r.title, String(r.run_date || '').slice(0, 16).replace('T', ' '), r.days || 1, r.status || '', r.meeting_point || '', r.destination || '', r.km || '', r.difficulty || '', r.fee || '']; }));
+      sheet('Iscrizioni', ['Run', 'Cognome', 'Nome', 'Risposta', 'Passeggero', 'Camera', 'Presente'],
+        (d.signups || []).map(function (s) { var n = mn(s.member_id); return [rn(s.run_id), n[0], n[1], s.status, s.passengers || 0, s.room || '', s.checked_in ? 'Si' : '']; }));
+      sheet('Pagamenti', ['Run', 'Cognome', 'Nome', 'Data', 'Metodo', 'Importo', 'Nota'],
+        (p.payments || []).map(function (x) { var n = mn(x.member_id); return [rn(x.run_id), n[0], n[1], x.paid_on, x.method, +x.amount, x.note || '']; }));
+      sheet('Spese', ['Run', 'Voce', 'Data', 'Importo', 'Nota'], (p.expenses || []).map(function (x) { return [rn(x.run_id), x.label, x.paid_on, +x.amount, x.note || '']; }));
+      save(X, wb, 'roadbook-copia-' + new Date().toISOString().slice(0, 10) + '.xlsx');
+    });
+  }
+
+  RB.xls = { readBook: readBook, runTemplate: runTemplate, exportTable: exportTable, read: read, template: template, exportMembers: exportMembers, exportCodes: exportCodes, exportAll: exportAll };
 })();

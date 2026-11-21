@@ -161,6 +161,7 @@
         sl.appendChild(RB.row({ lead: RB.icon('file'), title: t('export_codes'), go: false, onclick: function () { RB.xls.exportCodes().catch(function () { RB.toast(t('e_xls'), 'err'); }); } }));
       }
       if (RB.can('profiles_manage')) sl.appendChild(RB.row({ lead: RB.icon('dir'), title: t('profiles'), sub: t('profiles_sub'), onclick: function () { RB.profilesSheet(); } }));
+      if (me.title === 'admin') sl.appendChild(RB.row({ lead: h('span', { class: 'sos-ic' }, RB.icon('alert')), title: t('rz_title'), sub: t('rz_sub'), id: 'reset-open', onclick: function () { RB.resetSheet(); } }));
       if (RB.can('settings_edit')) {
         sl.appendChild(RB.row({ lead: RB.icon('quote'), title: t('how_to_pay'), onclick: function () { RB.payInfoForm(); } }));
         sl.appendChild(RB.row({ lead: RB.icon('edit'), title: t('chapter_settings'), onclick: function () { chapterForm(); } }));

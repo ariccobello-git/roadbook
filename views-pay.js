@@ -3,13 +3,13 @@
   'use strict';
   var RB = window.RB, RBL = window.RBL, h = RB.h, t = RB.t;
   var MAX_PDF = 1400000;
-  RB.S.pay = { payments: [], receipts: [], expenses: [], at: 0 };
+  RB.S.pay = { payments: [], receipts: [], expenses: [], claims: [], at: 0 };
 
   RB.payLoad = function () {
     if (!RB.S.code) return Promise.resolve(false);
     return RB.rpc('rc_pay_list', { p_code: RB.S.code }).then(function (r) {
       RB.S.pay.at = Date.now();
-      if (r && r.ok) { RB.S.pay = { payments: r.payments || [], receipts: r.receipts || [], expenses: r.expenses || [], at: Date.now() }; return true; }
+      if (r && r.ok) { RB.S.pay = { payments: r.payments || [], receipts: r.receipts || [], expenses: r.expenses || [], claims: r.claims || [], at: Date.now() }; return true; }
       return false;
     });
   };
@@ -23,7 +23,9 @@
     loading = true; RB.payLoad().then(function (ok) { loading = false; if (ok) softRender(); }, function () { loading = false; });
   };
   function pays() { return RB.S.pay.payments; }
-  function hasRc(runId, memId) { return RB.S.pay.receipts.some(function (x) { return x.run_id === runId && x.member_id === memId; }); }
+  function claimsOf(runId, memId) { return (RB.S.pay.claims || []).filter(function (x) { return x.run_id === runId && (!memId || x.member_id === memId); }); }
+  /* "dichiarato": distinta PDF caricata oppure "Ho pagato" in attesa di conferma */
+  function hasRc(runId, memId) { return RB.S.pay.receipts.some(function (x) { return x.run_id === runId && x.member_id === memId; }) || claimsOf(runId, memId).length > 0; }
   function state(r, sg) { return RBL.payState(r, sg, pays(), hasRc(r.id, sg.member_id), Date.now()); }
   RB.payState = state;
   function money(x) { return RB.fmt.money(x); }
@@ -62,6 +64,7 @@
   RB.payMemberRows = function (r, sg) {
     var st = state(r, sg), rows = [];
     if (!st.due) return rows;
+    if (st.state !== 'paid' && sg.member_id === RB.S.me.id) rows.push(h('div', { class: 'pay-cta' }, h('button', { type: 'button', class: 'btn pri', id: 'pay-go-' + r.id, style: 'margin:0', onclick: function () { RB.paySheet(r.id); } }, RB.icon('quote'), t('pp_go', money(nowAmount(r, st))))));
     rows.push(RB.row({ title: t('pay_status'), sub: st.state === 'paid' ? t('pay_all_paid') : t('pay_left_of', money(st.left), money(st.due)) + (st.late ? ' · ' + t('pay_late_amt', money(st.lateAmount)) : st.nextDue ? ' · ' + t('by_date', RB.fmt.full(st.nextDue)) : ''), right: chipFor(st), go: false, cls: 'pay-status' }));
     var pi = (RB.S.d.settings && RB.S.d.settings.payment_info) || {};
     if ((pi.methods || []).indexOf('bonifico') >= 0 && st.state !== 'paid') {
@@ -82,6 +85,143 @@
     return rows;
   };
 
+  /* ---------- pagina Paga: dati del bonifico da copiare, "Apri la mia banca", "Ho pagato" ---------- */
+  /* app delle banche: ios = id App Store, and = pacchetto Android, web = sito (verificati sugli store) */
+  var BANKS = [
+    { k: 'intesa', n: 'Intesa Sanpaolo', ios: '597360475', and: 'com.latuabancaperandroid', web: 'https://www.intesasanpaolo.com' },
+    { k: 'unicredit', n: 'UniCredit', ios: '396670008', and: 'com.unicredit', web: 'https://www.unicredit.it' },
+    { k: 'poste', n: 'Poste Italiane (BancoPosta)', ios: '781421802', web: 'https://www.poste.it' },
+    { k: 'bnl', n: 'BNL', ios: '578969149', and: 'it.bnl.apps.banking', web: 'https://bnl.it' },
+    { k: 'bper', n: 'BPER Banca', ios: '554965344', and: 'it.gruppobper.ams.android.bper', web: 'https://www.bper.it' },
+    { k: 'bpm', n: 'Banco BPM (YouApp)', ios: '739705959', and: 'com.lynxspa.bancopopolare', web: 'https://www.bancobpm.it' },
+    { k: 'fineco', n: 'Fineco', ios: '405225581', and: 'com.fineco.it', web: 'https://finecobank.com' },
+    { k: 'mps', n: 'Banca MPS', ios: '366805842', web: 'https://www.mps.it' },
+    { k: 'ca', n: 'Crédit Agricole Italia', ios: '1502700297', web: 'https://www.credit-agricole.it' },
+    { k: 'mediolanum', n: 'Banca Mediolanum', ios: '412610547', web: 'https://www.bancamediolanum.it' },
+    { k: 'ing', n: 'ING Italia', ios: '6479606116', web: 'https://www.ing.it' },
+    { k: 'hello', n: 'Hello bank!', ios: '718176604', and: 'it.bnl.apps.enterprise.hellobank', web: 'https://www.hellobank.it' },
+    { k: 'widiba', n: 'Banca Widiba', ios: '915429623', web: 'https://www.widiba.it' },
+    { k: 'isybank', n: 'isybank', ios: '1666218772', web: 'https://www.isybank.com' },
+    { k: 'hype', n: 'HYPE', ios: '943405905', web: 'https://www.hype.it' },
+    { k: 'revolut', n: 'Revolut', ios: '932493382', and: 'com.revolut.revolut', web: 'https://www.revolut.com' },
+    { k: 'n26', n: 'N26', ios: '956857223', and: 'de.number26.android', web: 'https://n26.com' }];
+  RB.BANKS = BANKS;
+  var UA = navigator.userAgent || '', IS_ANDROID = /Android/i.test(UA), IS_IOS = !IS_ANDROID && !!RB.isApple && ('ontouchend' in document);
+  RB.bankPref = function () { try { return JSON.parse(localStorage.getItem('rb.bank') || 'null'); } catch (e) { return null; } };
+  function setBank(b) { try { if (b) localStorage.setItem('rb.bank', JSON.stringify(b)); else localStorage.removeItem('rb.bank'); } catch (e) {} }
+  /* indirizzo da aprire per la banca scelta, secondo il dispositivo */
+  RB.bankUrl = function (b, os) {
+    os = os || (IS_ANDROID ? 'android' : IS_IOS ? 'ios' : 'desk');
+    var q = encodeURIComponent(b.n);
+    if (os === 'android') {
+      var store = b.and ? 'https://play.google.com/store/apps/details?id=' + b.and : 'https://play.google.com/store/search?q=' + q + '&c=apps';
+      return b.and ? 'intent://open#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=' + b.and + ';S.browser_fallback_url=' + encodeURIComponent(store) + ';end' : store;
+    }
+    if (os === 'ios') return b.ios ? 'https://apps.apple.com/it/app/id' + b.ios : 'itms-apps://search.itunes.apple.com/WebObjects/MZSearch.woa/wa/search?media=software&term=' + q;
+    return b.web || 'https://www.google.com/search?q=' + q + '+home+banking';
+  };
+  function openBank(b) {
+    var u = RB.bankUrl(b);
+    RB.feel('tap');
+    if (/^https:/.test(u)) window.open(u, '_blank', 'noopener'); else window.location.href = u;
+  }
+  function bankPicker(done) {
+    var box = h('div'), ctl, cur = RB.bankPref();
+    var l = h('div', { class: 'list' });
+    BANKS.forEach(function (b) {
+      l.appendChild(RB.row({ title: b.n, go: false, right: cur && cur.k === b.k ? RB.icon('check') : null, cls: 'bank-opt', onclick: function () { setBank({ k: b.k }); ctl.close(true); done(); } }));
+    });
+    box.appendChild(l);
+    box.appendChild(RB.secT(t('pb_other')));
+    var other = RB.input('pb-other', cur && cur.k === 'custom' ? cur.n : '', { max: 60, ph: t('pb_other_ph') });
+    box.appendChild(h('div', { class: 'list' }, RB.field(t('pb_other_name'), other)));
+    box.appendChild(h('button', { type: 'button', class: 'btn pri', id: 'pb-other-ok', onclick: function () { var v = RB.val('pb-other'); if (!v) { RB.toast(t('e_dati_mancanti'), 'err'); return; } setBank({ k: 'custom', n: v }); ctl.close(true); done(); } }, t('save')));
+    ctl = RB.sheet({ title: t('pb_choose'), content: box, full: true, leftLabel: t('close') });
+  }
+  function myBank() { var p = RB.bankPref(); if (!p) return null; if (p.k === 'custom') return { k: 'custom', n: p.n }; return BANKS.filter(function (b) { return b.k === p.k; })[0] || null; }
+  /* importo da pagare ora: arretrato, altrimenti la prossima rata (o il saldo) */
+  function nowAmount(r, st) {
+    if (st.late) return st.lateAmount;
+    var rows = RBL.plan(r, st.due) || [], x = rows.filter(function (y) { return y.cum > st.paid + 0.005; })[0];
+    return x ? Math.min(st.left, Math.round((x.cum - st.paid) * 100) / 100) : st.left;
+  }
+  function amountTxt(v) { return (Math.round(v * 100) / 100).toFixed(2).replace('.', ','); }
+  RB.paySheet = function (runId) {
+    var r = RB.run(runId), me = RB.S.me; if (!r || !me) return;
+    var box = h('div', { id: 'pay-sheet' }), ctl;
+    function build() {
+      RB.clear(box);
+      var sg = RB.signupsOf(runId).filter(function (x) { return x.member_id === me.id && x.status === 'si'; })[0];
+      if (!sg) { box.appendChild(h('div', { class: 'empty' }, h('b', null, t('pay_none')))); return; }
+      var st = state(r, sg), pi = (RB.S.d.settings && RB.S.d.settings.payment_info) || {}, methods = pi.methods || [], amt = nowAmount(r, st);
+      var mem = RB.mem(me.id) || me, plan = RBL.plan(r, st.due) || [], ri = -1, tpl = r.causale || pi.causale || '';
+      plan.some(function (y, i) { if (y.cum > st.paid + 0.005) { ri = i; return true; } return false; });
+      var rata = plan.length > 1 && ri >= 0 ? t('rate_k', ri + 1, plan.length) : '';
+      if (rata && tpl && !/\{rata\}/.test(tpl)) tpl += ' {rata}';
+      var cz = RBL.causale(tpl, { run: r.title, cognome: mem.last_name, nome: mem.first_name, rata: rata }) || (r.title + ' - ' + mem.last_name + ' ' + mem.first_name + (rata ? ' ' + rata : ''));
+      box.appendChild(h('div', { class: 'pay-hero' + (st.state === 'paid' ? ' ok' : st.late ? ' late' : '') },
+        h('small', null, st.state === 'paid' ? t('pay_all_paid') : st.late ? t('pp_late') : t('pp_now')),
+        h('b', { id: 'pp-big' }, money(st.state === 'paid' ? st.paid : amt)),
+        h('span', null, r.title + (st.state !== 'paid' ? ' · ' + t('pay_left_of', money(st.left), money(st.due)) : ''))));
+      if (st.state === 'paid') return;
+      var open = claimsOf(runId, me.id);
+      open.forEach(function (c) {
+        box.appendChild(h('div', { class: 'banner acc', 'data-claim': c.id, style: 'display:flex;align-items:center;gap:8px' }, h('span', { style: 'flex:1' }, t('pp_claimed', money(+c.amount), RB.fmt.dayShort(c.created_at))),
+          h('button', { type: 'button', class: 'btn ghost sm2', style: 'margin:0', onclick: function () { RB.rpc('rc_pay_claim_cancel', { p_code: RB.S.code, p_id: c.id }).then(function () { RB.payLoad().then(function () { build(); RB.render(); }); }); } }, t('cancel'))));
+      });
+      if (methods.indexOf('bonifico') >= 0 && pi.iban) {
+        box.appendChild(RB.secT(t('m_bonifico')));
+        var l = h('div', { class: 'list' });
+        function cp(label, shown, value, id) {
+          l.appendChild(RB.row({ title: label, sub: shown, cls: id === 'iban' ? 'iban' : '', go: false, id: 'pp-' + id,
+            right: h('button', { type: 'button', class: 'btn ghost sm2', 'aria-label': t('copy') + ' ' + label, onclick: function (e) { e.stopPropagation(); RB.copy(value).then(function () { RB.feel('ok'); RB.toast(t('copied_x', label)); }); } }, RB.icon('copy')) }));
+        }
+        if (pi.holder) cp(t('holder'), pi.holder, pi.holder, 'holder');
+        cp('IBAN', pi.iban, pi.iban.replace(/\s/g, ''), 'iban');
+        cp(t('pay_amount'), money(amt), amountTxt(amt), 'amount');
+        cp(t('causale'), cz, cz, 'causale');
+        box.appendChild(l);
+        var all = [pi.holder ? t('holder') + ': ' + pi.holder : '', 'IBAN: ' + pi.iban.replace(/\s/g, ''), t('pay_amount') + ': ' + amountTxt(amt) + ' €', t('causale') + ': ' + cz].filter(Boolean).join('\n');
+        box.appendChild(h('button', { type: 'button', class: 'btn sec', id: 'pp-copy-all', onclick: function () { RB.copy(all).then(function () { RB.feel('ok'); RB.toast(t('copied')); }); } }, RB.icon('copy'), t('pp_copy_all')));
+        /* la mia banca */
+        var b = myBank();
+        box.appendChild(RB.secT(t('pb_title'), h('button', { type: 'button', class: 'btn ghost sm2', id: 'pb-change', onclick: function () { bankPicker(build); } }, b ? t('pb_change') : t('pb_choose_short'))));
+        if (b) {
+          box.appendChild(h('button', { type: 'button', class: 'btn pri pay-open', id: 'pb-open', onclick: function () { openBank(b); } }, RB.icon('share'), t('pb_open', b.n)));
+          box.appendChild(h('p', { class: 'sm', style: 'padding:0 6px' }, IS_IOS ? t('pb_hint_ios') : IS_ANDROID ? t('pb_hint_android') : t('pb_hint_desk')));
+        } else {
+          box.appendChild(h('button', { type: 'button', class: 'btn pri pay-open', id: 'pb-pick', onclick: function () { bankPicker(build); } }, t('pb_choose')));
+          box.appendChild(h('p', { class: 'sm', style: 'padding:0 6px' }, t('pb_once')));
+        }
+      }
+      if (methods.indexOf('contanti') >= 0) {
+        box.appendChild(RB.secT(t('m_contanti')));
+        box.appendChild(h('div', { class: 'list' }, RB.row({ lead: RB.icon('quote'), title: t('m_contanti'), sub: [pi.cash_contact ? t('cash_to') + ' ' + pi.cash_contact : '', pi.cash_note || ''].filter(Boolean).join(' · ') || t('cash_default'), go: false })));
+      }
+      if (!methods.length) box.appendChild(h('div', { class: 'list' }, h('div', { class: 'empty', style: 'padding:22px' }, t('pay_info_missing'))));
+      /* ho pagato */
+      box.appendChild(RB.secT(t('pp_done_t')));
+      var method = methods.indexOf('bonifico') >= 0 ? 'bonifico' : 'contanti';
+      var amtIn = RB.input('pp-claim-amt', amtTxtNum(amt), { type: 'number', mode: 'decimal', step: '0.01', min: 0 });
+      var fl = h('div', { class: 'list' }, RB.field(t('pay_amount') + ' (€)', amtIn));
+      if (methods.length > 1) fl.appendChild(h('div', { class: 'field' }, h('span', null, t('pay_method')), RB.seg([{ v: 'bonifico', label: t('m_bonifico') }, { v: 'contanti', label: t('m_contanti') }], method, function (v) { method = v; }, 'pp-method')));
+      box.appendChild(fl);
+      var done = h('button', { type: 'button', class: 'btn pri', id: 'pp-claim', style: 'margin-top:12px', onclick: function () {
+        var v = parseFloat(String(RB.val('pp-claim-amt')).replace(',', '.'));
+        if (!(v > 0)) { RB.toast(t('pay_e_amt'), 'err'); RB.feel('err'); return; }
+        RB.act(done, function () { return RB.rpc('rc_pay_claim', { p_code: RB.S.code, p_run: runId, p_amount: v, p_method: method, p_note: null }); }, t('pp_claim_ok')).then(function (x) {
+          if (x && x.ok) { RB.sound('ok'); RB.payLoad().then(function () { build(); RB.render(); }); }
+        });
+      } }, RB.icon('check'), t('pp_done'));
+      box.appendChild(done);
+      box.appendChild(h('p', { class: 'sm', style: 'padding:0 6px' }, t('pp_done_d')));
+    }
+    function amtTxtNum(v) { return (Math.round(v * 100) / 100).toFixed(2); }
+    ctl = RB.sheet({ title: t('pp_title'), content: box, full: true, leftLabel: t('close') });
+    build();
+    return ctl;
+  };
+
   /* ---------- il tesoriere ---------- */
   RB.payAlerts = function () {
     if (!RB.can('payments_manage')) return [];
@@ -93,6 +233,12 @@
     if (!RB.can('payments_manage')) return;
     var T = RBL.payTotals(runsWithFees(), RB.S.d.signups || [], pays(), RB.S.pay.receipts, Date.now());
     root.appendChild(RB.secT(t('pay_title')));
+    var cl = RB.S.pay.claims || [];
+    if (cl.length) {
+      var cb = h('div', { class: 'list', id: 'pay-claims', style: 'margin-bottom:10px' });
+      cl.forEach(function (c) { var m = RB.mem(c.member_id), r = RB.run(c.run_id); if (m && r) cb.appendChild(RB.row({ lead: RB.av(m, 'sm'), title: RB.fullName(m), sub: r.title + ' · ' + methodName(c.method) + ' · ' + RB.fmt.dayShort(c.created_at), value: money(+c.amount), right: RB.chip(t('pc_to_confirm'), 'wa'), onclick: function () { RB.payMember(c.run_id, c.member_id); } })); });
+      root.appendChild(RB.secT(t('pc_title_n', cl.length))); root.appendChild(cb);
+    }
     T.runs.filter(function (o) { return o.late; }).forEach(function (o) {
       root.appendChild(h('div', { class: 'banner er', role: 'button', tabindex: '0', style: 'cursor:pointer', onclick: function () { RB.payRun(o.run.id); } }, t('pay_alert', o.late, o.run.title, money(o.lateAmount))));
     });
@@ -184,6 +330,17 @@
         });
         box.appendChild(l);
       }
+      claimsOf(runId, memId).forEach(function (c) {
+        var ok = h('button', { type: 'button', class: 'btn pri', style: 'margin-top:0', 'data-claim-ok': c.id, onclick: function () {
+          RB.act(ok, function () { return RB.rpc('rc_pay_save', { p_code: RB.S.code, p_run: runId, p_member: memId, p_amount: +c.amount, p_paid_on: String(c.created_at).slice(0, 10), p_method: c.method, p_note: t('pc_note') }).then(function (x) { return x && x.ok ? RB.rpc('rc_pay_claim_done', { p_code: RB.S.code, p_id: c.id }) : x; }); }, t('pay_saved')).then(function (x) {
+            if (x && x.ok) RB.payLoad().then(function () { build(); if (done) done(); RB.render(); });
+          });
+        } }, t('pc_register'));
+        var no = h('button', { type: 'button', class: 'btn sec', style: 'margin-top:0', onclick: function () {
+          RB.ask({ title: t('pc_discard'), msg: t('pc_discard_msg'), ok: t('pc_discard'), danger: true }).then(function (y) { if (y) RB.rpc('rc_pay_claim_done', { p_code: RB.S.code, p_id: c.id }).then(function () { RB.payLoad().then(function () { build(); if (done) done(); RB.render(); }); }); });
+        } }, t('pc_discard'));
+        box.appendChild(h('div', { class: 'card pc-card', style: 'margin-top:12px' }, h('b', null, t('pc_says', money(+c.amount), methodName(c.method))), h('p', { class: 'sm', style: 'margin:4px 0 10px' }, RB.fmt.full(c.created_at) + (c.note ? ' · ' + c.note : '')), h('div', { style: 'display:flex;gap:8px' }, ok, no)));
+      });
       var rc = RB.S.pay.receipts.filter(function (x) { return x.run_id === runId && x.member_id === memId; })[0];
       if (rc) box.appendChild(h('div', { class: 'list', style: 'margin-top:12px' }, RB.row({ lead: RB.icon('file'), title: t('pay_rc_view'), sub: rc.name, id: 'pay-rc-open', onclick: function () { openReceipt(runId, memId); } })));
       if (st.state !== 'paid' && st.state !== 'none' && m.phone && RB.waDigits(m.phone)) {

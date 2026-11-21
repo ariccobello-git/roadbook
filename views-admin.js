@@ -75,4 +75,49 @@
       } } });
     return ctl;
   };
+
+  /* ---------- reset contenuti (solo amministratore) ---------- */
+  var PARTS = ['runs', 'payments', 'photos', 'notices', 'weather', 'sos', 'reports', 'members'];
+  RB.resetSheet = function () {
+    if (!RB.S.me || RB.S.me.title !== 'admin') return;
+    var box = h('div', { id: 'reset-box' }), sel = {}, counts = null, copied = false, typed = '', ctl;
+    function draw() {
+      RB.clear(box);
+      box.appendChild(h('div', { class: 'sos-note' }, RB.icon('alert'), h('span', null, t('rz_warn'))));
+      box.appendChild(RB.secT(t('rz_what')));
+      var l = h('div', { class: 'list' });
+      PARTS.forEach(function (k) {
+        var n = counts ? counts[k] : null;
+        l.appendChild(h('div', { class: 'pass', 'data-part': k },
+          h('span', null, h('b', { style: 'display:block;font-weight:600' }, t('rz_' + k)), h('small', { class: 'sm', style: 'margin:0' }, (n === null ? '…' : t('rz_items', n)) + (k === 'runs' ? ' · ' + t('rz_runs_d') : k === 'members' ? ' · ' + t('rz_members_d') : ''))),
+          RB.toggle(!!sel[k], function (on) { sel[k] = on; if (k === 'runs' && on) sel.payments = sel.weather = true; draw(); })));
+      });
+      box.appendChild(l);
+      box.appendChild(h('p', { class: 'sm', style: 'padding:0 6px' }, t('rz_keep')));
+      box.appendChild(RB.secT(t('rz_step1')));
+      box.appendChild(h('button', { type: 'button', class: 'btn ' + (copied ? 'sec' : 'pri'), id: 'rs-copy', onclick: function () {
+        RB.xls.exportAll().then(function () { copied = true; RB.toast(t('exported')); draw(); }, function () { RB.toast(t('e_xls'), 'err'); });
+      } }, RB.icon('file'), copied ? t('rz_copied') : t('rz_copy')));
+      box.appendChild(RB.secT(t('rz_step2')));
+      var inp = RB.input('rs-confirm', typed, { max: 10, ph: 'RESET' }); inp.setAttribute('autocapitalize', 'characters'); inp.addEventListener('input', function () { typed = inp.value; });
+      box.appendChild(h('div', { class: 'list' }, RB.field(t('rz_type'), inp)));
+      var n = PARTS.filter(function (k) { return sel[k]; }).length;
+      var go = h('button', { type: 'button', class: 'btn sos-btn big', id: 'rs-go', disabled: n ? null : true, onclick: function () {
+        if (String(RB.val('rs-confirm')).trim().toUpperCase() !== 'RESET') { RB.toast(t('rz_e_type'), 'err'); RB.feel('err'); return; }
+        var parts = PARTS.filter(function (k) { return sel[k]; });
+        var ready = copied ? Promise.resolve(true) : RB.ask({ title: t('rz_nocopy'), msg: t('rz_nocopy_msg'), ok: t('rz_go_anyway'), danger: true });
+        ready.then(function (ok) {
+          if (!ok) return;
+          RB.act(go, function () { return RB.rpc('rc_reset', { p_code: RB.S.code, p_parts: parts, p_confirm: 'RESET' }); }, t('rz_done')).then(function (x) {
+            if (x && x.ok) { sel = {}; typed = ''; RB.sync(); if (RB.payLoad) RB.payLoad(); load(); }
+          });
+        });
+      } }, RB.icon('alert'), n ? t('rz_go_n', n) : t('rz_go'));
+      box.appendChild(go);
+    }
+    function load() { RB.rpc('rc_reset_counts', { p_code: RB.S.code }).then(function (x) { if (x && x.ok) { counts = x.counts; draw(); } }); }
+    ctl = RB.sheet({ title: t('rz_title'), content: box, full: true, leftLabel: t('close') });
+    draw(); load();
+    return ctl;
+  };
 })();

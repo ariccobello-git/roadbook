@@ -591,3 +591,15 @@ input,select,textarea{min-height:44px}
 .view{padding-bottom:calc(86px + env(safe-area-inset-bottom))}
 .view>:last-child{margin-bottom:0}
 @media(min-width:900px){.view{padding-bottom:60px}}
+
+/* 4.2.0 – pagina Paga e reset */
+.pay-hero{display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;padding:18px 14px;border-radius:22px;background:linear-gradient(135deg,var(--g1),var(--g2));color:#fff;margin-bottom:12px;box-shadow:var(--sh)}
+.pay-hero small{font-size:14px;font-weight:600;opacity:.9}
+.pay-hero b{font-size:40px;font-weight:800;letter-spacing:-.02em;line-height:1.1}
+.pay-hero span{font-size:14px;opacity:.9}
+.pay-hero.ok{background:linear-gradient(135deg,#34c759,#248a3d)}
+.pay-hero.late{background:linear-gradient(135deg,#ff6b5e,#d02a20)}
+.pay-cta{padding:10px 12px}
+.pay-cta .btn,.btn.pay-open{min-height:54px;font-size:18px;display:flex;align-items:center;justify-content:center;gap:8px}
+.pc-card .btn{flex:1;min-height:48px}
+#reset-box .pass small{display:block}
