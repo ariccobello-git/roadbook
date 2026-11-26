@@ -112,7 +112,9 @@ async function newPage(browser, vp, level, log, errors) {
   await page.screenshot({ path: SHOTS + '02-run.png' });
 
   /* risposta rapida */
-  await page.click('.run .seg button[data-v=si]'); await page.waitForTimeout(300);
+  await page.click('.run .seg button[data-v=si]'); await page.waitForSelector('.sheet.in .ask'); await page.locator('.sheet.in .ask .btn.sec').last().click(); await page.waitForTimeout(400);
+  assert.ok(!log.some(l => l.fn === 'rc_signup'), 'Annulla ha iscritto'); step('«Ci sono» chiede conferma, Annulla non iscrive');
+  await page.click('.run .seg button[data-v=si]'); await page.waitForSelector('.sheet.in .ask'); await page.locator('.sheet.in .ask .btn.pri').last().click(); await page.waitForTimeout(500);
   assert.ok(log.some(l => l.fn === 'rc_signup' && l.body.p_status === 'si' && l.body.p_member === null)); step('risposta "Ci sono" inviata');
   assert.ok(await page.locator('.run .seg button.on[data-v=si]').count() === 1); step('pulsante attivo dopo la risposta');
 
