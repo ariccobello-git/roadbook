@@ -63,7 +63,10 @@
     RB.write('rc_run_halt', { p_id: r.id, p_action: ev === 'stop' ? 'stop' : 'go', p_lat: at ? at.lat : null, p_lng: at ? at.lng : null, p_min: null }).then(function (x) {
       HS.busy = false;
       if (!x.ok) return;
-      if (ev === 'stop') { RB.toast(t('halt_detected')); RB.sound('open'); } else RB.haltUndoBar(r);
+      if (ev === 'stop') { RB.toast(t('halt_detected')); RB.sound('open'); return; }
+      RB.haltUndoBar(r);
+      /* ripartiti da soli mentre qualcuno sta ancora raggiungendo la sosta: «Annulla» riporta la sosta */
+      var w = RB.lostWaiting(r.id); if (w.length) { RB.toast(t('lost_left_behind', RB.fullName(RB.mem(w[0].member_id))), 'err'); RB.sound('open'); }
     });
   }
   function haltFeed(pos) {
@@ -166,6 +169,7 @@
       row.id = 'live-share'; l.appendChild(row);
     }
     if (boss) l.appendChild(RB.row({ lead: RB.icon('route'), title: t('live_map'), sub: t('live_map_d'), onclick: function () { RB.liveSheet(r); } }));
+    if (RB.lostRun && (RB.lostRun() || {}).id === r.id) l.appendChild(RB.row({ lead: RB.icon('pin'), title: t('lost_btn'), sub: t('lost_btn_d'), id: 'lost-open', onclick: function () { RB.lostAsk(r); } }));
     f.appendChild(l);
     if (share) f.appendChild(h('p', { class: 'sm', style: 'padding:0 6px' }, t('live_note')));
   };
@@ -188,9 +192,17 @@
   };
   /* link ricevuto: dopo l'accesso si apre direttamente il Run */
   RB.openFromLink = function () {
-    var m = /#run=([0-9a-f-]{36})/i.exec(location.hash || '');
+    var m = /#(run|lost)=([0-9a-f-]{36})/i.exec(location.hash || '');
     if (!m) return;
     try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { location.hash = ''; }
-    if (RB.run(m[1])) RB.openRun(m[1]); else RB.toast(t('inv_notfound'), 'err');
+    if (m[1] === 'lost') { RB.lostFromLink(m[2]); return; }
+    if (RB.run(m[2])) RB.openRun(m[2]); else RB.toast(t('inv_notfound'), 'err');
   };
+  /* notifica toccata con l'app già aperta: il service worker passa il link */
+  if (navigator.serviceWorker) navigator.serviceWorker.addEventListener('message', function (e) {
+    var d = e.data || {};
+    if (d.type !== 'open' || typeof d.url !== 'string' || d.url.indexOf('#') < 0 || !RB.S.code) return;
+    location.hash = d.url.slice(d.url.indexOf('#'));
+    RB.sync().then(RB.openFromLink);
+  });
 })();

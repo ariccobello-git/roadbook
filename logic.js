@@ -1132,5 +1132,46 @@
     return null;
   };
 
+  /* «Mi sono perso»: chi aiuta (come sul server: chi fa partire, chi gestisce i Run, road captain e scopa della formazione) */
+  L.lostGuide = function (me, r) {
+    if (!me || !me.id || !r || me.active === false) return false;
+    if (L.canStart(me, r) || (me.perms || []).indexOf('runs_edit') >= 0) return true;
+    return (Array.isArray(r.formation) ? r.formation : []).some(function (f) { return f && f.member_id === me.id && (f.kind === 'road_captain' || f.kind === 'scopa'); });
+  };
+  L.lostActive = function (x) { return !!x && (x.status === 'open' || x.status === 'sent'); };
+  L.LOST = { arriveKm: 0.2, atStopKm: 0.5, kmh: 50 };
+  /* sosta da proporre: la tappa dove il gruppo è fermo (entro 500 m dalla sosta in corso), altrimenti la tappa che chiude
+     il tratto di programma più vicino al gruppo. places = luoghi del giorno in ordine; restituisce l'indice o -1 */
+  L.nextStop = function (places, pos, haltAt) {
+    var pts = [], i, best = -1, bd = Infinity;
+    (places || []).forEach(function (p, k) { if (L.hasCoords(p)) pts.push({ k: k, lat: Number(p.lat), lng: Number(p.lng) }); });
+    if (!pts.length) return -1;
+    if (haltAt && L.hasCoords(haltAt)) {
+      pts.forEach(function (p) { var d = L.haversine(haltAt, p); if (d < bd) { bd = d; best = p.k; } });
+      if (bd <= L.LOST.atStopKm) return best;
+      pos = pos || haltAt; best = -1; bd = Infinity;
+    }
+    if (!pos || !L.hasCoords(pos)) return pts.length > 1 ? pts[1].k : pts[0].k;
+    if (pts.length === 1) return pts[0].k;
+    for (i = 0; i < pts.length - 1; i++) { var d = segKm(pos, pts[i], pts[i + 1]); if (d < bd) { bd = d; best = pts[i + 1].k; } }
+    return best;
+  };
+  /* distanza (km) dal punto al segmento a-b, in piano locale: basta per distanze di qualche decina di km */
+  function segKm(p, a, b) {
+    var k = Math.cos(Number(p.lat) * Math.PI / 180) * 111.32, ax = (a.lng - p.lng) * k, ay = (a.lat - p.lat) * 110.57, bx = (b.lng - p.lng) * k, by = (b.lat - p.lat) * 110.57;
+    var dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy, u = l2 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / l2)) : 0;
+    return Math.sqrt(Math.pow(ax + u * dx, 2) + Math.pow(ay + u * dy, 2));
+  }
+  /* minuti all'arrivo senza servizio di percorsi: strada stimata a velocità media di gruppo */
+  L.etaMin = function (from, to) {
+    if (!L.hasCoords(from) || !L.hasCoords(to)) return null;
+    return Math.max(1, Math.ceil(L.haversine(from, to) * L.ROAD_FACTOR / L.LOST.kmh * 60));
+  };
+  /* navigazione di Google Maps verso la sosta (coordinate se ci sono, altrimenti indirizzo o nome) */
+  L.lostNavUrl = function (stop) {
+    var q = L.hasCoords(stop) ? Number(stop.lat).toFixed(6) + ',' + Number(stop.lng).toFixed(6) : String((stop && (stop.addr || stop.name)) || '').trim();
+    return q ? 'https://www.google.com/maps/dir/?api=1&travelmode=driving&dir_action=navigate&destination=' + encodeURIComponent(q) : null;
+  };
+
   if (typeof module !== 'undefined' && module.exports) module.exports = L; else root.RBL = L;
 })(typeof window !== 'undefined' ? window : this);
