@@ -101,7 +101,7 @@
   }
 
   /* ---------- selettore ---------- */
-  /* o: {title, kinds, withFungo, value, onpick} */
+  /* o: {title, kinds, withFungo (pulsanti rapidi Fungo dell'EUR e H-D Store Roma), value, onpick} */
   RB.placePicker = function (o) {
     var kinds = o.kinds || L.PLACE_KINDS, sel = o.value ? clean(o.value) : null, kind = (sel && kinds.indexOf(sel.kind) >= 0 ? sel.kind : kinds[0]);
     var mode = kind === 'altro' ? 'addr' : 'list';
@@ -123,7 +123,7 @@
       if (o.withFungo) {
         top.appendChild(h('div', { class: 'pp-def' },
           h('button', { type: 'button', class: 'btn sec', onclick: function () { RB.feel('ok'); finish(Object.assign({}, L.FUNGO)); } }, RB.icon('pin'), L.FUNGO.name),
-          h('button', { type: 'button', class: 'btn sec', onclick: function () { RB.feel('tap'); kind = 'area'; mode = 'list'; drill.zone = null; drawTop(); drawPane(); } }, RB.icon('route'), t('pk_area'))));
+          h('button', { type: 'button', class: 'btn sec', onclick: function () { RB.feel('ok'); finish(Object.assign({}, L.HD_STORE)); } }, RB.icon('moto'), L.HD_STORE.name)));
       }
       if (kinds.length > 1) top.appendChild(kindBar());
       var modes = [{ v: 'list', label: t('pp_list') }, { v: 'addr', label: t('pp_addr') }, { v: 'map', label: t('pp_map') }];

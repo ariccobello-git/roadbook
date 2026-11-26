@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   var RB = window.RB = window.RB || {};
-  RB.RELEASE = '4.2.0';
+  RB.RELEASE = '4.3.0';
 
   /* ---------- DOM sicuro: i testi sono sempre nodi di testo, mai HTML ---------- */
   function add(el, kids) {
@@ -222,7 +222,7 @@
   };
   RB.isApple = /iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent) && 'ontouchend' in document || /iPad|iPhone|iPod/.test(navigator.userAgent);
   RB.mapsUrl = function (q) {
-    return (RB.isApple ? 'https://maps.apple.com/?q=' : 'https://www.google.com/maps/search/?api=1&query=') + encodeURIComponent(q);
+    return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q);
   };
   RB.safeUrl = function (u) { return /^https?:\/\//i.test(u || '') ? u : null; };
   RB.hue = function (s) { var x = 0, i; s = String(s || ''); for (i = 0; i < s.length; i++) x = (x * 31 + s.charCodeAt(i)) % 360; return x; };

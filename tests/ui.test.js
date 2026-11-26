@@ -133,10 +133,10 @@ async function newPage(browser, vp, level, log, errors) {
     await page.keyboard.press('Escape'); await page.waitForTimeout(300);
     assert.ok((await page.textContent('.sheet.in')).includes('Singola'), 'sistemazione assegnata visibile'); step('sistemazione ed extra assegnati dall\'organizzazione'); }
   const hrefs = await page.locator('.sheet.in a[href]').evaluateAll(a => a.map(x => x.getAttribute('href')));
-  const gm = hrefs.find(h => h.includes('google.com/maps/dir')), ap = hrefs.find(h => h.includes('maps.apple.com/?saddr'));
-  assert.ok(gm && ap, 'pulsanti navigazione per lo staff'); const gu = new URL(gm);
+  const gm = hrefs.find(h => h.includes('google.com/maps/dir'));
+  assert.ok(gm && !hrefs.some(h => h.includes('maps.apple.com')), 'solo Google Maps per lo staff'); const gu = new URL(gm);
   assert.strictEqual(gu.searchParams.get('origin'), 'Piazzale Ostiense, Roma'); assert.strictEqual(gu.searchParams.get('destination'), 'Frascati'); assert.strictEqual(gu.searchParams.get('waypoints'), 'Via Roma 1, Grottaferrata|Piazza Marconi, Frascati');
-  assert.ok(txt.includes('Se condividi il percorso') && txt.includes('Via Roma 1, Grottaferrata')); step('navigazione: link Google e Apple con ritrovo, tappe e arrivo');
+  assert.ok(!txt.includes('Apple') && txt.includes('Via Roma 1, Grottaferrata')); step('navigazione: solo Google Maps con ritrovo, tappe e arrivo');
   await page.screenshot({ path: SHOTS + '03-run-detail.png' });
 
   /* formazione automatica */
@@ -170,10 +170,10 @@ async function newPage(browser, vp, level, log, errors) {
   await page.locator('.pe-date').nth(0).fill('2026-12-01'); await page.locator('.pe-date').nth(1).fill('2027-01-10'); await page.locator('.pe-pct').nth(0).fill('40'); await page.screenshot({ path: SHOTS + '45-pay-editor.png' }); await tclick('.sb.r'); await page.waitForTimeout(300);
   assert.ok(await page.locator('.pe-pct').count() === 2, 'rate che non sommano 100: il foglio resta aperto'); await page.locator('.pe-pct').nth(0).fill('30'); await page.locator('.pe-pct').nth(1).fill('70');
   await tclick('.sb.r'); await page.waitForTimeout(300); assert.ok((await page.textContent('#rf-pay, .row:has-text("Quote, sistemazioni")')).includes('2 sistemazioni'));
-  await page.fill('#rf-url', 'https://maps.example.com/x'); await tclick('.btn:has-text("Aggiungi")'); await tclick('.row:has-text("Tappa 1")'); await page.waitForSelector('.pp'); await page.waitForTimeout(400); await tclick('.seg button:has-text("Indirizzo")'); await tfill('#pp-q', 'Via A 1, Roma'); await tclick('.pp-sf button'); await page.waitForSelector('.sheet.in .row:has-text("Usa come indirizzo scritto")', { timeout: 20000 }); await tclick('.row:has-text("Usa come indirizzo scritto")'); await tfill('#pp-name', 'Caffè'); await tclick('.sb.r'); await page.waitForTimeout(700); await tclick('.seg button:has-text("Apple Maps")');
+  await page.fill('#rf-url', 'https://maps.example.com/x'); await tclick('.btn:has-text("Aggiungi")'); await tclick('.row:has-text("Tappa 1")'); await page.waitForSelector('.pp'); await page.waitForTimeout(400); await tclick('.seg button:has-text("Indirizzo")'); await tfill('#pp-q', 'Via A 1, Roma'); await tclick('.pp-sf button'); await page.waitForSelector('.sheet.in .row:has-text("Usa come indirizzo scritto")', { timeout: 20000 }); await tclick('.row:has-text("Usa come indirizzo scritto")'); await tfill('#pp-name', 'Caffè'); await tclick('.sb.r'); await page.waitForTimeout(700); await tclick('.seg button:has-text("Nascondi")');
   await tclick('.sb.r'); await page.waitForTimeout(500);
   const rs = log.filter(l => l.fn === 'rc_run_save').pop();
-  assert.ok(rs && rs.body.p.title === 'Giro di prova' && rs.body.p.stops.length === 1 && rs.body.p.stops[0].addr === 'Via A 1, Roma' && rs.body.p.nav_tool === 'apple' && rs.body.p.fee === '15.5' && rs.body.p.rooms.length === 2 && rs.body.p.rooms[0].price === '120' && rs.body.p.extras[0].name === 'Cena' && JSON.stringify(rs.body.p.installments) === JSON.stringify([{ due_on: '2026-12-01', pct: '30' }, { due_on: '2027-01-10', pct: '70' }]) && /Z$/.test(rs.body.p.run_date)); step('nuovo Run salvato con indirizzo tappa e navigatore');
+  assert.ok(rs && rs.body.p.title === 'Giro di prova' && rs.body.p.stops.length === 1 && rs.body.p.stops[0].addr === 'Via A 1, Roma' && rs.body.p.nav_tool === 'none' && rs.body.p.fee === '15.5' && rs.body.p.rooms.length === 2 && rs.body.p.rooms[0].price === '120' && rs.body.p.extras[0].name === 'Cena' && JSON.stringify(rs.body.p.installments) === JSON.stringify([{ due_on: '2026-12-01', pct: '30' }, { due_on: '2027-01-10', pct: '70' }]) && /Z$/.test(rs.body.p.run_date)); step('nuovo Run salvato con indirizzo tappa e navigatore');
   assert.strictEqual(await page.locator('.run').count(), 3);
 
   /* soci */
@@ -321,7 +321,7 @@ async function newPage(browser, vp, level, log, errors) {
   assert.deepStrictEqual(await page.locator('.tabs .tab').evaluateAll(e => e.map(x => x.dataset.tab)), ['run', 'meteo', 'quote', 'altro']); step('ospite: solo Run, Quote e Altro');
   await page.click('.run h3'); await page.waitForSelector('.sheet.in .list'); await page.waitForTimeout(400);
   const ot = await page.textContent('.sheet.in'); assert.ok(!ot.includes('Tappe') && !ot.includes('Navigazione') && !ot.includes('Via Roma') && ot.includes('Ritrovo')); assert.strictEqual(await page.locator('.sheet.in a[href*="maps"]').count() >= 0, true);
-  assert.strictEqual(await page.locator('.sheet.in a[href*="google.com/maps/dir"], .sheet.in a[href*="maps.apple.com/?saddr"]').count(), 0); step('ospite: nessuna tappa né navigazione');
+  assert.strictEqual(await page.locator('.sheet.in a[href*="google.com/maps/dir"]').count(), 0); step('ospite: nessuna tappa né navigazione');
   await page.screenshot({ path: SHOTS + '19-ospite.png' });
   await page.keyboard.press('Escape'); await page.waitForTimeout(300);
   await page.click('.tab[data-tab=altro]'); await page.waitForTimeout(300); const oa = await page.textContent('.view'); assert.ok(oa.includes('Ospite') && !oa.includes('Area staff') && !oa.includes('Profili di accesso')); step('ospite: Altro senza strumenti staff');
@@ -355,10 +355,10 @@ async function newPage(browser, vp, level, log, errors) {
   ({ ctx, page, st } = await newPage(browser, M, 'pub', log, errors));
   await page.goto(BASE + '?c=ABCD2345'); await page.waitForSelector('.run'); await page.click('.run h3'); await page.waitForSelector('.sheet.in .list'); await page.waitForTimeout(400);
   sh = await page.locator('.sheet.in a[href]').evaluateAll(a => a.map(x => x.getAttribute('href')));
-  assert.ok(sh.some(h => h.includes('google.com/maps/dir')) && !sh.some(h => h.includes('maps.apple.com/?saddr')) && !(await page.textContent('.sheet.in')).includes('Se condividi il percorso')); step('socio con percorso condiviso: vede solo Google Maps (scelto dal creatore)');
+  assert.ok(sh.some(h => h.includes('google.com/maps/dir')) && !sh.some(h => h.includes('maps.apple.com'))); step('socio con percorso condiviso: vede il pulsante Google Maps');
   st.runs[0].nav_tool = 'none'; await page.keyboard.press('Escape'); await page.waitForTimeout(300); await page.evaluate(() => RB.sync()); await page.waitForTimeout(400);
   await page.click('.run h3'); await page.waitForSelector('.sheet.in .list'); await page.waitForTimeout(300);
-  assert.strictEqual(await page.locator('.sheet.in a[href*="google.com/maps/dir"], .sheet.in a[href*="maps.apple.com/?saddr"]').count(), 0); assert.ok((await page.textContent('.sheet.in')).includes('Via Roma 1')); step('navigatore "Nessuno": restano le tappe ma nessun pulsante');
+  assert.strictEqual(await page.locator('.sheet.in a[href*="google.com/maps/dir"]').count(), 0); assert.ok((await page.textContent('.sheet.in')).includes('Via Roma 1')); step('Google Maps nascosto: restano le tappe ma nessun pulsante');
   await ctx.close();
 
   /* PC */
