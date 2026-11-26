@@ -380,11 +380,13 @@ t('mi sono perso: sosta proposta, ora stimata, navigazione, chi aiuta', () => {
   assert.strictEqual(L.lostNavUrl({ lat: 41.8, lng: 12.7 }), 'https://www.google.com/maps/dir/?api=1&travelmode=driving&dir_action=navigate&destination=41.800000%2C12.700000');
   assert.ok(/destination=Bar%20X%2C%20Roma$/.test(L.lostNavUrl({ name: 'Bar X', addr: 'Bar X, Roma' })), 'indirizzo');
   assert.strictEqual(L.lostNavUrl({ name: '', addr: ' ' }), null); assert.strictEqual(L.lostNavUrl(null), null);
-  const r = { starter_id: 's', formation: [{ kind: 'scopa', member_id: 'sc' }, { kind: 'socio', member_id: 'so' }, { kind: 'road_captain', member_id: 'rc' }] };
-  assert.ok(L.lostGuide({ id: 's', title: 'socio' }, r), 'chi fa partire'); assert.ok(L.lostGuide({ id: 'sc', title: 'socio' }, r), 'scopa'); assert.ok(L.lostGuide({ id: 'rc', title: 'socio' }, r), 'road captain');
-  assert.ok(L.lostGuide({ id: 'x', title: 'socio', perms: ['runs_edit'] }, r), 'direttivo'); assert.ok(L.lostGuide({ id: 'd', title: 'direttore' }, r));
-  assert.ok(!L.lostGuide({ id: 'so', title: 'socio' }, r), 'socio in formazione no'); assert.ok(!L.lostGuide({ id: 'sc', title: 'socio', active: false }, r), 'non attivo');
-  assert.ok(!L.lostGuide({ id: 'sc', title: 'socio' }, { formation: 'boh' })); assert.ok(!L.lostGuide(null, r));
+  const r = { starter_id: 's', formation: [{ kind: 'scopa', member_id: 'sc' }, { kind: 'socio', member_id: 'so' }, { kind: 'road_captain', member_id: 'rc' }, { kind: 'safety', member_id: 'sf' }] };
+  assert.ok(L.lostActor({ id: 's', title: 'socio' }, r), 'chi fa partire'); assert.ok(L.lostActor({ id: 'rc', title: 'socio' }, r), 'road captain'); assert.ok(L.lostActor({ id: 'sf', title: 'socio' }, r), 'safety');
+  assert.ok(L.lostActor({ id: 'h', title: 'head_road_captain' }, r), 'Head Road Captain');
+  assert.ok(!L.lostActor({ id: 'sc', title: 'socio' }, r), 'scopa no'); assert.ok(!L.lostActor({ id: 'd', title: 'direttore' }, r), 'direttore non agisce'); assert.ok(!L.lostActor({ id: 'x', title: 'socio', perms: ['runs_edit'] }, r));
+  assert.ok(L.lostGuide({ id: 'd', title: 'direttore' }, r) && L.lostGuide({ id: 'v', title: 'vice_direttore' }, r), 'direttore e vice informati'); assert.ok(L.lostGuide({ id: 'sf', title: 'socio' }, r));
+  assert.ok(!L.lostGuide({ id: 'so', title: 'socio' }, r), 'socio in formazione no'); assert.ok(!L.lostGuide({ id: 'sf', title: 'socio', active: false }, r), 'non attivo');
+  assert.ok(!L.lostGuide({ id: 'sf', title: 'socio' }, { formation: 'boh' })); assert.ok(!L.lostGuide(null, r)); assert.ok(!L.lostGuide({ id: 'presidente', title: 'presidente' }, r));
   assert.ok(L.lostActive({ status: 'open' }) && L.lostActive({ status: 'sent' }) && !L.lostActive({ status: 'arrived' }) && !L.lostActive(null));
 });
 console.log(n+' test passati');

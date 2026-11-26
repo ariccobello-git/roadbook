@@ -1,4 +1,4 @@
--- 9076 RoadBook 5.0.0 · «Mi sono perso»: il socio staccato raggiunge la sosta scelta in automatico (chi guida può cambiarla), con ora prevista di arrivo
+-- 9076 RoadBook 5.0.0 · «Mi sono perso»: il server propone la sosta, il capogruppo o il safety la confermano e il socio la raggiunge con ora prevista di arrivo
 -- Funzioni riscritte per intero: si può incollare nel SQL Editor così com'è. Richiede le migrazioni 20261126_run_days_halts e 20261126_signup_rules.
 
 create table if not exists public.rc_lost (
@@ -7,21 +7,26 @@ create table if not exists public.rc_lost (
   member_id uuid not null references public.rc_members(id) on delete cascade,
   status text not null default 'open' check (status in ('open', 'sent', 'arrived', 'closed')),
   lat double precision, lng double precision, pos_at timestamptz,
-  stop jsonb,
+  stop jsonb, tip jsonb,
   sent_by uuid references public.rc_members(id) on delete set null, sent_at timestamptz,
   eta timestamptz, eta_at timestamptz, eta_pushed timestamptz,
   created_at timestamptz not null default now(), done_at timestamptz
 );
 create unique index if not exists rc_lost_open on public.rc_lost (run_id, member_id) where status in ('open', 'sent');
 create index if not exists rc_lost_run on public.rc_lost (run_id, created_at);
+alter table public.rc_lost add column if not exists tip jsonb;
 alter table public.rc_lost enable row level security;
 
-/* chi aiuta chi si è perso: chi fa partire il Run, il direttivo (runs_edit), road captain e scopa della formazione */
+/* chi agisce per chi si è perso: capogruppo (road captain in formazione, chi fa partire il Run, Head Road Captain) e safety */
+create or replace function rc_private.lost_actor(m public.rc_members, r public.rc_runs) returns boolean
+ language sql stable set search_path to 'public', 'rc_private'
+as $$ select m.id is not null and m.active and (m.id = r.starter_id or m.title = 'head_road_captain'
+  or exists (select 1 from jsonb_array_elements(case when jsonb_typeof(r.formation) = 'array' then r.formation else '[]'::jsonb end) f
+             where f->>'member_id' = m.id::text and f->>'kind' in ('road_captain', 'safety'))) $$;
+/* chi è informato e può intervenire se vuole: in più admin, direttore e vice direttore */
 create or replace function rc_private.lost_guide(m public.rc_members, r public.rc_runs) returns boolean
  language sql stable set search_path to 'public', 'rc_private'
-as $$ select m.id is not null and m.active and (rc_private.can_start(m, r) or rc_private.can(m.title, 'runs_edit')
-  or exists (select 1 from jsonb_array_elements(case when jsonb_typeof(r.formation) = 'array' then r.formation else '[]'::jsonb end) f
-             where f->>'member_id' = m.id::text and f->>'kind' in ('road_captain', 'scopa'))) $$;
+as $$ select m.id is not null and m.active and (rc_private.lost_actor(m, r) or m.title in ('admin', 'direttore', 'vice_direttore')) $$;
 
 create or replace function rc_private.km(a_lat double precision, a_lng double precision, b_lat double precision, b_lng double precision) returns double precision
  language sql immutable
@@ -45,7 +50,7 @@ create or replace function rc_private.place_pt(e jsonb) returns jsonb
 as $$ select case when jsonb_typeof(e) = 'object' and coalesce(e->>'lat', '') ~ '^-?[0-9]+(\.[0-9]+)?$' and coalesce(e->>'lng', '') ~ '^-?[0-9]+(\.[0-9]+)?$'
   then jsonb_build_object('name', left(coalesce(e->>'name', ''), 80), 'addr', left(coalesce(e->>'addr', ''), 160), 'lat', (e->>'lat')::double precision, 'lng', (e->>'lng')::double precision) end $$;
 
-/* sosta scelta dal server, così chi guida non tocca il telefono: se il gruppo è fermo, la tappa entro 500 m dalla sosta
+/* sosta proposta dal server (la conferma il capogruppo o il safety): se il gruppo è fermo, la tappa entro 500 m dalla sosta
    (o la sosta stessa); altrimenti la tappa che chiude il tratto di programma più vicino al gruppo. null se non si sa */
 create or replace function rc_private.lost_auto_stop(r public.rc_runs, p_member uuid) returns jsonb
  language plpgsql stable security definer set search_path to 'public', 'rc_private'
@@ -78,7 +83,7 @@ begin
   /* posizione del gruppo: la più recente degli ultimi 10 minuti, prima chi guida */
   select l.lat, l.lng into g_lat, g_lng from rc_live l join rc_members mm on mm.id = l.member_id
     where l.run_id = r.id and l.member_id <> p_member and l.at > now() - interval '10 minutes'
-    order by rc_private.lost_guide(mm, r) desc, l.at desc limit 1;
+    order by rc_private.lost_actor(mm, r) desc, l.at desc limit 1;
   if g_lat is null then return null; end if;
   if n = 1 then return pl->0; end if;
   for i in 0 .. n - 2 loop
@@ -89,7 +94,7 @@ begin
 end $function$;
 
 /* «Mi sono perso»: solo chi partecipa, a Run partito e non oltre 6 ore dalla fine; una sola richiesta aperta per socio.
-   La sosta la sceglie subito il server; chi aiuta la cambia solo se serve */
+   Il server propone la sosta; arriva al socio solo quando il capogruppo o il safety la confermano */
 create or replace function public.rc_lost_send(p_code text, p_run uuid, p_lat double precision default null, p_lng double precision default null)
  returns jsonb language plpgsql security definer set search_path to 'public', 'rc_private'
 as $function$
@@ -107,11 +112,11 @@ begin
     return jsonb_build_object('ok', true, 'id', cur.id, 'status', cur.status);
   end if;
   v_stop := rc_private.lost_auto_stop(r, m.id);
-  insert into rc_lost (run_id, member_id, lat, lng, pos_at, stop, status, sent_at)
-    values (p_run, m.id, p_lat, p_lng, case when p_lat is null then null else now() end, v_stop, case when v_stop is null then 'open' else 'sent' end, case when v_stop is null then null else now() end)
+  insert into rc_lost (run_id, member_id, lat, lng, pos_at, tip)
+    values (p_run, m.id, p_lat, p_lng, case when p_lat is null then null else now() end, v_stop)
     returning id into v_id;
   perform rc_private.push_send('lost', v_id::text);
-  return jsonb_build_object('ok', true, 'id', v_id, 'status', case when v_stop is null then 'open' else 'sent' end);
+  return jsonb_build_object('ok', true, 'id', v_id, 'status', 'open');
 end $function$;
 
 /* la sosta da raggiungere: {name, addr, lat, lng}; si può cambiare finché il socio non è arrivato */
@@ -202,8 +207,13 @@ create or replace function rc_private.sync_extra(m public.rc_members) returns js
  language sql stable security definer set search_path to 'public', 'rc_private'
 as $$
   select jsonb_build_object('lost', coalesce((select jsonb_agg(jsonb_build_object('id', l.id, 'run_id', l.run_id, 'member_id', l.member_id, 'status', l.status,
-      'lat', l.lat, 'lng', l.lng, 'pos_at', l.pos_at, 'stop', l.stop, 'sent_by', l.sent_by, 'sent_at', l.sent_at, 'eta', l.eta, 'eta_at', l.eta_at,
-      'created_at', l.created_at, 'done_at', l.done_at) order by l.created_at)
+      'lat', l.lat, 'lng', l.lng, 'pos_at', l.pos_at, 'stop', l.stop, 'tip', l.tip, 'sent_by', l.sent_by, 'sent_at', l.sent_at, 'eta', l.eta, 'eta_at', l.eta_at,
+      'created_at', l.created_at, 'done_at', l.done_at, 'phone', (select pm.phone from rc_members pm where pm.id = l.member_id),
+      /* chi può chiamare il socio che si è perso: capogruppo e safety, con il telefono */
+      'helpers', coalesce((select jsonb_agg(jsonb_build_object('id', hm.id, 'name', trim(coalesce(hm.first_name, '') || ' ' || coalesce(hm.last_name, '')), 'phone', hm.phone,
+          'role', case when exists (select 1 from jsonb_array_elements(case when jsonb_typeof(r.formation) = 'array' then r.formation else '[]'::jsonb end) f
+                                    where f->>'member_id' = hm.id::text and f->>'kind' = 'safety') then 'safety' else 'rc' end))
+        from rc_members hm where hm.id <> l.member_id and rc_private.lost_actor(hm, r) and coalesce(hm.phone, '') <> ''), '[]'::jsonb)) order by l.created_at)
     from rc_lost l join rc_runs r on r.id = l.run_id
     where l.created_at > now() - interval '2 days' and (l.status in ('open', 'sent') or l.done_at > now() - interval '30 minutes')
       and (l.member_id = m.id or rc_private.lost_guide(m, r))), '[]'::jsonb))
@@ -220,7 +230,7 @@ begin
   if l.id is null then return '[]'::jsonb; end if;
   select * into r from rc_runs where id = l.run_id;
   select trim(coalesce(first_name, '') || ' ' || coalesce(last_name, '')) into nm from rc_members where id = l.member_id;
-  sn := coalesce(nullif(l.stop->>'name', ''), nullif(l.stop->>'addr', ''), 'la sosta');
+  sn := coalesce(nullif(l.stop->>'name', ''), nullif(l.stop->>'addr', ''), nullif(l.tip->>'name', ''), nullif(l.tip->>'addr', ''), 'la sosta');
   if p_kind = 'lost_go' then
     select coalesce(jsonb_agg(jsonb_build_object('endpoint', p.endpoint, 'p256dh', p.p256dh, 'auth', p.auth,
       'title', '9076 RoadBook · raggiungi il gruppo', 'body', 'Vai a «' || sn || '». Tocca per aprire la navigazione.',
@@ -231,7 +241,9 @@ begin
   select coalesce(jsonb_agg(jsonb_build_object('endpoint', p.endpoint, 'p256dh', p.p256dh, 'auth', p.auth,
     'title', '9076 RoadBook · ' || case p_kind when 'lost' then 'socio staccato dal gruppo' when 'lost_eta' then 'arrivo previsto' else r.title end,
     'body', case p_kind
-      when 'lost' then nm || case when l.stop is null then ' si è perso: tocca per indicargli la sosta da raggiungere.' else ' si è perso: lo mando a «' || sn || '». Se serve, cambiala da fermo.' end
+      when 'lost' then nm || case when not rc_private.lost_actor(t, r) then ' si è perso. Se ne occupano capogruppo e safety: tocca per seguire.'
+        when l.tip is null then ' si è perso: chiamalo e indicagli la sosta da raggiungere.'
+        else ' si è perso. Proposta: «' || sn || '». Chiamalo e conferma la sosta.' end
       when 'lost_eta' then nm || ' arriva a «' || sn || '» verso le ' || to_char(l.eta at time zone 'Europe/Rome', 'HH24:MI') || '.'
       when 'lost_here' then nm || case when l.stop is not null and l.status = 'arrived' and l.eta_at is not null and l.eta = l.done_at then ' è arrivato a «' || sn || '».' else ' ha ritrovato il gruppo.' end
       else nm || ' ha annullato la richiesta: ha ritrovato la strada.' end,
