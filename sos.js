@@ -89,7 +89,12 @@
         l.appendChild(h('button', { type: 'button', class: 'sos-kind', 'data-k': k, onclick: function () { st.kind = k; if (k === 'salute_altro') stepSubject(); else stepMain(); } },
           h('span', { class: 'sk-i' }, RB.icon(k === 'moto' ? 'moto' : 'alert')), h('span', { class: 'sk-t' }, h('b', null, kindLabel(k)), h('span', null, t('sosk_' + k + '_d'))), RB.icon('chev')));
       });
-      body.appendChild(l); body.appendChild(callBlock(null));
+      body.appendChild(l);
+      /* staccato dal gruppo durante un Run: non è un'emergenza, si raggiunge la sosta */
+      var lr = !pub && RB.lostRun && RB.lostRun();
+      if (lr) body.appendChild(h('button', { type: 'button', class: 'sos-kind lost', id: 'sos-lost', onclick: function () { ctl.close(true); RB.lostAsk(lr); } },
+        h('span', { class: 'sk-i' }, RB.icon('pin')), h('span', { class: 'sk-t' }, h('b', null, t('lost_btn')), h('span', null, t('lost_btn_d'))), RB.icon('chev')));
+      body.appendChild(callBlock(null));
     }
 
     function stepSubject() {

@@ -209,7 +209,7 @@
     var card = h('div', { class: 'halt-card', id: 'halt-' + r.id, 'data-run': r.id },
       h('div', { class: 'halt-h' }, h('span', { class: 'halt-ic' }, RB.icon('clock')), h('span', null, h('small', null, t('halt_now')), h('b', null, r.title), h('span', null, tx))));
     if (boss) card.appendChild(h('div', { class: 'halt-acts' }, h('span', null, t('halt_go')),
-      [0, 5, 10].map(function (m) { return h('button', { type: 'button', class: 'halt-b' + (m ? '' : ' now'), 'data-min': m, onclick: function () { RB.feel('tap'); RB.haltCall(r, m); } }, m ? t('halt_in', m) : t('halt_now_b')); })));
+      [0, 5, 10].map(function (m) { return h('button', { type: 'button', class: 'halt-b' + (m ? '' : ' now'), 'data-min': m, onclick: function () { RB.feel('tap'); RB.lostConfirmRestart(r).then(function (ok) { if (ok) RB.haltCall(r, m); }); } }, m ? t('halt_in', m) : t('halt_now_b')); })));
     return card;
   }
   RB.haltBlock = function () {
