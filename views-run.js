@@ -11,28 +11,83 @@
   }
   var DIFF = { facile: 'diff_facile', media: 'diff_media', impegnativa: 'diff_impegnativa' };
 
-  /* risposta del socio, con aggiornamento immediato e poi conferma dal database */
-  RB.respond = function (runId, status, pass) {
-    var d = RB.S.d, me = RB.S.me, list = d.signups, i, found = false;
-    for (i = 0; i < list.length; i++) if (list[i].run_id === runId && list[i].member_id === me.id) {
-      found = true;
-      if (status === 'rimuovi') list.splice(i, 1); else { list[i].status = status; list[i].passengers = pass; }
-      break;
-    }
-    if (!found && status !== 'rimuovi') list.push({ run_id: runId, member_id: me.id, status: status, passengers: pass, checked_in: false });
-    RB.refresh(); RB.refreshSheets(); RB.feel('tap');
-    return RB.write('rc_signup', { p_run: runId, p_status: status, p_passengers: pass, p_member: null }).then(function (r) {
-      if (!r.ok) { RB.toast(RB.errMsg(r.error), 'err'); RB.sync(); } else RB.sound('ok');
-      return r;
+  /* risposta del socio: «Ci sono» e cancellarsi chiedono sempre conferma; dopo la scadenza (o a posti esauriti)
+     diventano richieste che il direttivo approva. Il passeggero si cambia senza conferma. */
+  RB.respond = function (runId, status, pass, quiet) {
+    var r = RB.run(runId), mine = mySignup(runId), was = mine && mine.status === 'si', sm = RB.can('signups_manage');
+    var joining = status === 'si' && !was, leaving = was && (status === 'no' || status === 'rimuovi');
+    var closed = !sm && r && RBL.signupClosed(r), full = !sm && r && joining && RBL.isFull(r, RB.signupsOf(runId), RB.S.me.id, pass);
+    var ask = quiet || (!joining && !leaving) ? Promise.resolve(true)
+      : joining ? RB.ask({ title: t((closed || full) ? 'join_req_q' : 'join_q', r ? r.title : ''), msg: closed ? t('join_req_late') : full ? t('join_req_full') : t('join_msg'), ok: t((closed || full) ? 'req_send' : 'join_ok'), no: t('cancel') })
+      : RB.ask({ title: t(closed ? 'leave_req_q' : 'leave_q', r ? r.title : ''), msg: closed ? t('leave_req_msg') : t('leave_msg'), ok: t(closed ? 'req_send' : 'leave_ok'), no: t('cancel'), danger: !closed });
+    return ask.then(function (ok) {
+      if (!ok) { RB.refresh(); RB.refreshSheets(); return { ok: false, cancelled: true }; }
+      RB.feel('tap');
+      return RB.write('rc_signup', { p_run: runId, p_status: status, p_passengers: pass, p_member: null }).then(function (x) {
+        if (!x.ok) { RB.toast(RB.errMsg(x.error), 'err'); RB.refresh(); RB.refreshSheets(); }
+        else { RB.sound('ok'); if (x.pending) RB.toast(t('req_sent')); else if (joining) RB.toast(t('join_done')); }
+        return x;
+      });
+    });
+  };
+  /* ritira la mia richiesta in attesa */
+  RB.withdrawReq = function (runId) {
+    return RB.ask({ title: t('req_withdraw_q'), ok: t('req_withdraw'), no: t('cancel') }).then(function (ok) {
+      if (!ok) return;
+      RB.write('rc_signup', { p_run: runId, p_status: 'ritira', p_passengers: 0, p_member: null }).then(function (x) { if (x.ok) RB.sound('ok'); else RB.toast(RB.errMsg(x.error), 'err'); });
     });
   };
 
   function respSeg(r, onchange) {
     var mine = mySignup(r.id);
-    return RB.seg([{ v: 'si', label: t('yes_go') }, { v: 'no', label: t('no_go') }], mine && mine.status !== 'forse' ? mine.status : '', function (v) {
+    if (mine && mine.pending) {
+      return h('div', { class: 'req-wait', 'data-pending': mine.pending, onclick: function (e) { e.stopPropagation(); } }, RB.icon('clock'),
+        h('span', null, t(mine.pending === 'join' ? 'req_wait_join' : 'req_wait_cancel')),
+        h('button', { type: 'button', class: 'lnk', onclick: function () { RB.withdrawReq(r.id); } }, t('req_withdraw')));
+    }
+    return RB.seg([{ v: 'si', label: RBL.signupClosed(r) && !(mine && mine.status === 'si') && !RB.can('signups_manage') ? t('join_req_b') : t('yes_go') }, { v: 'no', label: t('no_go') }], mine && mine.status !== 'forse' ? mine.status : '', function (v) {
       var m = mySignup(r.id); RB.respond(r.id, v, m ? m.passengers : 0); if (onchange) onchange();
     }, 'ac');
   }
+
+  /* ---------- richieste da approvare (direttivo) ---------- */
+  RB.pendingReqs = function (runId) {
+    if (!RB.can('signups_manage')) return [];
+    return ((RB.S.d && RB.S.d.signups) || []).filter(function (s) { return s.pending && (!runId || s.run_id === runId) && RB.run(s.run_id); })
+      .sort(function (a, b) { return String(a.requested_at || '').localeCompare(String(b.requested_at || '')); });
+  };
+  RB.reqDecide = function (s, ok) {
+    var m = RB.mem(s.member_id), r = RB.run(s.run_id);
+    var go = ok ? Promise.resolve(true) : RB.ask({ title: t('req_reject_q'), msg: RB.fullName(m) + ' · ' + (r ? r.title : ''), ok: t('req_reject'), no: t('cancel'), danger: true });
+    return go.then(function (yes) {
+      if (!yes) return;
+      RB.write('rc_signup_decide', { p_run: s.run_id, p_member: s.member_id, p_ok: ok }).then(function (x) { if (x.ok) { RB.sound('ok'); RB.toast(t(ok ? 'req_approved' : 'req_rejected')); } else RB.toast(RB.errMsg(x.error), 'err'); });
+    });
+  };
+  function reqRow(s, withRun) {
+    var m = RB.mem(s.member_id), r = RB.run(s.run_id), c = RB.counts(RB.signupsOf(s.run_id));
+    var sub = t(s.pending === 'join' ? 'req_join' : 'req_cancel') + (withRun && r ? ' · ' + r.title : '') + (r && r.max_participants ? ' · ' + t('req_places', c.total, r.max_participants) : '');
+    return h('div', { class: 'row req-row', 'data-member': s.member_id, 'data-run': s.run_id }, m ? RB.av(m, 'sm') : RB.icon('user'),
+      h('span', { class: 'rt' }, h('b', null, RB.fullName(m) + (s.passengers ? ' +1' : '')), h('span', null, sub)),
+      h('button', { type: 'button', class: 'req-b no', 'aria-label': t('req_reject'), onclick: function () { RB.feel('tap'); RB.reqDecide(s, false); } }, RB.icon('x')),
+      h('button', { type: 'button', class: 'req-b ok', 'aria-label': t('req_approve'), onclick: function () { RB.feel('tap'); RB.reqDecide(s, true); } }, RB.icon('check')));
+  }
+  RB.reqList = function (runId, withRun) {
+    var l = h('div', { class: 'list req-list' });
+    RB.pendingReqs(runId).forEach(function (s) { l.appendChild(reqRow(s, withRun)); });
+    return l;
+  };
+  RB.reqSheet = function () {
+    var box = h('div', { id: 'req-sheet' }), ctl;
+    function draw() { RB.clear(box); var n = RB.pendingReqs().length; box.appendChild(n ? RB.reqList(null, true) : RB.empty('check', t('req_none'), '')); box.appendChild(h('p', { class: 'sm', style: 'padding:0 6px' }, t('req_help'))); }
+    ctl = RB.sheet({ title: t('req_title'), content: box, full: true, leftLabel: t('close') });
+    ctl.refresh = draw; draw();
+    return ctl;
+  };
+  RB.reqBanners = function (root) {
+    var n = RB.pendingReqs().length;
+    if (n) root.appendChild(h('div', { class: 'banner wa', role: 'button', tabindex: '0', id: 'req-alert', style: 'cursor:pointer', onclick: function () { RB.reqSheet(); } }, t('req_n', n)));
+  };
 
   /* ---------- elenco ---------- */
   function runCard(r, i) {
@@ -224,6 +279,7 @@
     var al = h('div', { class: 'alerts' + (RB.ui.alertsAll ? ' all' : '') });
     RB.wxBanners(al, next);
     RB.reviewBanners(al);
+    RB.reqBanners(al);
     var na = al.children.length;
     if (na > 1) al.appendChild(h('button', { type: 'button', class: 'al-more', id: 'al-more', 'aria-label': RB.ui.alertsAll ? t('al_less') : t('al_more', na - 1), onclick: function () { RB.ui.alertsAll = !RB.ui.alertsAll; RB.feel('tap'); RB.refresh(); } },
       RB.ui.alertsAll ? t('al_less') : '+' + (na - 1)));
@@ -321,6 +377,7 @@
     if (r.km) info.appendChild(RB.row({ title: t('distance'), value: r.km + ' km', go: false }));
     info.appendChild(RB.row({ title: t('difficulty'), value: t(DIFF[r.difficulty] || 'diff_media'), go: false }));
     if (r.max_participants) info.appendChild(RB.row({ title: t('max_places'), value: String(r.max_participants), go: false }));
+    if (r.signup_until) info.appendChild(RB.row({ title: t('signup_until'), value: RB.fmt.dayShort(r.signup_until) + ' · ' + RB.fmt.time(r.signup_until), go: false }));
     if (RBL.hasFee(r)) {
       var rms = RBL.rooms(r), si = mine && mine.status === 'si';
       info.appendChild(RB.row({ title: t('run_fee'), sub: RB.feeSummary(r), go: false }));
@@ -343,9 +400,10 @@
     if (r.status === 'programmato' && !past) {
       f.appendChild(RB.secT(t('my_answer')));
       f.appendChild(h('div', { class: 'card', style: 'margin-top:0' }, respSeg(r)));
+      if (r.signup_until) f.appendChild(h('p', { class: 'sm', style: 'padding:0 6px', id: 'signup-until' }, t(RBL.signupClosed(r) ? 'signup_closed_on' : 'signup_until_on', RB.fmt.dayShort(r.signup_until) + ' ' + RB.fmt.time(r.signup_until))));
       if (mine && mine.status === 'si') {
         var pl = h('div', { class: 'list', style: 'margin-top:10px' }, h('div', { class: 'pass' }, h('span', null, t('passenger')),
-          RB.toggle(mine.passengers > 0, function (on) { RB.respond(r.id, 'si', on ? 1 : 0); })));
+          RB.toggle(mine.passengers > 0, function (on) { RB.respond(r.id, 'si', on ? 1 : 0, true); })));
         f.appendChild(pl);
       }
     }
@@ -399,6 +457,7 @@
 
     /* foto */
     haltSection(f, r);
+    if (RB.pendingReqs(r.id).length) { f.appendChild(RB.secT(t('req_title'))); f.appendChild(RB.reqList(r.id, false)); }
     f.appendChild(RB.secT(t('photos'), h('button', { type: 'button', class: 'btn ghost sm2', onclick: function () { addPhoto(r.id, state, ctl); } }, RB.icon('cam'), t('add'))));
     if (state.photos && state.photos.length) {
       var g = h('div', { class: 'list ph' });
@@ -426,7 +485,7 @@
   }
   function runPayload(r, over) {
     var o = { id: r.id, title: r.title, run_date: r.run_date, meeting_point: r.meeting_point || '', destination: r.destination || '', description: r.description || '', km: r.km == null ? '' : String(r.km),
-      difficulty: r.difficulty, route_url: r.route_url || '', stops: r.stops || [], meeting: r.meeting || null, dest: r.dest || null, days: RBL.runDays(r), route_public: !!r.route_public, nav_tool: RBL.navTool(r.nav_tool), status: r.status, fee: r.fee == null ? '' : String(r.fee), causale: r.causale || '', rooms: r.rooms || [], extras: r.extras || [], installments: r.installments || [], max_participants: r.max_participants == null ? '' : String(r.max_participants), starter_id: r.starter_id || '', day_starts: r.day_starts || {} }, k;
+      difficulty: r.difficulty, route_url: r.route_url || '', stops: r.stops || [], meeting: r.meeting || null, dest: r.dest || null, days: RBL.runDays(r), route_public: !!r.route_public, nav_tool: RBL.navTool(r.nav_tool), status: r.status, fee: r.fee == null ? '' : String(r.fee), causale: r.causale || '', rooms: r.rooms || [], extras: r.extras || [], installments: r.installments || [], max_participants: r.max_participants == null ? '' : String(r.max_participants), starter_id: r.starter_id || '', day_starts: r.day_starts || {}, signup_until: r.signup_until || '' }, k;
     for (k in over) o[k] = over[k];
     return o;
   }
@@ -829,6 +888,7 @@
     var more = h('div', { class: 'more' }), moreOpen = !!(r && r.id) || !!(opts && opts.clone);
     more.appendChild(h('div', { class: 'list' },
       starterHold,
+      RB.field(t('signup_until'), RB.input('rf-until', r && r.signup_until && !(opts && opts.clone) ? RB.localInput(r.signup_until) : '', { type: 'datetime-local' })),
       RB.field(t('max_places'), RB.input('rf-max', r && r.max_participants != null ? r.max_participants : '', { type: 'number', mode: 'numeric', min: 1, ph: t('no_limit') })),
       RB.field(t('route_link'), RB.input('rf-url', r ? r.route_url : '', { type: 'url', ph: 'https://' }))));
     box.appendChild(fields);
@@ -851,7 +911,8 @@
       right: { label: t('save'), fn: function () {
         var title = RB.val('rf-title'), dtv = RB.val('rf-dt');
         if (!title || !dtv) { RB.toast(t('e_dati_mancanti'), 'err'); return; }
-        var url = RB.val('rf-url');
+        var url = RB.val('rf-url'), until = RB.val('rf-until');
+        if (until && new Date(until) > new Date(dtv)) { RB.toast(t('e_until_after'), 'err'); return; }
         if (url && !RB.safeUrl(url)) { RB.toast(t('e_link_non_valido'), 'err'); return; }
         var out = [], d;
         for (d = 1; d <= ST.days; d++) {
@@ -859,7 +920,7 @@
           var e = endStop(d); if (d < ST.days && e && (e.name || e.addr)) out.push(stopOut(e));
         }
         var p = { id: r ? r.id : null, title: title, run_date: new Date(dtv).toISOString(), meeting_point: '', destination: '', meeting: meeting, dest: dest, days: ST.days, route_public: ST.pub,
-          description: RB.val('rf-desc'), km: RB.val('rf-km'), difficulty: diff, route_url: url, nav_tool: nav, status: status, max_participants: RB.val('rf-max'), fee: RB.val('rf-fee').replace(',', '.'), causale: ST.causale, rooms: ST.rooms.map(function (x) { return { id: x.id, name: x.name.trim(), price: String(x.price).replace(',', '.') }; }), extras: ST.extras.map(function (x) { return { id: x.id, name: x.name.trim(), price: String(x.price).replace(',', '.') }; }), installments: ST.inst.map(function (x) { return { due_on: x.due_on, pct: String(x.pct).replace(',', '.') }; }), starter_id: ST.starter || '', day_starts: (function () { var o = {}, k; for (k in ST.dayStarts) if (+k >= 2 && +k <= ST.days && ST.dayStarts[k]) o[k] = ST.dayStarts[k]; return o; })(), stops: out };
+          description: RB.val('rf-desc'), km: RB.val('rf-km'), difficulty: diff, route_url: url, nav_tool: nav, status: status, max_participants: RB.val('rf-max'), fee: RB.val('rf-fee').replace(',', '.'), causale: ST.causale, rooms: ST.rooms.map(function (x) { return { id: x.id, name: x.name.trim(), price: String(x.price).replace(',', '.') }; }), extras: ST.extras.map(function (x) { return { id: x.id, name: x.name.trim(), price: String(x.price).replace(',', '.') }; }), installments: ST.inst.map(function (x) { return { due_on: x.due_on, pct: String(x.pct).replace(',', '.') }; }), starter_id: ST.starter || '', signup_until: until ? new Date(until).toISOString() : '', day_starts: (function () { var o = {}, k; for (k in ST.dayStarts) if (+k >= 2 && +k <= ST.days && ST.dayStarts[k]) o[k] = ST.dayStarts[k]; return o; })(), stops: out };
         RB.act(ctl.right, function () { return RB.geo.withTimes(p).then(function (q) { return RB.write('rc_run_save', { p: q }); }); }, t('saved')).then(function (x) { if (x && x.ok) ctl.close(true); });
       } } });
     return ctl;

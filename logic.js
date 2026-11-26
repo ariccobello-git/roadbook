@@ -1090,6 +1090,14 @@
     }).sort(function (a, b) { return new Date(b.started_at) - new Date(a.started_at); })[0] || null;
   };
 
+  /* iscrizioni: chiuse dopo la data scelta dal direttivo; pieno se i posti non bastano per me (più l'eventuale passeggero) */
+  L.signupClosed = function (r, now) { var u = r && r.signup_until ? new Date(r.signup_until).getTime() : NaN; return isFinite(u) && (now == null ? Date.now() : now) > u; };
+  L.isFull = function (r, signups, meId, pass) {
+    if (!r || !r.max_participants) return false;
+    var taken = (signups || []).filter(function (s) { return s.status === 'si' && s.member_id !== meId; }).reduce(function (a, s) { return a + 1 + (s.passengers || 0); }, 0);
+    return taken + 1 + (pass || 0) > r.max_participants;
+  };
+
   /* soste del gruppo dal GPS di chi guida: sosta sotto 5 km/h per 3 minuti (semafori e code non contano),
      ripartenza sopra 20 km/h per 30 secondi e ad almeno 200 m dal punto di sosta (a piedi non riparte) */
   L.HALT = { slowKmh: 5, slowMs: 180000, fastKmh: 20, fastMs: 30000, awayKm: 0.2, gapMs: 30000 };

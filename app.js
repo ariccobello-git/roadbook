@@ -157,6 +157,7 @@
       var nx = RB.runs().filter(function (r) { return r.status === 'programmato' && new Date(r.run_date) > Date.now() - 6 * 3600 * 1000; }).sort(function (a, b) { return new Date(a.run_date) - new Date(b.run_date); })[0];
       if (nx && RB.can('formation_edit')) sl.appendChild(RB.row({ lead: RB.icon('moto'), title: t('formation'), sub: nx.title, onclick: function () { RB.formationEditor(nx.id); } }));
       if (nx && RB.can('signups_manage')) sl.appendChild(RB.row({ lead: RB.icon('check'), title: t('checkin'), sub: nx.title, onclick: function () { RB.openRun(nx.id); } }));
+      if (RB.can('signups_manage')) { var nrq = RB.pendingReqs().length; sl.appendChild(RB.row({ lead: RB.icon('soci'), title: t('req_title'), sub: nrq ? t('req_n', nrq) : t('req_none'), id: 'req-open', onclick: function () { RB.reqSheet(); } })); }
       if (RB.can('members_edit')) {
         sl.appendChild(RB.row({ lead: RB.icon('soci'), title: t('add_member'), onclick: function () { RB.memberForm(null); } }));
         sl.appendChild(RB.row({ lead: RB.icon('file'), title: t('import_xls'), onclick: function () { RB.importSheet(); } }));

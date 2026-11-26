@@ -11,7 +11,7 @@ const DEVICES = {
 };
 
 /* who: 'dir' direttore, 'socio' socio semplice, 'inc' socio incaricato della partenza; started: Run già partito (da un altro) */
-function mk(who, started, multi) {
+function mk(who, started, multi, sign) {
   const members = [['Laura', 'Verdi', 'direttore'], ['Mario', 'Rossi', 'socio'], ['Anna', 'Conti', 'socio'], ['Luca', 'Gialli', 'road_captain']].map((n, i) => ({ id: ID(i + 1), first_name: n[0], last_name: n[1], title: n[2], active: true, has_photo: false, phone: '3331112233' }));
   const meIdx = who === 'dir' ? 0 : who === 'inc' ? 2 : 1, me = members[meIdx];
   const run = { id: ID(50), title: 'Giro dei Castelli Romani con sosta lunga', run_date: new Date(Date.now() - 5 * 60000).toISOString(), days: 1, status: 'programmato', fee: '0', rooms: [], extras: [], installments: [], stops: [], meeting_point: 'Piazzale Ostiense', destination: 'Frascati', nav_tool: 'google', difficulty: 'media', starter_id: ID(3),
@@ -22,11 +22,17 @@ function mk(who, started, multi) {
     Object.assign(run, { days: 3, run_date: new Date(Date.now() - 24 * 3600000).toISOString(), started_at: new Date(Date.now() - 24 * 3600000).toISOString(), started_by: ID(1), started_day: 1, day_starts: { '2': p(d2.getHours()) + ':' + p(d2.getMinutes()) } });
   }
   const perms = who === 'dir' ? ['members_view', 'phones_view', 'route_view', 'runs_edit', 'formation_edit', 'signups_manage'] : ['members_view'];
-  return { me: { id: me.id, first_name: me.first_name, last_name: me.last_name, title: me.title, active: true, perms }, profiles: [], members, runs: [run], signups: [], payments: [], settings: { chapter: { name: 'Roma Chapter' } }, weather: {}, reports: [], acks: multi ? [ID(50) + ':1'] : [], halts: [] };
+  const signups = [];
+  if (sign) {
+    run.signup_until = new Date(Date.now() - 3600000).toISOString(); run.run_date = new Date(Date.now() + 3 * 86400000).toISOString();
+    if (sign.mineSi) signups.push({ run_id: run.id, member_id: me.id, status: 'si', passengers: 0, checked_in: false });
+    if (sign.reqs) { signups.push({ run_id: run.id, member_id: ID(2), status: 'forse', passengers: 0, checked_in: false, pending: 'join', requested_at: new Date().toISOString() }); signups.push({ run_id: run.id, member_id: ID(3), status: 'si', passengers: 0, checked_in: false, pending: 'cancel', requested_at: new Date().toISOString() }); }
+  }
+  return { me: { id: me.id, first_name: me.first_name, last_name: me.last_name, title: me.title, active: true, perms }, profiles: [], members, runs: [run], signups, payments: [], settings: { chapter: { name: 'Roma Chapter' } }, weather: {}, reports: [], acks: multi ? [ID(50) + ':1'] : [], halts: [] };
 }
 
-function backend(page, who, started, log, multi) {
-  const st = mk(who, started, multi);
+function backend(page, who, started, log, multi, sign) {
+  const st = mk(who, started, multi, sign);
   page.route('**/rest/v1/rpc/**', async route => {
     const fn = route.request().url().split('/rpc/')[1], body = JSON.parse(route.request().postData() || '{}');
     log.push({ fn, body });
@@ -41,6 +47,14 @@ function backend(page, who, started, log, multi) {
     else if (fn === 'rc_run_start') { r.started_day = r.started_at ? (r.started_day || 1) + 1 : 1; r.started_at = new Date().toISOString(); r.started_by = st.me.id; st.acks.push(r.id + ':' + r.started_day); out = { ok: true, day: r.started_day }; }
     else if (fn === 'rc_run_ack') { const k = body.p_id + ':' + (r.started_day || 1); if (!st.acks.includes(k)) st.acks.push(k); }
     else if (fn === 'rc_run_save') { const p = body.p; Object.assign(r, { title: p.title, status: p.status, starter_id: p.starter_id || null, day_starts: p.day_starts || {} }); out = { ok: true, id: r.id }; }
+    else if (fn === 'rc_signup') {
+      const me = st.me.id, i = st.signups.findIndex(x => x.run_id === body.p_run && x.member_id === me), cur = st.signups[i], closed = r.signup_until && new Date(r.signup_until) < new Date();
+      if (body.p_status === 'ritira') { if (cur && cur.pending === 'join' && cur.status !== 'si') st.signups.splice(i, 1); else if (cur) cur.pending = null; }
+      else if (closed && cur && cur.status === 'si' && body.p_status === 'no') { cur.pending = 'cancel'; out = { ok: true, pending: 'cancel' }; }
+      else if (closed && body.p_status === 'si' && !(cur && cur.status === 'si')) { if (cur) cur.pending = 'join'; else st.signups.push({ run_id: r.id, member_id: me, status: 'forse', passengers: 0, pending: 'join' }); out = { ok: true, pending: 'join' }; }
+      else if (cur) Object.assign(cur, { status: body.p_status, pending: null }); else st.signups.push({ run_id: r.id, member_id: me, status: body.p_status, passengers: 0 });
+    }
+    else if (fn === 'rc_signup_decide') { const i = st.signups.findIndex(x => x.member_id === body.p_member), x = st.signups[i]; if (x.pending === 'join' && body.p_ok) Object.assign(x, { status: 'si', pending: null }); else if (x.pending === 'cancel' && body.p_ok) st.signups.splice(i, 1); else if (x.status === 'forse') st.signups.splice(i, 1); else x.pending = null; }
     else if (fn === 'rc_run_halt') {
       const open = st.halts.find(x => !x.ended_at), now = new Date().toISOString();
       if (body.p_action === 'stop' && !open) st.halts.push({ id: ID(700 + st.halts.length), run_id: r.id, day: r.started_day || 1, lat: 41.9, lng: 12.5, started_at: now, ended_at: null, restart_at: null });
@@ -62,13 +76,13 @@ async function run(devName) {
   const browser = await engine.launch(NATIVE ? {} : { executablePath: process.env.CHROME || undefined, args: ['--no-sandbox'] });
   const errors = [], res = [];
   const ok = n => res.push(n);
-  async function login(who, started, multi) {
+  async function login(who, started, multi, sign) {
     const ctx = await browser.newContext(Object.assign({}, opts, { locale: 'it-IT', timezoneId: 'Europe/Rome' }));
     const page = await ctx.newPage(), log = [];
     await page.addInitScript(() => { try { localStorage.setItem('rb.tour', '1'); } catch (e) {} });
     page.on('pageerror', e => errors.push(devName + ' pageerror: ' + e.message));
     page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource|favicon|net::ERR|CORS request did not succeed/.test(m.text())) errors.push(devName + ' console: ' + m.text()); });
-    const st = backend(page, who, started, log, multi);
+    const st = backend(page, who, started, log, multi, sign);
     await page.goto(BASE); await page.fill('#code', 'ABCD2345'); await page.click('button.btn.pri'); await page.waitForSelector('.run');
     return { ctx, page, log, st };
   }
@@ -149,6 +163,26 @@ async function run(devName) {
   st.halts.push({ id: ID(777), run_id: ID(50), day: 1, lat: null, lng: null, started_at: new Date().toISOString(), ended_at: null, restart_at: new Date(Date.now() + 600000).toISOString() });
   await page.evaluate(() => window.RB.sync()); await page.waitForSelector('#halt-block');
   assert.equal(await page.locator('#halt-block .halt-b').count(), 0, 'E6 il socio non deve avere i pulsanti'); assert((await page.locator('.run .chip').allInnerTexts()).some(x => /In sosta/.test(x)) || true); ok('E6 socio vede la sosta senza comandi');
+  await ctx.close();
+  /* F. Iscrizioni chiuse: «Chiedi di partecipare» con conferma, richiesta in attesa, ritiro */
+  ({ ctx, page, log, st } = await login('socio', false, false, {}));
+  const seg = page.locator('.run .seg button[data-v=si]'); assert(/Chiedi/.test(await seg.innerText()), devName + ' etichetta richiesta'); ok('F1 dopo la scadenza: Chiedi di partecipare');
+  await seg.click(); await page.waitForSelector('.sheet.in .ask'); assert(/approvata dal direttivo/.test(await page.locator('.sheet.in .ask').last().innerText())); await ask(page).locator('.btn.pri').click();
+  await page.waitForSelector('.run .req-wait[data-pending=join]'); assert(log.some(l => l.fn === 'rc_signup' && l.body.p_status === 'si')); ok('F2 richiesta inviata e in attesa');
+  await page.locator('.run .req-wait .lnk').click(); await page.waitForSelector('.sheet.in .ask'); await ask(page).locator('.btn.pri').click();
+  await page.waitForSelector('.run .seg button[data-v=si]'); assert(log.some(l => l.fn === 'rc_signup' && l.body.p_status === 'ritira')); ok('F3 ritiro della richiesta');
+  await ctx.close();
+  ({ ctx, page, log, st } = await login('socio', false, false, { mineSi: true }));
+  await page.click('.run .seg button[data-v=no]'); await page.waitForSelector('.sheet.in .ask'); assert(/resti iscritto/.test(await page.locator('.sheet.in .ask').last().innerText()));
+  await ask(page).locator('.btn.pri').click(); await page.waitForSelector('.run .req-wait[data-pending=cancel]'); ok('F4 annullamento dopo la scadenza = richiesta');
+  await ctx.close();
+  /* G. Direttivo: richieste da approvare */
+  ({ ctx, page, log, st } = await login('dir', false, false, { reqs: true }));
+  await page.waitForSelector('#req-alert'); await page.click('#req-alert'); await page.waitForSelector('.sheet.in .req-row'); assert.equal(await page.locator('.sheet.in .req-row').count(), 2); await noOverflow(page, 'richieste'); ok('G1 avviso e elenco richieste');
+  await page.locator('.sheet.in .req-row[data-member="' + ID(2) + '"] .req-b.ok').click(); await page.waitForFunction(() => document.querySelectorAll('.sheet.in .req-row').length === 1, null, { timeout: 5000 });
+  assert(log.some(l => l.fn === 'rc_signup_decide' && l.body.p_ok === true && l.body.p_member === ID(2))); ok('G2 approvazione');
+  await page.locator('.sheet.in .req-row .req-b.no').click(); await page.waitForSelector('.sheet.in .ask .btn.dng'); await page.locator('.sheet.in .ask .btn.dng').last().click();
+  await page.waitForFunction(() => !document.querySelector('.sheet.in .req-row'), null, { timeout: 5000 }); assert(log.some(l => l.fn === 'rc_signup_decide' && l.body.p_ok === false)); ok('G3 rifiuto con conferma');
   await ctx.close(); await browser.close();
   return { res, errors };
 }
