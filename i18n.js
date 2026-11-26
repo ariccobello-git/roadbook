@@ -1008,7 +1008,21 @@
     dash_top: ["I più presenti nel {0}", "Most present in {0}", "Les plus présents en {0}"],
     dash_cancelled: ["Run annullati quest'anno: {0}", "Runs cancelled this year: {0}", "Runs annulés cette année : {0}"],
     e_limite_report: ["Limite di report salvati raggiunto", "Saved reports limit reached", "Limite de rapports enregistrés atteinte"],
-    yes_go: ["Ci sono", "I'm in", "J'y suis"]
+    yes_go: ["Ci sono", "I'm in", "J'y suis"],
+    st_in_corso: ["In corso", "In progress", "En cours"],
+    start_now: ["Tocca per far partire", "Tap to start", "Touchez pour démarrer"],
+    start_q: ["Far partire «{0}»?", "Start «{0}»?", "Démarrer «{0}» ?"],
+    start_q_msg: ["Tutti i soci riceveranno l'avviso che il Run è partito.", "All members will be notified that the Run has started.", "Tous les membres seront avertis que le Run est parti."],
+    start_ok: ["Fai partire", "Start", "Démarrer"],
+    start_done: ["«{0}» è partito. Buon viaggio!", "«{0}» has started. Ride safe!", "«{0}» est parti. Bonne route !"],
+    start_alert_k: ["Si parte!", "We're off!", "On part !"],
+    start_alert_at: ["Partito alle {0}", "Started at {0}", "Parti à {0}"],
+    start_seen: ["Ho visto", "Got it", "J'ai vu"],
+    starter: ["Incaricato della partenza", "Person in charge of the start", "Responsable du départ"],
+    starter_none: ["Solo Direttore e Vice direttore", "Director and Vice director only", "Directeur et vice-directeur uniquement"],
+    starter_help: ["All'ora del ritrovo riceve la notifica e può far partire il Run, insieme a Direttore e Vice direttore.", "At meeting time they get a notification and can start the Run, along with the Director and Vice director.", "À l'heure du rendez-vous, il reçoit une notification et peut démarrer le Run, avec le directeur et le vice-directeur."],
+    starter_clear: ["Rimuovi incaricato", "Remove person in charge", "Retirer le responsable"],
+    e_fuori_orario: ["Il Run si può far partire da 2 ore prima del ritrovo fino a 12 ore dopo", "The Run can be started from 2 hours before the meeting time up to 12 hours after", "Le Run peut être démarré de 2 heures avant le rendez-vous jusqu'à 12 heures après"]
   };
   var IDX = { it: 0, en: 1, fr: 2 };
   RB.dict = D;

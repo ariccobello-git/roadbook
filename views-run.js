@@ -40,6 +40,7 @@
     var chips = h('div', { class: 'chips' });
     if (off) chips.appendChild(RB.chip(t('st_annullato'), 'er'));
     else if (r.status === 'concluso') chips.appendChild(RB.chip(t('st_concluso'), ''));
+    else if (r.started_at) chips.appendChild(RB.chip(t('st_in_corso'), 'ok'));
     /* una sola riga di etichette, in ordine di importanza: quelle che non ci stanno si nascondono intere (vedi .run .chips) */
     var wc = past ? null : RB.wxChip(r); if (wc) chips.appendChild(wc);
     chips.appendChild(RB.chip(c.total + ' ' + t('persons') + (r.max_participants ? ' / ' + r.max_participants : ''), c.total ? 'ok' : '', 'soci'));
@@ -70,6 +71,55 @@
       });
     });
   };
+
+  /* ---------- partenza del Run ---------- */
+  /* pulsantone per chi può far partire: conferma, poi il Run è "in corso" e arriva l'avviso a tutti */
+  RB.runStart = function (r, btn) {
+    return RB.ask({ title: t('start_q', r.title), msg: t('start_q_msg'), ok: t('start_ok'), no: t('cancel') }).then(function (ok) {
+      if (!ok) return false;
+      if (btn) btn.disabled = true;
+      return RB.write('rc_run_start', { p_id: r.id }).then(function (x) {
+        if (btn) btn.disabled = false;
+        if (x.ok) { RB.toast(t('start_done', r.title)); RB.sound('ok'); RB.haptic([20, 60, 20]); } else RB.toast(RB.errMsg(x.error), 'err');
+        return !!x.ok;
+      });
+    });
+  };
+  function startBtn(r) {
+    var b = h('button', { type: 'button', class: 'start-btn', 'data-run': r.id, onclick: function () { RB.feel('tap'); RB.runStart(r, b); } },
+      h('span', { class: 'start-ic' }, RB.icon('moto')), h('span', { class: 'start-tx' }, h('small', null, t('start_now')), h('b', null, r.title), h('span', null, RB.fmt.time(r.run_date) + (r.meeting_point ? ' · ' + r.meeting_point : ''))));
+    return b;
+  }
+  function startDue() { var me = RB.S.me, now = Date.now(); return RB.runs().filter(function (r) { return RBL.canStart(me, r) && RBL.startPhase(r, now) === 'banner'; }); }
+  /* cambia quando un pulsante di partenza deve comparire o sparire (anche solo per l'ora che passa) */
+  RB.startDueKey = function () { return startDue().map(function (r) { return r.id; }).join(','); };
+  RB.startBlock = function () {
+    var due = startDue();
+    if (!due.length) return null;
+    return h('div', { class: 'start-block', id: 'start-block' }, due.map(startBtn));
+  };
+  /* avviso "si parte" a schermo intero: resta finché il socio non tocca "Ho visto" */
+  var localAck = {};
+  RB.startAlert = function () {
+    var old = document.getElementById('start-alert');
+    var me = RB.S.me, d = RB.S.d;
+    var r = me && d ? RBL.startAlertRun(RB.runs(), me, (d.acks || []).concat(Object.keys(localAck)), Date.now()) : null;
+    if (!r) { if (old) old.remove(); return; }
+    if (old && old.getAttribute('data-run') === r.id) return;
+    if (old) old.remove();
+    var by = RB.mem(r.started_by), ack = h('button', { type: 'button', class: 'btn pri sa-ok', id: 'start-ack', onclick: function () {
+      localAck[r.id] = 1; RB.feel('tap'); RB.sound('ok'); el.classList.remove('in');
+      setTimeout(function () { el.remove(); RB.startAlert(); }, 280);
+      RB.write('rc_run_ack', { p_id: r.id }).then(function (x) { if (!x.ok) { delete localAck[r.id]; RB.toast(RB.errMsg(x.error), 'err'); RB.startAlert(); } });
+    } }, RB.icon('check'), t('start_seen'));
+    var el = h('div', { class: 'start-alert', id: 'start-alert', 'data-run': r.id, role: 'alertdialog', 'aria-modal': 'true', 'aria-labelledby': 'sa-t' },
+      h('div', { class: 'sa-card' }, h('span', { class: 'sa-ic' }, RB.icon('moto')), h('small', null, t('start_alert_k')), h('h2', { id: 'sa-t' }, r.title),
+        h('p', null, t('start_alert_at', RB.fmt.time(r.started_at)) + (by ? ' · ' + RB.fullName(by) : '')), ack));
+    document.body.appendChild(el);
+    requestAnimationFrame(function () { el.classList.add('in'); ack.focus(); });
+    RB.sound('open'); RB.haptic([200, 100, 200]);
+  };
+  RB.on('logout', function () { localAck = {}; var o = document.getElementById('start-alert'); if (o) o.remove(); });
 
   /* archivio: Run passati con ricerca, anno e stato; si possono riaprire e richiamare come nuovo Run */
   function archiveFilters(root, past) {
@@ -189,6 +239,8 @@
     var signups = RB.signupsOf(r.id), c = RB.counts(signups), mine = mySignup(r.id);
     if (r.status === 'annullato') f.appendChild(h('div', { class: 'banner er' }, t('run_cancelled')));
     if (r.status === 'concluso') f.appendChild(h('div', { class: 'banner acc' }, t('run_done')));
+    if (r.started_at && r.status === 'programmato') { var sb = RB.mem(r.started_by); f.appendChild(h('div', { class: 'banner ok', id: 'run-started' }, t('start_alert_at', RB.fmt.time(r.started_at)) + (sb ? ' · ' + RB.fullName(sb) : ''))); }
+    if (RBL.canStart(me, r) && RBL.startPhase(r)) f.appendChild(startBtn(r));
 
     var info = h('div', { class: 'list' });
     info.appendChild(RB.row({ lead: RB.icon('clock'), title: RB.fmt.day(dt), sub: RB.fmt.time(dt), go: false }));
@@ -302,7 +354,7 @@
   }
   function runPayload(r, over) {
     var o = { id: r.id, title: r.title, run_date: r.run_date, meeting_point: r.meeting_point || '', destination: r.destination || '', description: r.description || '', km: r.km == null ? '' : String(r.km),
-      difficulty: r.difficulty, route_url: r.route_url || '', stops: r.stops || [], meeting: r.meeting || null, dest: r.dest || null, days: RBL.runDays(r), route_public: !!r.route_public, nav_tool: RBL.navTool(r.nav_tool), status: r.status, fee: r.fee == null ? '' : String(r.fee), causale: r.causale || '', rooms: r.rooms || [], extras: r.extras || [], installments: r.installments || [], max_participants: r.max_participants == null ? '' : String(r.max_participants) }, k;
+      difficulty: r.difficulty, route_url: r.route_url || '', stops: r.stops || [], meeting: r.meeting || null, dest: r.dest || null, days: RBL.runDays(r), route_public: !!r.route_public, nav_tool: RBL.navTool(r.nav_tool), status: r.status, fee: r.fee == null ? '' : String(r.fee), causale: r.causale || '', rooms: r.rooms || [], extras: r.extras || [], installments: r.installments || [], max_participants: r.max_participants == null ? '' : String(r.max_participants), starter_id: r.starter_id || '' }, k;
     for (k in over) o[k] = over[k];
     return o;
   }
@@ -526,7 +578,7 @@
   RB.runForm = function (id, opts) {
     var r = id ? RB.run(id) : null;
     if (r && opts && opts.clone) r = Object.assign({}, r, { id: null, status: 'programmato', run_date: nextSunday9(), km: r.km, formation: [], formation_published: false, title: r.title });
-    var ST = { causale: r ? r.causale || '' : '', rooms: r ? RBL.rooms(r).map(function (x) { return { id: x.id, name: x.name, price: String(x.price) }; }) : [], extras: r ? RBL.extras(r).map(function (x) { return { id: x.id, name: x.name, price: String(x.price) }; }) : [], inst: r && !(opts && opts.clone) ? (r.installments || []).map(function (x) { return { due_on: String(x.due_on).slice(0, 10), pct: String(x.pct) }; }) : [], days: r ? RBL.runDays(r) : 1, day: 1, dismissed: {}, dismissedOver: {}, kmTouched: !!(r && r.km), pub: !!(r && r.route_public) };
+    var ST = { causale: r ? r.causale || '' : '', rooms: r ? RBL.rooms(r).map(function (x) { return { id: x.id, name: x.name, price: String(x.price) }; }) : [], extras: r ? RBL.extras(r).map(function (x) { return { id: x.id, name: x.name, price: String(x.price) }; }) : [], inst: r && !(opts && opts.clone) ? (r.installments || []).map(function (x) { return { due_on: String(x.due_on).slice(0, 10), pct: String(x.pct) }; }) : [], days: r ? RBL.runDays(r) : 1, day: 1, dismissed: {}, dismissedOver: {}, kmTouched: !!(r && r.km), pub: !!(r && r.route_public), starter: r ? r.starter_id || null : null };
     var meeting = r ? (r.meeting || (r.meeting_point ? { name: '', addr: r.meeting_point, kind: 'altro' } : null)) : null;
     var dest = r ? (r.dest || (r.destination ? { name: '', addr: r.destination, kind: 'altro' } : null)) : null;
     var stops = r && r.stops ? r.stops.map(function (s) { return { time: s.time || '', name: s.name || '', addr: s.addr || '', kind: s.kind || 'altro', lat: s.lat, lng: s.lng, day: parseInt(s.day, 10) || 1, end: !!s.end }; }) : [];
@@ -686,8 +738,19 @@
       RB.field(t('run_fee') + ' (€)', RB.input('rf-fee', r && r.fee != null ? r.fee : '', { type: 'number', mode: 'decimal', step: '0.01', min: 0, ph: t('run_fee_ph') })),
       payHold);
     drawPay();
+    /* incaricato della partenza: oltre a Direttore e Vice, un socio scelto può far partire il Run */
+    var starterHold = h('div');
+    function drawStarter() {
+      RB.clear(starterHold);
+      var sm = ST.starter ? RB.mem(ST.starter) : null;
+      starterHold.appendChild(RB.row({ lead: RB.icon('moto'), title: t('starter'), sub: sm ? RB.fullName(sm) : t('starter_none'), id: 'rf-starter',
+        onclick: function () { RB.pickMember({ title: t('starter'), list: function () { return RB.members().filter(function (m) { return m.active; }); }, mark: function (m) { return m.id === ST.starter; }, onPick: function (m) { ST.starter = m.id; drawStarter(); } }); } }));
+      starterHold.appendChild(h('p', { class: 'sm', style: 'padding:0 14px 10px' }, t('starter_help'), sm ? h('button', { type: 'button', class: 'lnk', id: 'rf-starter-x', onclick: function () { ST.starter = null; RB.feel('tap'); drawStarter(); } }, t('starter_clear')) : null));
+    }
+    drawStarter();
     var more = h('div', { class: 'more' }), moreOpen = !!(r && r.id) || !!(opts && opts.clone);
     more.appendChild(h('div', { class: 'list' },
+      starterHold,
       RB.field(t('max_places'), RB.input('rf-max', r && r.max_participants != null ? r.max_participants : '', { type: 'number', mode: 'numeric', min: 1, ph: t('no_limit') })),
       RB.field(t('route_link'), RB.input('rf-url', r ? r.route_url : '', { type: 'url', ph: 'https://' }))));
     box.appendChild(fields);
@@ -718,7 +781,7 @@
           var e = endStop(d); if (d < ST.days && e && (e.name || e.addr)) out.push(stopOut(e));
         }
         var p = { id: r ? r.id : null, title: title, run_date: new Date(dtv).toISOString(), meeting_point: '', destination: '', meeting: meeting, dest: dest, days: ST.days, route_public: ST.pub,
-          description: RB.val('rf-desc'), km: RB.val('rf-km'), difficulty: diff, route_url: url, nav_tool: nav, status: status, max_participants: RB.val('rf-max'), fee: RB.val('rf-fee').replace(',', '.'), causale: ST.causale, rooms: ST.rooms.map(function (x) { return { id: x.id, name: x.name.trim(), price: String(x.price).replace(',', '.') }; }), extras: ST.extras.map(function (x) { return { id: x.id, name: x.name.trim(), price: String(x.price).replace(',', '.') }; }), installments: ST.inst.map(function (x) { return { due_on: x.due_on, pct: String(x.pct).replace(',', '.') }; }), stops: out };
+          description: RB.val('rf-desc'), km: RB.val('rf-km'), difficulty: diff, route_url: url, nav_tool: nav, status: status, max_participants: RB.val('rf-max'), fee: RB.val('rf-fee').replace(',', '.'), causale: ST.causale, rooms: ST.rooms.map(function (x) { return { id: x.id, name: x.name.trim(), price: String(x.price).replace(',', '.') }; }), extras: ST.extras.map(function (x) { return { id: x.id, name: x.name.trim(), price: String(x.price).replace(',', '.') }; }), installments: ST.inst.map(function (x) { return { due_on: x.due_on, pct: String(x.pct).replace(',', '.') }; }), starter_id: ST.starter || '', stops: out };
         RB.act(ctl.right, function () { return RB.geo.withTimes(p).then(function (q) { return RB.write('rc_run_save', { p: q }); }); }, t('saved')).then(function (x) { if (x && x.ok) ctl.close(true); });
       } } });
     return ctl;

@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   var RB = window.RB = window.RB || {};
-  RB.RELEASE = '4.6.0';
+  RB.RELEASE = '4.7.0';
 
   /* ---------- DOM sicuro: i testi sono sempre nodi di testo, mai HTML ---------- */
   function add(el, kids) {
