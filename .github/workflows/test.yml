@@ -19,7 +19,8 @@ jobs:
         shell: bash
       - name: Server locale
         run: |
-          nohup python3 -m http.server 8123 --bind 127.0.0.1 > /dev/null 2>&1 &
+          # coda di connessioni 128 (default 5): su Windows le connessioni in eccesso vengono rifiutate subito
+          nohup python3 -c "import http.server as h; h.ThreadingHTTPServer.request_queue_size = 128; h.ThreadingHTTPServer(('127.0.0.1', 8123), h.SimpleHTTPRequestHandler).serve_forever()" > /dev/null 2>&1 &
           for i in $(seq 1 30); do curl -s -o /dev/null http://127.0.0.1:8123/ && break; sleep 1; done
         shell: bash
       - name: Test funzionali
