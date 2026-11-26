@@ -20,13 +20,13 @@ alter table public.rc_lost enable row level security;
 /* chi agisce per chi si è perso: capogruppo (road captain in formazione, chi fa partire il Run, Head Road Captain) e safety */
 create or replace function rc_private.lost_actor(m public.rc_members, r public.rc_runs) returns boolean
  language sql stable set search_path to 'public', 'rc_private'
-as $$ select m.id is not null and m.active and (m.id = r.starter_id or m.title = 'head_road_captain'
+as $$ select coalesce(m.id is not null and m.active and (m.id = r.starter_id or m.title = 'head_road_captain'
   or exists (select 1 from jsonb_array_elements(case when jsonb_typeof(r.formation) = 'array' then r.formation else '[]'::jsonb end) f
-             where f->>'member_id' = m.id::text and f->>'kind' in ('road_captain', 'safety'))) $$;
+             where f->>'member_id' = m.id::text and f->>'kind' in ('road_captain', 'safety'))), false) $$;
 /* chi è informato e può intervenire se vuole: in più admin, direttore e vice direttore */
 create or replace function rc_private.lost_guide(m public.rc_members, r public.rc_runs) returns boolean
  language sql stable set search_path to 'public', 'rc_private'
-as $$ select m.id is not null and m.active and (rc_private.lost_actor(m, r) or m.title in ('admin', 'direttore', 'vice_direttore')) $$;
+as $$ select coalesce(m.id is not null and m.active and (rc_private.lost_actor(m, r) or m.title in ('admin', 'direttore', 'vice_direttore')), false) $$;
 
 create or replace function rc_private.km(a_lat double precision, a_lng double precision, b_lat double precision, b_lng double precision) returns double precision
  language sql immutable
