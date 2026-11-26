@@ -104,9 +104,9 @@ begin
       ''tag'', ''startdue-'' || t.run_id, ''ttl'', 3600)), ''[]''::jsonb)
       into cm from tgt t join rc_push p on p.member_id = t.member_id;
     msgs := msgs || coalesce(cm, ''[]''::jsonb);');
-    src := replace(src, '  else
-    msgs := ''[]''::jsonb;',
-'  elsif p_kind = ''start'' then
+    /* regexp: regge anche i ritorni a capo \r\n di un copia-incolla nel SQL Editor */
+    src := regexp_replace(src, '\n  else\s+msgs := ''\[\]''::jsonb;',
+E'\n  elsif p_kind = ''start'' then
     /* si parte: a tutti i soci attivi tranne chi ha fatto partire */
     select coalesce(jsonb_agg(jsonb_build_object(''endpoint'', p.endpoint, ''p256dh'', p.p256dh, ''auth'', p.auth,
       ''title'', ''9076 RoadBook · si parte!'', ''body'', ''«'' || r.title || ''» è partito. Apri l''''app e tocca «Ho visto».'',
