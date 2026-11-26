@@ -57,7 +57,10 @@ const STUB = `
   MR.isTypeSupported=function(){return true;};
   window.MediaRecorder=MR;
   if(!navigator.mediaDevices)Object.defineProperty(navigator,'mediaDevices',{value:{}});
-  Object.defineProperty(navigator.mediaDevices,'getUserMedia',{configurable:true,writable:true,value:function(){return Promise.resolve({getTracks:function(){return [{stop:function(){}}];}});}});
+  var gum={configurable:true,writable:true,value:function(){return Promise.resolve({getTracks:function(){return [{stop:function(){}}];}});}};
+  /* WebKit: il metodo vive sul prototipo e l'oggetto può essere ricreato, quindi lo stub va messo sul prototipo (e sull'istanza per gli altri motori) */
+  if(window.MediaDevices&&MediaDevices.prototype)Object.defineProperty(MediaDevices.prototype,'getUserMedia',gum);
+  try{Object.defineProperty(navigator.mediaDevices,'getUserMedia',gum);}catch(e){}
 })();`;
 
 async function run(devName) {
