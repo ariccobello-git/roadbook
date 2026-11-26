@@ -1,7 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import webpush from 'npm:web-push@3.6.7';
 
-/* 9076 RoadBook: emergenze (solo a chi le gestisce), prova notifiche, promemoria e partenza dei Run */
+/* 9076 RoadBook: emergenze (solo a chi le gestisce), prova notifiche, promemoria e partenza e ripartenza dei Run */
 Deno.serve(async (req: Request) => {
   const key = req.headers.get('x-push-key') || '';
   const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
@@ -10,8 +10,8 @@ Deno.serve(async (req: Request) => {
   const kind = body && typeof body.kind === 'string' ? body.kind : '';
   let msgs: any[] = [];
   let pub = '', priv = '';
-  if (kind === 'test' || kind === 'remind' || kind === 'start') {
-    const ep = kind === 'start' ? body.run : body.endpoint;
+  if (kind === 'test' || kind === 'remind' || kind === 'start' || kind === 'restart') {
+    const ep = kind === 'start' || kind === 'restart' ? body.run : body.endpoint;
     const { data: job, error } = await sb.rpc('rc_push_msgs', { p_key: key, p_kind: kind, p_endpoint: typeof ep === 'string' ? ep : null });
     if (error || !job || !job.ok) return new Response('forbidden', { status: 403 });
     pub = job.pub; priv = job.priv;

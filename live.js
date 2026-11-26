@@ -36,16 +36,54 @@
     if (!navigator.geolocation) { RB.toast(t('live_nogps'), 'err'); return false; }
     if (S.watch !== null) RB.liveStop(true);
     S.run = r.id; S.last = 0; S.err = '';
-    S.watch = navigator.geolocation.watchPosition(function (pos) { S.err = ''; send(pos); }, function (e) {
+    S.watch = navigator.geolocation.watchPosition(function (pos) { S.err = ''; send(pos); haltFeed(pos); }, function (e) {
       S.err = e && e.code === 1 ? 'denied' : 'nofix';
       if (e && e.code === 1) { RB.toast(t('live_denied'), 'err'); RB.liveStop(true); }
     }, { enableHighAccuracy: true, maximumAge: 10000, timeout: 30000 });
     pref(r.id, true); keepAwake(); RB.sound('ok');
+    if (!HS.timer) HS.timer = setInterval(haltTickAll, 15000);
     return true;
   };
+  /* ---------- soste rilevate dal telefono di chi guida (solo con l'app aperta e la posizione condivisa) ---------- */
+  var HS = { run: null, st: null, timer: null, busy: false };
+  function haltRun() {
+    var r = S.run && RB.run(S.run);
+    return r && r.status === 'programmato' && r.started_at && L.canStart(RB.S.me, r) ? r : null;
+  }
+  /* allinea il rilevatore allo stato del server (sosta aperta da un altro o a mano) */
+  RB.haltSync = function (runId, halted) {
+    if (!HS.st || HS.run !== runId || HS.busy) return;
+    var open = halted === undefined ? !!RB.openHalt(runId) : halted;
+    if (open && HS.st.mode !== 'halt') { var hl = RB.openHalt(runId); HS.st = L.haltNew(true, hl && hl.lat != null ? { lat: hl.lat, lng: hl.lng } : S.lastPos); }
+    else if (!open && HS.st.mode === 'halt') HS.st = L.haltNew(false);
+  };
+  function haltEvent(r, ev, at) {
+    if (HS.busy) return;
+    HS.busy = true;
+    RB.write('rc_run_halt', { p_id: r.id, p_action: ev === 'stop' ? 'stop' : 'go', p_lat: at ? at.lat : null, p_lng: at ? at.lng : null, p_min: null }).then(function (x) {
+      HS.busy = false;
+      if (!x.ok) return;
+      if (ev === 'stop') { RB.toast(t('halt_detected')); RB.sound('open'); } else RB.haltUndoBar(r);
+    });
+  }
+  function haltFeed(pos) {
+    var r = haltRun();
+    if (!r) { HS.run = null; HS.st = null; return; }
+    if (HS.run !== r.id || !HS.st) { HS.run = r.id; HS.st = L.haltNew(!!RB.openHalt(r.id)); }
+    else RB.haltSync(r.id);
+    var c = pos.coords, at = HS.st.at, ev = L.haltStep(HS.st, { lat: c.latitude, lng: c.longitude, t: pos.timestamp || Date.now(), kmh: c.speed == null || c.speed < 0 ? null : c.speed * 3.6 });
+    if (ev) haltEvent(r, ev, ev === 'stop' ? HS.st.at : at);
+  }
+  function haltTickAll() {
+    var r = haltRun();
+    if (!r || !HS.st || HS.run !== r.id) return;
+    var ev = L.haltTick(HS.st, Date.now());
+    if (ev) haltEvent(r, ev, HS.st.at);
+  }
   RB.liveStop = function (quiet) {
     if (S.watch !== null && navigator.geolocation) navigator.geolocation.clearWatch(S.watch);
     var run = S.run; S.watch = null; S.run = null; pref(run, false);
+    if (HS.timer) { clearInterval(HS.timer); HS.timer = null; } HS.run = null; HS.st = null;
     if (S.lock) { try { S.lock.release(); } catch (e) {} S.lock = null; }
     if (run && RB.S.code) RB.rpc('rc_live_stop', { p_code: RB.S.code, p_run: run });
     if (!quiet) RB.toast(t('live_stopped'));
