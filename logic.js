@@ -1132,12 +1132,14 @@
     return null;
   };
 
-  /* «Mi sono perso»: chi aiuta (come sul server: chi fa partire, chi gestisce i Run, road captain e scopa della formazione) */
-  L.lostGuide = function (me, r) {
+  /* «Mi sono perso» (come sul server): agiscono capogruppo (road captain in formazione, chi fa partire, Head Road Captain) e safety;
+     admin, direttore e vice sono informati e intervengono solo se vogliono */
+  L.lostActor = function (me, r) {
     if (!me || !me.id || !r || me.active === false) return false;
-    if (L.canStart(me, r) || (me.perms || []).indexOf('runs_edit') >= 0) return true;
-    return (Array.isArray(r.formation) ? r.formation : []).some(function (f) { return f && f.member_id === me.id && (f.kind === 'road_captain' || f.kind === 'scopa'); });
+    if ((r.starter_id && me.id === r.starter_id) || me.title === 'head_road_captain') return true;
+    return (Array.isArray(r.formation) ? r.formation : []).some(function (f) { return f && f.member_id === me.id && (f.kind === 'road_captain' || f.kind === 'safety'); });
   };
+  L.lostGuide = function (me, r) { return L.lostActor(me, r) || (!!me && me.active !== false && L.START_TITLES.indexOf(me.title) >= 0 && !!r); };
   L.lostActive = function (x) { return !!x && (x.status === 'open' || x.status === 'sent'); };
   L.LOST = { arriveKm: 0.2, atStopKm: 0.5, kmh: 50 };
   /* sosta da proporre: la tappa dove il gruppo è fermo (entro 500 m dalla sosta in corso), altrimenti la tappa che chiude
