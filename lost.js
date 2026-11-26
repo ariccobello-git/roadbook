@@ -53,7 +53,7 @@
   };
 
   /* ---------- chi si è perso: posizione e ora prevista (solo con l'app aperta) ---------- */
-  var TR = { id: null, watch: null, pos: null, sent: 0, timer: null, lock: null, route: null, routeAt: 0 };
+  var TR = { id: null, watch: null, pos: null, sent: 0, key: '', timer: null, lock: null, route: null, routeAt: 0 };
   function routeMin(x) {
     var now = Date.now(), d = L.haversine(TR.pos, x.stop), guess = L.etaMin(TR.pos, x.stop);
     /* il servizio di percorsi si chiede al massimo ogni 2 minuti; nel frattempo si scala l'ultimo tempo sulla distanza rimasta */
@@ -74,8 +74,10 @@
     if (!x) { untrack(); return; }
     if (!TR.pos || !RB.S.code) return;
     var near = x.status === 'sent' && L.hasCoords(x.stop) && L.haversine(TR.pos, x.stop) < L.LOST.arriveKm;
-    if (!force && !near && Date.now() - TR.sent < POS_MS) return;
-    TR.sent = Date.now();
+    /* sosta appena arrivata (o cambiata): l'ora prevista parte subito per chi aspetta */
+    var key = x.status + ':' + JSON.stringify(x.stop || null);
+    if (!force && !near && TR.key === key && Date.now() - TR.sent < POS_MS) return;
+    TR.sent = Date.now(); TR.key = key;
     var eta = x.status === 'sent' && L.hasCoords(x.stop) ? routeMin(x) : Promise.resolve(null);
     eta.then(function (min) {
       return RB.rpc('rc_lost_pos', { p_code: RB.S.code, p_id: x.id, p_lat: TR.pos.lat, p_lng: TR.pos.lng, p_eta_min: min == null ? null : Math.min(1440, min) });
@@ -98,13 +100,13 @@
   }
   function untrack() {
     if (TR.watch !== null && navigator.geolocation) navigator.geolocation.clearWatch(TR.watch);
-    clearInterval(TR.timer); TR.watch = null; TR.timer = null; TR.id = null; TR.pos = null; TR.route = null;
+    clearInterval(TR.timer); TR.watch = null; TR.timer = null; TR.id = null; TR.pos = null; TR.route = null; TR.key = '';
     if (TR.lock) { try { TR.lock.release(); } catch (e) {} TR.lock = null; }
   }
   RB.lostTrack = track;
   /* tornando da Google Maps: posizione e ora prevista subito */
   document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible' && TR.id) tick(true); });
-  RB.on('data', function () { if (RB.lostMine()) track(); else if (TR.id) untrack(); });
+  RB.on('data', function () { if (RB.lostMine()) { track(); tick(); } else if (TR.id) untrack(); });
   RB.on('logout', untrack);
 
   RB.lostClose = function (x, found) {
@@ -121,13 +123,16 @@
 
   /* ---------- chi aiuta: scelta della sosta ---------- */
   /* luoghi del giorno con la proposta in testa; in più la sosta in corso e la mia posizione */
-  RB.lostOptions = function (r, groupPos) {
+  /* tip = proposta del server (se c'è va in testa); altrimenti si calcola qui */
+  RB.lostOptions = function (r, groupPos, tip) {
     var day = r.started_day || 1, places = L.dayPlaces(r, L.runDays(r) > 1 ? day : null), hl = RB.openHalt(r.id);
     var haltAt = hl && hl.lat != null ? { lat: hl.lat, lng: hl.lng } : null;
-    var k = L.nextStop(places, groupPos, haltAt), out = [];
-    places.forEach(function (p, i) { if (L.hasCoords(p) || (p.addr || '').trim()) out.push({ stop: { name: p.name || '', addr: p.addr || '', lat: L.hasCoords(p) ? Number(p.lat) : null, lng: L.hasCoords(p) ? Number(p.lng) : null }, tip: i === k, i: i }); });
+    var useTip = !!(tip && (L.hasCoords(tip) || (tip.addr || '').trim())), k = useTip ? -1 : L.nextStop(places, groupPos, haltAt), out = [];
+    function same(a, b) { return L.hasCoords(a) && L.hasCoords(b) ? L.haversine(a, b) < 0.05 : (a.name || a.addr) === (b.name || b.addr); }
+    if (useTip) out.push({ stop: { name: tip.name || '', addr: tip.addr || '', lat: L.hasCoords(tip) ? Number(tip.lat) : null, lng: L.hasCoords(tip) ? Number(tip.lng) : null }, tip: true, i: -1 });
+    places.forEach(function (p, i) { if ((L.hasCoords(p) || (p.addr || '').trim()) && !(useTip && same(p, tip))) out.push({ stop: { name: p.name || '', addr: p.addr || '', lat: L.hasCoords(p) ? Number(p.lat) : null, lng: L.hasCoords(p) ? Number(p.lng) : null }, tip: i === k, i: i }); });
     out.sort(function (a, b) { return (b.tip - a.tip) || (a.i - b.i); });
-    if (haltAt) out.push({ stop: { name: t('lost_here_halt'), addr: '', lat: haltAt.lat, lng: haltAt.lng }, tip: k < 0, halt: true });
+    if (haltAt && !(useTip && same(haltAt, tip))) out.push({ stop: { name: t('lost_here_halt'), addr: '', lat: haltAt.lat, lng: haltAt.lng }, tip: !useTip && k < 0, halt: true });
     if (groupPos) out.push({ stop: { name: t('lost_here_me'), addr: '', lat: groupPos.lat, lng: groupPos.lng }, tip: false, me: true });
     if (!out.some(function (o) { return o.tip; }) && out.length) out[0].tip = true;
     return out;
@@ -137,7 +142,7 @@
     RB.clear(box); box.appendChild(h('p', { class: 'sm' }, t('loading')));
     function draw(pos) {
       RB.clear(box);
-      var opts = RB.lostOptions(r, pos), sel = opts.filter(function (o) { return o.tip; })[0] || null;
+      var opts = RB.lostOptions(r, pos, x.tip), sel = opts.filter(function (o) { return o.tip; })[0] || null;
       if (!opts.length) { box.appendChild(h('div', { class: 'empty', style: 'padding:16px' }, t('lost_no_places'))); return; }
       var l = h('div', { class: 'list', id: 'lost-opts' });
       opts.forEach(function (o, i) {
@@ -159,6 +164,11 @@
       box.appendChild(h('p', { class: 'sm' }, t('lost_pick_help')));
     }
     if (lp) draw(lp); else here(draw);
+  }
+
+  function callRow(title, phone, id) {
+    var row = RB.row({ lead: RB.icon('phone'), title: title, sub: phone, href: 'tel:' + String(phone).replace(/[^+\d]/g, ''), go: false, id: id });
+    row.removeAttribute('target'); row.removeAttribute('rel'); return row;
   }
 
   /* ---------- scheda ---------- */
@@ -189,15 +199,18 @@
         box.appendChild(h('p', { class: 'sm' }, t('lost_nav_help')));
       }
       if (mine && x.status === 'open') box.appendChild(h('p', { class: 'sm', id: 'lost-wait' }, t('lost_wait')));
+      if (!mine && x.status === 'open' && !L.lostActor(RB.S.me, r)) box.appendChild(h('p', { class: 'sm', id: 'lost-info' }, t('lost_info_dir')));
       /* la scelta resta la stessa anche quando la scheda si aggiorna */
       if (!mine && (x.status === 'open' || (changing && x.status === 'sent'))) {
         if (!pick) { pick = h('div', { id: 'lost-pick' }); pickStop(x, pick, function () { pick = null; changing = false; draw(); }); }
         box.appendChild(RB.secT(changing ? t('lost_change') : t('lost_pick'))); box.appendChild(pick);
       } else { pick = null; changing = false; }
       var acts = h('div', { class: 'list', id: 'lost-acts' });
+      /* una telefonata risolve spesso prima di tutto: il socio chiama capogruppo o safety, loro chiamano lui */
+      if (mine && L.lostActive(x)) (x.helpers || []).forEach(function (p) { acts.appendChild(callRow(t(p.role === 'safety' ? 'lost_call_safety' : 'lost_call_rc', p.name), p.phone, 'lost-call-' + p.role)); });
       if (!mine) {
-        var m = RB.mem(x.member_id);
-        if (m && m.phone && L.lostActive(x)) { var call = RB.row({ lead: RB.icon('phone'), title: t('lost_call', m.first_name || ''), sub: m.phone, href: 'tel:' + m.phone, go: false }); call.removeAttribute('target'); call.removeAttribute('rel'); acts.appendChild(call); }
+        var m = RB.mem(x.member_id), ph = x.phone || (m && m.phone);
+        if (ph && L.lostActive(x)) acts.appendChild(callRow(t('lost_call', (m && m.first_name) || name(x)), ph, 'lost-call'));
         if (x.status === 'sent' && !changing) acts.appendChild(RB.row({ lead: RB.icon('edit'), title: t('lost_change'), id: 'lost-change', go: false, onclick: function () { changing = true; draw(); } }));
       }
       if (L.lostActive(x)) {
@@ -216,7 +229,7 @@
   function card(x, mine) {
     var s = x.stop, tx;
     if (mine) tx = x.status === 'sent' ? t('lost_card_me_sent', stopName(s)) + (x.eta ? ' · ' + t('lost_eta', RB.fmt.time(x.eta)) : '') : t('lost_card_me_open');
-    else if (x.status === 'open') tx = t('lost_card_g_open');
+    else if (x.status === 'open') tx = L.lostActor(RB.S.me, RB.run(x.run_id)) ? (x.tip ? t('lost_card_g_tip', stopName(x.tip)) : t('lost_card_g_open')) : t('lost_card_g_info');
     else if (x.status === 'sent') tx = stopName(s) + (x.eta ? ' · ' + t('lost_eta', RB.fmt.time(x.eta)) + ' (' + upd(x.eta_at) + ')' : '');
     else tx = t('lost_card_g_arrived', stopName(s));
     return h('button', { type: 'button', class: 'lost-card ' + x.status + (mine ? ' mine' : ''), id: 'lost-' + x.id, 'data-status': x.status, onclick: function () { RB.feel('tap'); RB.lostSheet(x.id); } },
