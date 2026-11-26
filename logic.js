@@ -507,6 +507,8 @@
   };
   /* punti di partenza predefiniti */
   L.FUNGO = { name: "Fungo dell'EUR", addr: 'Piazza Pakistan 1, Roma', kind: 'area', lat: 41.824428, lng: 12.462984 };
+  /* concessionaria di riferimento del Chapter (coordinate dalla scheda Google Maps) */
+  L.HD_STORE = { name: 'H-D Store Roma', addr: 'Via Pontina 583, 00128 Roma', kind: 'hd', lat: 41.7799579, lng: 12.4466032 };
   L.CITIES = [
     { name: 'Roma', lat: 41.9028, lng: 12.4964 }, { name: 'Milano', lat: 45.4642, lng: 9.19 }, { name: 'Napoli', lat: 40.8518, lng: 14.2681 },
     { name: 'Firenze', lat: 43.7696, lng: 11.2558 }, { name: 'Bologna', lat: 44.4949, lng: 11.3426 }, { name: 'Torino', lat: 45.0703, lng: 7.6869 }
@@ -520,20 +522,29 @@
     { name: 'Laurentino / Laurentina', lat: 41.79, lng: 12.475 }, { name: 'Monte Mario / Cassia', lat: 41.934, lng: 12.45 }, { name: 'Ostia', lat: 41.73, lng: 12.283 }
   ];
 
-  L.NAV_MAX_WAYPOINTS = 9;
-  L.googleNav = function (pts) {
-    if (!pts || !pts.length) return null;
-    var e = encodeURIComponent, base = 'https://www.google.com/maps/dir/?api=1&travelmode=driving';
-    if (pts.length === 1) return { url: base + '&destination=' + e(pts[0]), dropped: 0 };
-    var mid = pts.slice(1, -1), dropped = Math.max(0, mid.length - L.NAV_MAX_WAYPOINTS);
-    mid = mid.slice(0, L.NAV_MAX_WAYPOINTS);
-    return { url: base + '&origin=' + e(pts[0]) + '&destination=' + e(pts[pts.length - 1]) + (mid.length ? '&waypoints=' + mid.map(e).join('%7C') : ''), dropped: dropped };
+  /* mappa Google del luogo dentro l'app (incorporamento senza chiave) e query per aprirlo in Google Maps: coordinate se presenti, altrimenti testo */
+  L.placeQuery = function (p, txt) {
+    if (L.hasCoords(p)) return (+p.lat).toFixed(6) + ',' + (+p.lng).toFixed(6);
+    var q = p ? [p.name, p.addr].filter(Boolean).join(', ') : '';
+    return (q || String(txt == null ? '' : txt)).trim().slice(0, 300);
   };
-  L.appleNav = function (pts) {
-    if (!pts || !pts.length) return null;
-    var e = encodeURIComponent;
-    if (pts.length === 1) return 'https://maps.apple.com/?daddr=' + e(pts[0]) + '&dirflg=d';
-    return 'https://maps.apple.com/?saddr=' + e(pts[0]) + '&daddr=' + pts.slice(1).map(e).join('+to:') + '&dirflg=d';
+  L.mapEmbedUrl = function (p, txt, lang) {
+    var q = L.placeQuery(p, txt);
+    return q ? 'https://maps.google.com/maps?q=' + encodeURIComponent(q) + '&z=15&hl=' + (lang || 'it') + '&output=embed' : null;
+  };
+
+  /* navigatore: solo Google Maps. Oltre 9 tappe intermedie il percorso si divide in tratte consecutive (ogni tratta riparte dall'arrivo della precedente) */
+  L.NAV_MAX_WAYPOINTS = 9;
+  L.navTool = function (v) { return v === 'none' ? 'none' : 'google'; };
+  L.googleNav = function (pts) {
+    if (!pts || !pts.length) return [];
+    var e = encodeURIComponent, base = 'https://www.google.com/maps/dir/?api=1&travelmode=driving', step = L.NAV_MAX_WAYPOINTS + 1, out = [], i, seg;
+    if (pts.length === 1) return [base + '&destination=' + e(pts[0])];
+    for (i = 0; i < pts.length - 1; i += step) {
+      seg = pts.slice(i, Math.min(i + step + 1, pts.length));
+      out.push(base + '&origin=' + e(seg[0]) + '&destination=' + e(seg[seg.length - 1]) + (seg.length > 2 ? '&waypoints=' + seg.slice(1, -1).map(e).join('%7C') : ''));
+    }
+    return out;
   };
 
   /* ---------- meteo per motociclisti ---------- */
@@ -868,7 +879,7 @@
       var dup = !!ex[key] || !!seen[key]; seen[key] = 1;
       out.items.push({ row: i + 2, errors: errs, dup: dup, ok: !errs.length && !dup, key: key, title: title,
         run: errs.length ? null : { id: null, title: title, run_date: dt.toISOString(), meeting_point: String(o.meeting || '').trim().slice(0, 200), destination: String(o.dest || '').trim().slice(0, 200), description: String(o.desc || '').trim().slice(0, 1000),
-          km: km === '' ? '' : String(km), difficulty: diff, route_url: '', stops: [], meeting: null, dest: null, days: days, route_public: false, nav_tool: 'both', status: status, fee: fee === '' ? '' : String(fee) } });
+          km: km === '' ? '' : String(km), difficulty: diff, route_url: '', stops: [], meeting: null, dest: null, days: days, route_public: false, nav_tool: 'google', status: status, fee: fee === '' ? '' : String(fee) } });
     });
     out.total = out.items.length;
     if (attRows && attRows.length > 1) {

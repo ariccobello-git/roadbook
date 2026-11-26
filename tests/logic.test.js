@@ -29,15 +29,24 @@ t('navigazione', ()=>{
   const run={meeting_point:'Piazzale Ostiense, Roma',stops:[{name:'Caffè',addr:'Via A 1, Grottaferrata'},{name:'Solo nome',addr:''},{name:'x',addr:'  via a 1 grottaferrata '},{name:'Pranzo',addr:'41.9,12.5'}],destination:'Frascati'};
   const p=L.navPoints(run); assert.deepStrictEqual(p,['Piazzale Ostiense, Roma','Via A 1, Grottaferrata','41.9,12.5','Frascati']);
   assert.deepStrictEqual(L.navPoints({}),[]); assert.deepStrictEqual(L.navPoints({destination:'Roma',stops:[{addr:'roma'}]}),['roma']);
-  const g=L.googleNav(p); assert.strictEqual(g.dropped,0);
-  const u=new URL(g.url); assert.strictEqual(u.searchParams.get('origin'),p[0]); assert.strictEqual(u.searchParams.get('destination'),'Frascati'); assert.strictEqual(u.searchParams.get('waypoints'),'Via A 1, Grottaferrata|41.9,12.5'); assert.strictEqual(u.searchParams.get('travelmode'),'driving');
-  assert.strictEqual(new URL(L.googleNav(['Roma']).url).searchParams.get('destination'),'Roma'); assert(!L.googleNav(['Roma']).url.includes('origin'));
-  assert.strictEqual(L.googleNav([]),null); assert.strictEqual(L.appleNav([]),null);
-  const many=Array.from({length:15},(_,i)=>'P'+i); const gm=L.googleNav(many); assert.strictEqual(gm.dropped,4); assert.strictEqual(new URL(gm.url).searchParams.get('waypoints').split('|').length,9); assert.strictEqual(new URL(gm.url).searchParams.get('destination'),'P14');
-  const a=L.appleNav(p); assert(a.startsWith('https://maps.apple.com/?saddr=Piazzale%20Ostiense%2C%20Roma&daddr=')); assert(a.includes('+to:')); assert(a.endsWith('&dirflg=d'));
-  const dd=a.split('daddr=')[1].split('&')[0].split('+to:').map(decodeURIComponent); assert.deepStrictEqual(dd,p.slice(1));
-  assert.strictEqual(L.appleNav(['Roma']),'https://maps.apple.com/?daddr=Roma&dirflg=d');
-  const tricky=L.googleNav(['A&B=1','C|D','E#F']); assert.strictEqual(new URL(tricky.url).searchParams.get('origin'),'A&B=1'); assert.strictEqual(new URL(tricky.url).searchParams.get('waypoints'),'C|D');
+  const g=L.googleNav(p); assert.strictEqual(g.length,1);
+  const u=new URL(g[0]); assert.strictEqual(u.searchParams.get('origin'),p[0]); assert.strictEqual(u.searchParams.get('destination'),'Frascati'); assert.strictEqual(u.searchParams.get('waypoints'),'Via A 1, Grottaferrata|41.9,12.5'); assert.strictEqual(u.searchParams.get('travelmode'),'driving');
+  assert.strictEqual(new URL(L.googleNav(['Roma'])[0]).searchParams.get('destination'),'Roma'); assert(!L.googleNav(['Roma'])[0].includes('origin'));
+  assert.deepStrictEqual(L.googleNav([]),[]); assert.deepStrictEqual(L.googleNav(null),[]); assert.strictEqual(L.appleNav,undefined);
+  const two=L.googleNav(['A','B']); assert.strictEqual(two.length,1); assert(!two[0].includes('waypoints'));
+  // 11 punti = origine + 9 tappe + arrivo: una sola tratta; 12 punti: due tratte
+  const P=n=>Array.from({length:n},(_,i)=>'P'+i), sp=x=>new URL(x).searchParams;
+  assert.strictEqual(L.googleNav(P(11)).length,1); assert.strictEqual(sp(L.googleNav(P(11))[0]).get('waypoints').split('|').length,9);
+  const l12=L.googleNav(P(12)); assert.strictEqual(l12.length,2); assert.strictEqual(sp(l12[0]).get('destination'),'P10'); assert.strictEqual(sp(l12[1]).get('origin'),'P10'); assert.strictEqual(sp(l12[1]).get('destination'),'P11'); assert(!l12[1].includes('waypoints'));
+  // 25 punti: nessuna tappa persa, ogni tratta riparte dall'arrivo della precedente
+  const l25=L.googleNav(P(25)), seen=[]; l25.forEach((x,i)=>{ const q=sp(x), pts=[q.get('origin')].concat(q.get('waypoints')?q.get('waypoints').split('|'):[],[q.get('destination')]); assert(pts.length<=11); if(i) assert.strictEqual(pts[0],seen[seen.length-1]); seen.push(...(i?pts.slice(1):pts)); });
+  assert.deepStrictEqual(seen,P(25)); assert.strictEqual(l25.length,3);
+  const tricky=L.googleNav(['A&B=1','C|D','E#F'])[0]; assert.strictEqual(sp(tricky).get('origin'),'A&B=1'); assert.strictEqual(sp(tricky).get('waypoints'),'C|D');
+  assert.strictEqual(L.navTool('none'),'none'); ['apple','both','google',undefined,null,''].forEach(v=>assert.strictEqual(L.navTool(v),'google'));
+  assert.strictEqual(L.placeQuery({lat:41.7799579,lng:12.4466032,name:'H-D'},'x'),'41.779958,12.446603'); assert.strictEqual(L.placeQuery({name:'Bar',addr:'Via A 1'},'x'),'Bar, Via A 1'); assert.strictEqual(L.placeQuery(null,' Ostia '),'Ostia'); assert.strictEqual(L.placeQuery(null,''),''); assert.strictEqual(L.placeQuery({lat:'',lng:''},'Roma'),'Roma');
+  const em=new URL(L.mapEmbedUrl(L.HD_STORE,'','fr')); assert.strictEqual(em.origin,'https://maps.google.com'); assert.strictEqual(em.searchParams.get('output'),'embed'); assert.strictEqual(em.searchParams.get('q'),'41.779958,12.446603'); assert.strictEqual(em.searchParams.get('hl'),'fr');
+  assert.strictEqual(new URL(L.mapEmbedUrl(null,'A&B #1')).searchParams.get('q'),'A&B #1'); assert.strictEqual(L.mapEmbedUrl(null,''),null);
+  assert.strictEqual(L.HD_STORE.addr,'Via Pontina 583, 00128 Roma'); assert.strictEqual(L.HD_STORE.kind,'hd'); assert(Math.abs(L.HD_STORE.lat-41.78)<0.01&&Math.abs(L.HD_STORE.lng-12.447)<0.01);
 });
 t('date', ()=>{
   assert.strictEqual(L.parseDate(45000),'2023-03-15');
@@ -122,7 +131,7 @@ t('giorni e punti di navigazione', ()=>{
   /* giorno singolo: tutte le tappe, gli arrivi "end" ignorati; vecchi Run solo testo */
   assert.deepStrictEqual(L.navPoints({meeting_point:'Roma',destination:'Frascati',stops:[{addr:'Grottaferrata'},{name:'solo nome'}]}),['Roma','Grottaferrata','Frascati']);
   assert.deepStrictEqual(L.navPoints({}),[]); assert.deepStrictEqual(L.navPoints({days:2,meeting_point:'Roma'},2),['Roma']);
-  assert.ok(L.googleNav(L.navPoints(run,1)).url.includes('waypoints=41.500000%2C12.000000'));
+  assert.ok(L.googleNav(L.navPoints(run,1))[0].includes('waypoints=41.500000%2C12.000000'));
 });
 t('ricerca luoghi OSM', ()=>{
   assert.strictEqual(L.overpassQuery('altro',1,1,1000),null); assert.strictEqual(L.overpassQuery('area','x',1,1000),null);

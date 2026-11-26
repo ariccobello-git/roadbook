@@ -96,7 +96,7 @@ async function run(devName) {
   let { ctx, page, log, st } = await ctxFor('socio', {});
   await page.goto(BASE); await page.waitForSelector('#sos-public');
   await tapSize(page, '#sos-public', 'pulsante SOS login'); await noOverflow(page, 'login');
-  await page.click('#sos-public'); await page.waitForSelector('#sos-nm');
+  await page.click('#sos-public'); await page.waitForSelector('.sheet.in #sos-nm'); await page.locator('#sos-nm').focus();
   await page.fill('#sos-nm', 'Mario Rosi'); await page.waitForSelector('#sos-sug .row');
   assert((await page.locator('#sos-sug .row').first().innerText()).includes('Mario Rossi'));
   await page.locator('#sos-sug .row').first().click(); assert.equal(await page.inputValue('#sos-nm'), 'Mario Rossi'); ok('A1 suggerimento nome');

@@ -120,8 +120,11 @@ async function newPage(browser, vp, level, log, errors) {
   await page.click('button[aria-label="Nuovo Run"]'); await page.waitForSelector('.sheet.in .row.act'); await page.click('.sheet.in .row.act:has-text("da zero")'); await page.waitForSelector('#rf-title'); await wait(500);
   await page.fill('#rf-title', 'Raduno Lago');
   await rowByTitle('Ritrovo').click(); await page.waitForSelector('.pp'); await wait(500);
-  assert.ok((await TOP().textContent()).includes("Fungo dell'EUR") && (await TOP().textContent()).includes('Area di servizio'));
+  assert.strictEqual(await TOP().locator('.pp-def .btn').count(), 2); assert.ok((await TOP().locator('.pp-def').textContent()).includes("Fungo dell'EUR") && (await TOP().locator('.pp-def').textContent()).includes('H-D Store Roma') && !(await TOP().locator('.pp-def').textContent()).includes('Area di servizio'));
   await page.screenshot({ path: SHOTS + '21-picker.png' });
+  await TOP().locator('.pp-def .btn', { hasText: 'H-D Store Roma' }).click(); await wait(700);
+  assert.ok((await TOP().textContent()).includes('H-D Store Roma') && (await TOP().textContent()).includes('Via Pontina 583')); step('ritrovo predefinito: H-D Store Roma in un tocco');
+  await rowByTitle('Ritrovo').click(); await page.waitForSelector('.pp'); await wait(500);
   await TOP().locator('.pp-def .btn', { hasText: "Fungo dell'EUR" }).click(); await wait(700);
   assert.ok((await TOP().textContent()).includes("Fungo dell'EUR")); step('ritrovo predefinito: Fungo dell\'EUR in un tocco');
 
@@ -201,7 +204,7 @@ async function newPage(browser, vp, level, log, errors) {
   await wait(600); await page.click('.run h3:has-text("Raduno Lago")'); await page.waitForSelector('.sheet.in .tl'); await wait(500);
   tt = await TOP().textContent(); assert.ok(tt.includes('Giorno 1') && tt.includes('Giorno 2')); 
   const hrefs = await TOP().locator('a[href]').evaluateAll(a => a.map(x => x.href));
-  assert.ok(hrefs.some(h => h.includes('google.com/maps/dir') && h.includes('origin=41.824428%2C12.462984'))); assert.ok(hrefs.filter(h => h.includes('maps.apple.com/?saddr')).length === 2); step('dettaglio: percorso per giorno con navigatori Apple/Google');
+  assert.ok(hrefs.some(h => h.includes('google.com/maps/dir') && h.includes('origin=41.824428%2C12.462984'))); assert.ok(hrefs.filter(h => h.includes('google.com/maps/dir')).length === 2 && !hrefs.some(h => h.includes('maps.apple.com'))); step('dettaglio: percorso per giorno con Google Maps');
   await page.screenshot({ path: SHOTS + '26-dettaglio-giorni.png' });
   assert.deepStrictEqual(errors, [], errors.join('\n'));
   await browser.close(); console.log('PLACES OK');

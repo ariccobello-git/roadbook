@@ -126,24 +126,23 @@
   function seeRoute(r) { return RB.can('route_view') || !!r.route_public; }
   function navSection(r, f) {
     if (!seeRoute(r)) return;
-    var edit = RB.can('runs_edit'), tool = r.nav_tool || 'both', days = RBL.runDays(r), tools = edit || tool === 'both' ? ['apple', 'google'] : (tool === 'none' ? [] : [tool]), d, any = false;
-    if (!tools.length) return;
-    if (RB.isApple) tools.sort(function (a, b) { return a === 'apple' ? -1 : b === 'apple' ? 1 : 0; });
+    var edit = RB.can('runs_edit'), tool = RBL.navTool(r.nav_tool), days = RBL.runDays(r), d, any = false;
+    if (!edit && tool === 'none') return;
     var l = h('div', { class: 'list' });
     for (d = 1; d <= days; d++) {
       var pts = RBL.navPoints(r, days > 1 ? d : undefined);
       if (pts.length < 1) continue;
       any = true;
-      var km = RBL.dayKm(r, days > 1 ? d : undefined), pre = days > 1 ? t('day_n', d) + ' · ' : '';
-      tools.forEach(function (k) {
-        if (k === 'apple') l.appendChild(RB.row({ lead: RB.icon('route'), title: pre + t('nav_open_apple'), sub: t('nav_points_n', pts.length) + (km ? ' · ~' + km + ' km' : ''), href: RBL.appleNav(pts) }));
-        else { var g = RBL.googleNav(pts); l.appendChild(RB.row({ lead: RB.icon('route'), title: pre + t('nav_open_google'), sub: (g.dropped ? t('nav_dropped', g.dropped) : t('nav_points_n', pts.length)) + (km ? ' · ~' + km + ' km' : ''), href: g.url })); }
+      var km = RBL.dayKm(r, days > 1 ? d : undefined), pre = days > 1 ? t('day_n', d) + ' · ' : '', legs = RBL.googleNav(pts);
+      legs.forEach(function (u, i) {
+        l.appendChild(RB.row({ lead: RB.icon('route'), title: pre + t('nav_open_google') + (legs.length > 1 ? ' · ' + t('nav_leg', i + 1, legs.length) : ''),
+          sub: (legs.length > 1 ? t('nav_legs_help') : t('nav_points_n', pts.length)) + (km && i === 0 ? ' · ~' + km + ' km' : ''), href: u }));
       });
     }
     if (!any) return;
     f.appendChild(RB.secT(t('nav_title')));
     f.appendChild(l);
-    if (edit) f.appendChild(h('p', { class: 'sm', style: 'padding:0 6px' }, t('nav_staff_note', t('nav_' + tool))));
+    if (edit && tool === 'none') f.appendChild(h('p', { class: 'sm', style: 'padding:0 6px' }, t('nav_staff_note')));
   }
   function stopLine(s) {
     var label = s.name || s.addr || '';
@@ -177,7 +176,8 @@
 
     var info = h('div', { class: 'list' });
     info.appendChild(RB.row({ lead: RB.icon('clock'), title: RB.fmt.day(dt), sub: RB.fmt.time(dt), go: false }));
-    if (r.meeting_point) info.appendChild(RB.row({ lead: RB.icon('pin'), title: t('meeting'), sub: r.meeting_point, href: RB.mapsUrl(r.meeting_point) }));
+    var mq = RBL.placeQuery(r.meeting, r.meeting_point);
+    if (r.meeting_point) info.appendChild(RB.row({ lead: RB.icon('pin'), title: t('meeting'), sub: r.meeting_point, href: RB.mapsUrl(mq) }));
     if (r.destination) info.appendChild(RB.row({ lead: RB.icon('route'), title: t('destination'), sub: r.destination, href: RB.mapsUrl(r.destination) }));
     if (r.km) info.appendChild(RB.row({ title: t('distance'), value: r.km + ' km', go: false }));
     info.appendChild(RB.row({ title: t('difficulty'), value: t(DIFF[r.difficulty] || 'diff_media'), go: false }));
@@ -191,6 +191,8 @@
     var ru = seeRoute(r) ? RB.safeUrl(r.route_url) : null;
     if (ru) info.appendChild(RB.row({ lead: RB.icon('route'), title: t('route_link'), href: ru }));
     f.appendChild(info);
+    if (mq) f.appendChild(h('div', { class: 'list mapbox' }, h('iframe', { src: RBL.mapEmbedUrl(r.meeting, r.meeting_point, (RB.pref && RB.pref.lang) || 'it'), title: t('meeting_map'), loading: 'lazy', referrerpolicy: 'no-referrer-when-downgrade', allowfullscreen: '' }),
+      RB.row({ lead: RB.icon('pin'), title: t('meeting_open'), href: RB.mapsUrl(mq) })));
     if (r.description) f.appendChild(h('div', { class: 'card', style: 'white-space:pre-wrap' }, r.description));
 
     RB.weatherSection(r, f, ctl);
@@ -288,7 +290,7 @@
   }
   function runPayload(r, over) {
     var o = { id: r.id, title: r.title, run_date: r.run_date, meeting_point: r.meeting_point || '', destination: r.destination || '', description: r.description || '', km: r.km == null ? '' : String(r.km),
-      difficulty: r.difficulty, route_url: r.route_url || '', stops: r.stops || [], meeting: r.meeting || null, dest: r.dest || null, days: RBL.runDays(r), route_public: !!r.route_public, nav_tool: r.nav_tool || 'both', status: r.status, fee: r.fee == null ? '' : String(r.fee), causale: r.causale || '', rooms: r.rooms || [], extras: r.extras || [], installments: r.installments || [], max_participants: r.max_participants == null ? '' : String(r.max_participants) }, k;
+      difficulty: r.difficulty, route_url: r.route_url || '', stops: r.stops || [], meeting: r.meeting || null, dest: r.dest || null, days: RBL.runDays(r), route_public: !!r.route_public, nav_tool: RBL.navTool(r.nav_tool), status: r.status, fee: r.fee == null ? '' : String(r.fee), causale: r.causale || '', rooms: r.rooms || [], extras: r.extras || [], installments: r.installments || [], max_participants: r.max_participants == null ? '' : String(r.max_participants) }, k;
     for (k in over) o[k] = over[k];
     return o;
   }
@@ -509,7 +511,7 @@
     var meeting = r ? (r.meeting || (r.meeting_point ? { name: '', addr: r.meeting_point, kind: 'altro' } : null)) : null;
     var dest = r ? (r.dest || (r.destination ? { name: '', addr: r.destination, kind: 'altro' } : null)) : null;
     var stops = r && r.stops ? r.stops.map(function (s) { return { time: s.time || '', name: s.name || '', addr: s.addr || '', kind: s.kind || 'altro', lat: s.lat, lng: s.lng, day: parseInt(s.day, 10) || 1, end: !!s.end }; }) : [];
-    var diff = r ? r.difficulty : 'media', status = r ? r.status : 'programmato', nav = r ? r.nav_tool || 'both' : 'both';
+    var diff = r ? r.difficulty : 'media', status = r ? r.status : 'programmato', nav = RBL.navTool(r && r.nav_tool);
     var box = h('div', null), panel = h('div'), tabs = h('div'), durBox = h('div'), kmInfo = h('div'), routed = {};
 
     function snapshot() { return { meeting: meeting, dest: dest, days: ST.days, stops: stops.map(function (s) { return s; }) }; }
@@ -658,7 +660,7 @@
     more.appendChild(RB.seg([{ v: 'facile', label: t('diff_facile') }, { v: 'media', label: t('diff_media') }, { v: 'impegnativa', label: t('diff_impegnativa') }], diff, function (v) { diff = v; }));
     if (r && r.id) { more.appendChild(RB.secT(t('status'))); more.appendChild(RB.seg([{ v: 'programmato', label: t('st_programmato') }, { v: 'annullato', label: t('st_annullato') }, { v: 'concluso', label: t('st_concluso') }], status, function (v) { status = v; })); }
     more.appendChild(RB.secT(t('nav_tool')));
-    more.appendChild(RB.seg([{ v: 'apple', label: t('nav_apple') }, { v: 'google', label: t('nav_google') }, { v: 'both', label: t('nav_both') }, { v: 'none', label: t('nav_none') }], nav, function (v) { nav = v; }));
+    more.appendChild(RB.seg([{ v: 'google', label: t('nav_google') }, { v: 'none', label: t('nav_none') }], nav, function (v) { nav = v; }));
     more.appendChild(h('p', { class: 'sm', style: 'padding:0 6px' }, t('nav_help')));
     more.appendChild(h('div', { class: 'list', style: 'margin-top:14px' }, RB.field(t('f_notes'), h('textarea', { id: 'rf-desc', maxlength: 1500, '.value': r ? r.description || '' : '' }))));
     var moreBtn = h('button', { type: 'button', class: 'btn sec', id: 'rf-more', style: 'margin-top:14px', onclick: function () { moreOpen = !moreOpen; showMore(); } });
