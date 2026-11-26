@@ -18,7 +18,9 @@ jobs:
           npx playwright install --with-deps chromium firefox webkit
         shell: bash
       - name: Server locale
-        run: nohup python3 -m http.server 8123 --bind 127.0.0.1 > /dev/null 2>&1 &
+        run: |
+          nohup python3 -m http.server 8123 --bind 127.0.0.1 > /dev/null 2>&1 &
+          for i in $(seq 1 30); do curl -s -o /dev/null http://127.0.0.1:8123/ && break; sleep 1; done
         shell: bash
       - name: Test funzionali
         run: cd tests && node keys.test.js && node logic.test.js
