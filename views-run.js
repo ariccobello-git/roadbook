@@ -52,8 +52,24 @@
       onclick: function () { RB.feel('tap'); RB.openRun(r.id); }, onkeydown: function (e) { if (e.key === 'Enter') RB.openRun(r.id); } },
       h('div', { class: 'dbox' }, h('b', null, dt.getDate()), h('span', null, RB.fmt.month(dt))),
       h('div', { class: 'bd' }, h('h3', null, r.title), h('div', { class: 'wh' }, RB.fmt.time(dt) + (r.meeting_point ? ' · ' + r.meeting_point : '')), chips, me));
-    return card;
+    if (!RB.can('runs_edit')) return card;
+    /* chi gestisce i Run: scorri a sinistra per Modifica / Elimina, come in Mail su iPhone */
+    return RB.swipe(card, [
+      { label: t('edit'), icon: 'edit', cls: 'rsw-edit', fn: function () { RB.runForm(r.id); } },
+      { label: t('delete'), icon: 'trash', cls: 'rsw-del', fn: function () { RB.runDelete(r); } }
+    ]);
   }
+
+  /* elimina un Run dopo la conferma (pulsante rosso): iscrizioni, pagamenti e foto collegati vengono cancellati */
+  RB.runDelete = function (r, done) {
+    return RB.ask({ title: t('delete_run') + '?', msg: '«' + r.title + '» · ' + t('delete_run_msg'), ok: t('delete'), no: t('cancel'), danger: true }).then(function (ok) {
+      if (!ok) return false;
+      return RB.write('rc_run_delete', { p_id: r.id }).then(function (x) {
+        if (x.ok) { RB.toast(t('deleted')); RB.sound('ok'); if (done) done(); } else RB.toast(RB.errMsg(x.error), 'err');
+        return !!x.ok;
+      });
+    });
+  };
 
   /* archivio: Run passati con ricerca, anno e stato; si possono riaprire e richiamare come nuovo Run */
   function archiveFilters(root, past) {
@@ -100,7 +116,7 @@
   /* ---------- dettaglio ---------- */
   RB.openRun = function (id) {
     var state = { photos: null };
-    var ctl = RB.sheet({ title: '', full: true });
+    var ctl = RB.sheet({ title: '', full: true, right: RB.can('runs_edit') ? { label: t('edit'), fn: function () { RB.feel('tap'); RB.runForm(id); } } : null });
     function build() {
       var r = RB.run(id);
       if (!r) { ctl.close(true); return; }
@@ -275,11 +291,7 @@
       if (r.status === 'programmato') acts.appendChild(RB.row({ title: t('mark_done'), go: false, onclick: function () { setStatus(r, 'concluso'); } }));
       if (r.status !== 'annullato') acts.appendChild(RB.row({ title: t('cancel_run'), go: false, cls: 'dng', onclick: function () { RB.ask({ title: t('cancel_run'), msg: t('cancel_run_msg'), ok: t('cancel_run'), danger: true }).then(function (ok) { if (ok) setStatus(r, 'annullato'); }); } }));
       else acts.appendChild(RB.row({ title: t('reopen_run'), go: false, onclick: function () { setStatus(r, 'programmato'); } }));
-      acts.appendChild(RB.row({ lead: RB.icon('trash'), title: t('delete_run'), go: false, cls: 'dng', onclick: function () {
-        RB.ask({ title: t('delete_run'), msg: t('delete_run_msg'), ok: t('delete'), danger: true }).then(function (ok) {
-          if (ok) RB.write('rc_run_delete', { p_id: r.id }).then(function (x) { if (x.ok) { ctl.close(true); RB.toast(t('deleted')); } else RB.toast(RB.errMsg(x.error), 'err'); });
-        });
-      } }));
+      acts.appendChild(RB.row({ lead: RB.icon('trash'), title: t('delete_run'), go: false, cls: 'dng', onclick: function () { RB.runDelete(r, function () { ctl.close(true); }); } }));
     }
     f.appendChild(acts);
     return f;

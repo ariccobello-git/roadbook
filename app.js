@@ -44,7 +44,7 @@
     var langs = RB.seg([{ v: 'it', label: 'Italiano' }, { v: 'en', label: 'English' }, { v: 'fr', label: 'Français' }], RB.pref.lang, function (v) { RB.pref.lang = v; RB.savePref(); RB.applyPref(); loginScreen('', resume); });
     app.appendChild(h('div', { class: 'login' },
       h('img', { class: 'logo' + (RB.logoSrc() === 'icon-180.png' ? '' : ' logo-img'), src: RB.logoSrc(), alt: '' }),
-      h('h1', null, 'Roadbook'), h('p', { class: 'sub' }, t('login_sub')),
+      h('h1', null, '9076 RoadBook'), h('p', { class: 'sub' }, t('login_sub')),
       h('div', { class: 'list' }, h('label', { class: 'field' }, h('span', null, t('access_code')), code)),
       err, btn, resumeBtn, h('p', { class: 'sm', style: 'text-align:center' }, t('login_help')),
       h('button', { type: 'button', class: 'btn sos-btn sos-login', id: 'sos-public', onclick: function () { RB.feel('tap'); RB.sosOpen('public'); } }, RB.icon('alert'), t('sos_btn')), h('div', { class: 'lg' }, langs), h('p', { class: 'sm', style: 'text-align:center;opacity:.45;font-size:11px;margin-top:14px', id: 'rel' }, 'Release ' + RB.RELEASE)));
@@ -59,7 +59,7 @@
   /* ---------- struttura ---------- */
   function shell() {
     RB.clear(app);
-    var tabs = h('nav', { class: 'tabs', 'aria-label': 'Roadbook' }, h('div', { class: 'brand' }, h('img', { id: 'brand-logo', src: RB.logoSrc(), alt: '' }), 'Roadbook'));
+    var tabs = h('nav', { class: 'tabs', 'aria-label': '9076 RoadBook' }, h('div', { class: 'brand' }, h('img', { id: 'brand-logo', src: RB.logoSrc(), alt: '' }), '9076 RoadBook'));
     var vt = visibleTabs(); shellKey = vt.map(function (x) { return x[0]; }).join();
     vt.forEach(function (x) {
       tabs.appendChild(h('button', { type: 'button', class: 'tab', 'data-tab': x[0], onclick: function () {
@@ -189,7 +189,7 @@
       RB.seg([{ v: 'auto', label: t('ap_auto') }, { v: 'light', label: t('ap_light') }, { v: 'dark', label: t('ap_dark') }], RB.pref.ap, function (v) { RB.pref.ap = v; RB.savePref(); RB.applyPref(); })),
       h('div', { class: 'pass' }, h('span', null, t('sounds')), RB.toggle(RB.pref.sound, function (on) { RB.pref.sound = on; RB.savePref(); if (on) RB.sound('ok'); }))));
     root.appendChild(h('div', { class: 'list', style: 'margin-top:22px' }, RB.row({ title: t('logout'), cls: 'act dng', go: false, onclick: askLogout })));
-    root.appendChild(h('p', { class: 'sm', style: 'text-align:center;margin-top:18px' }, 'Roadbook · ' + RB.chapterName()));
+    root.appendChild(h('p', { class: 'sm', style: 'text-align:center;margin-top:18px' }, '9076 RoadBook · ' + RB.chapterName()));
   };
 
   function chapterForm() {

@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   var RB = window.RB = window.RB || {};
-  RB.RELEASE = '4.4.0';
+  RB.RELEASE = '4.5.0';
 
   /* ---------- DOM sicuro: i testi sono sempre nodi di testo, mai HTML ---------- */
   function add(el, kids) {
@@ -149,6 +149,40 @@
         h('button', { type: 'button', class: 'btn sec', onclick: function () { fin(false); ctl.close(); } }, o.no || RB.t('cancel')));
       ctl = RB.sheet({ title: o.title, content: box, cls: 'menu', onclose: function () { fin(false); } });
     });
+  };
+
+  /* scorrimento a sinistra che scopre azioni (stile Mail su iPhone). Un solo elemento aperto alla volta;
+     tocco altrove o scorrimento a destra richiude. Con tastiera: le azioni restano nel dettaglio. */
+  var swOpen = null;
+  function swClose(w) { if (!w) return; w.classList.remove('open'); w.firstChild.style.transform = ''; if (swOpen === w) swOpen = null; }
+  document.addEventListener('pointerdown', function (e) { if (swOpen && !swOpen.contains(e.target)) swClose(swOpen); }, true);
+  RB.swipe = function (node, actions) {
+    var acts = h('div', { class: 'rsw-acts', 'aria-hidden': 'true' }), wrap = h('div', { class: 'rsw' }, node, acts), W = 0;
+    actions.forEach(function (a) {
+      acts.appendChild(h('button', { type: 'button', class: 'rsw-b ' + (a.cls || ''), tabindex: '-1', onclick: function (e) { e.stopPropagation(); swClose(wrap); RB.feel('tap'); a.fn(); } }, RB.icon(a.icon), h('span', null, a.label)));
+    });
+    var x0 = 0, y0 = 0, dx = 0, mode = '', base = 0, id = null;
+    node.addEventListener('pointerdown', function (e) {
+      if (e.button > 0 || e.target.closest('.me')) return;
+      id = e.pointerId; x0 = e.clientX; y0 = e.clientY; dx = 0; mode = ''; W = acts.offsetWidth - 26; base = wrap.classList.contains('open') ? -W : 0;
+    });
+    node.addEventListener('pointermove', function (e) {
+      if (e.pointerId !== id) return;
+      var mx = e.clientX - x0, my = e.clientY - y0;
+      if (!mode) { if (Math.abs(mx) < 8 && Math.abs(my) < 8) return; mode = Math.abs(mx) > Math.abs(my) ? 'x' : 'y'; if (mode === 'x') { try { node.setPointerCapture(id); } catch (err) {} node.classList.add('drag'); if (swOpen && swOpen !== wrap) swClose(swOpen); } }
+      if (mode !== 'x') return;
+      dx = Math.max(-W - 30, Math.min(0, base + mx)); node.style.transform = 'translateX(' + dx + 'px)';
+    });
+    function end(e) {
+      if (e.pointerId !== id) return; id = null; node.classList.remove('drag');
+      if (mode !== 'x') return;
+      if (dx < -W / 2) { wrap.classList.add('open'); node.style.transform = 'translateX(' + -W + 'px)'; swOpen = wrap; RB.feel('tap'); }
+      else swClose(wrap);
+    }
+    node.addEventListener('pointerup', end); node.addEventListener('pointercancel', end);
+    /* dopo uno scorrimento il clic non deve aprire il dettaglio; da aperto il tocco richiude */
+    node.addEventListener('click', function (e) { if (mode === 'x' || wrap.classList.contains('open')) { e.stopImmediatePropagation(); e.preventDefault(); if (mode !== 'x') swClose(wrap); } mode = ''; }, true);
+    return wrap;
   };
 
   /* ---------- formati ---------- */

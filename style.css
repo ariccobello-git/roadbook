@@ -567,26 +567,34 @@ input,select,textarea{min-height:44px}
 .al-more{flex:none;min-width:52px;min-height:44px;padding:0 12px;border:0;border-radius:12px;background:var(--fill);color:inherit;font:inherit;font-size:15px;font-weight:700;cursor:pointer}
 .alerts.all .al-more{width:100%}
 .view>.seg{margin-bottom:12px}
-.view>.run{padding:13px 14px;gap:12px;margin-bottom:12px}
-.view>.run .chips{flex-wrap:wrap;row-gap:20px;max-height:var(--chip-h,30px);overflow:hidden;margin-top:6px}
-.view>.run .chips .chip{flex:none}
-.view>.run .me{margin-top:8px}
+.view>.run,
+.view>.rsw>.run{padding:13px 14px;gap:12px;margin-bottom:12px}
+.view>.run .chips,
+.view>.rsw>.run .chips{flex-wrap:wrap;row-gap:20px;max-height:var(--chip-h,30px);overflow:hidden;margin-top:6px}
+.view>.run .chips .chip,
+.view>.rsw>.run .chips .chip{flex:none}
+.view>.run .me,
+.view>.rsw>.run .me{margin-top:8px}
 @media(max-width:899px) and (max-height:960px){.view>.top small{display:none}.view>.top{margin:2px 0 10px}}
 @media(max-height:720px){
   .view .top h1{font-size:28px}
-  .view>.run h3{font-size:17px}
-  .view>.run .wh{font-size:14px}
+  .view>.run h3,
+  .view>.rsw>.run h3{font-size:17px}
+  .view>.run .wh,
+  .view>.rsw>.run .wh{font-size:14px}
   .who-sos{height:60px}
   .whobar{margin-bottom:6px}
   .view>.top h1{font-size:26px}
   .view>.top{margin:0 0 6px}
   .view>.seg{padding:3px;margin-bottom:10px}
-  .view>.run{padding:11px 13px;margin-bottom:10px}
-  .view>.run:not(.hero) .chips{display:none}
+  .view>.run,
+  .view>.rsw>.run{padding:11px 13px;margin-bottom:10px}
+  .view>.run:not(.hero) .chips,
+  .view>.rsw>.run:not(.hero) .chips{display:none}
 }
 .login{min-height:100vh;min-height:100dvh;padding:max(16px,env(safe-area-inset-top)) 24px max(16px,env(safe-area-inset-bottom))}
 @media(max-height:720px){.login .logo{width:72px;height:72px;margin-bottom:12px}.login h1{font-size:30px}.login .sub{margin-bottom:16px}.login .btn.sos-login{margin-top:20px}.login .lg{margin-top:16px}}
-@media(max-height:600px){.view>.top h1{font-size:22px}.view>.top .ib{width:44px;height:44px}.view>.run .chips{display:none}.view>.run .wh{display:none}.login .logo{width:56px;height:56px;margin-bottom:8px}.login h1{font-size:26px}.login .sub{margin-bottom:10px}}
+@media(max-height:600px){.view>.top h1{font-size:22px}.view>.top .ib{width:44px;height:44px}.view>.run .chips,.view>.rsw>.run .chips{display:none}.view>.run .wh,.view>.rsw>.run .wh{display:none}.login .logo{width:56px;height:56px;margin-bottom:8px}.login h1{font-size:26px}.login .sub{margin-bottom:10px}}
 @media(max-height:600px){.login .btn.sos-login{margin-top:12px;min-height:60px}.login .lg{margin-top:10px}.login #rel{margin-top:6px!important}.login .list{margin-bottom:0}}
 .view{padding-bottom:calc(86px + env(safe-area-inset-bottom))}
 .view>:last-child{margin-bottom:0}
@@ -604,3 +612,18 @@ input,select,textarea{min-height:44px}
 .pc-card .btn{flex:1;min-height:48px}
 #reset-box .pass small{display:block}
 .mapbox iframe{display:block;width:100%;height:190px;border:0;background:var(--gl)}
+
+/* scorrimento Modifica / Elimina sulle card dei Run */
+.rsw{position:relative;margin:10px 0;width:100%}
+.rsw>.run{margin:0;touch-action:pan-y;z-index:1;transition:transform .32s var(--sp);animation-fill-mode:backwards}
+.rsw>.run.drag{transition:none}
+.rsw-acts{position:absolute;inset:0 0 0 auto;display:flex;align-items:stretch;padding-left:26px;background:var(--er);border-radius:26px;overflow:hidden}
+.rsw-b{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;width:84px;border:0;color:#fff;font:600 13px/1.1 inherit;cursor:pointer}
+.rsw-b .ic,.rsw-b svg{width:22px;height:22px}
+.rsw-edit{background:#0a84ff}
+.rsw-del{background:var(--er)}
+.rsw:not(.open) .rsw-acts{visibility:hidden}
+.rsw.open .rsw-acts,.rsw:has(.run.drag) .rsw-acts{visibility:visible}
+@media (prefers-reduced-motion:reduce){.rsw>.run{transition:none}}
+.view>.rsw{margin:0 0 12px}.view>.rsw>.run{margin:0}
+@media(max-height:720px){.view>.rsw{margin-bottom:10px}}

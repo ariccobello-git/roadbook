@@ -57,7 +57,8 @@ function backend(page, level, log) {
     else if (fn === 'rc_run_photos') out = { ok: true, photos: [{ id: uid(), member_id: st.members[0].id, caption: null, data: GIF, created_at: new Date().toISOString() }] };
     else if (fn === 'rc_signup') { const i = st.signups.findIndex(s => s.run_id === body.p_run && s.member_id === (body.p_member || st.me.id)); const row = { run_id: body.p_run, member_id: body.p_member || st.me.id, status: body.p_status, passengers: body.p_passengers, checked_in: false }; if (body.p_status === 'rimuovi') { if (i >= 0) st.signups.splice(i, 1); } else if (i >= 0) st.signups[i] = row; else st.signups.push(row); }
     else if (fn === 'rc_formation_save') { const r = st.runs.find(x => x.id === body.p_run); r.formation = body.p_formation; r.formation_published = body.p_publish; }
-    else if (fn === 'rc_run_save') { const p = body.p; if (p.id) Object.assign(st.runs.find(r => r.id === p.id), { title: p.title, status: p.status, nav_tool: p.nav_tool, stops: p.stops }); else st.runs.push(Object.assign({ id: uid(), formation: [], formation_published: false, updated_at: new Date().toISOString() }, p, { km: p.km ? +p.km : null, max_participants: p.max_participants ? +p.max_participants : null })); out = { ok: true, id: p.id || 'x' }; }
+    else if (fn === 'rc_run_save') { const p = body.p; if (p.id) Object.assign(st.runs.find(r => r.id === p.id), { title: p.title, status: p.status, nav_tool: p.nav_tool, stops: p.stops }); else st.runs.push(Object.assign({ formation: [], formation_published: false, updated_at: new Date().toISOString() }, p, { id: uid(), km: p.km ? +p.km : null, max_participants: p.max_participants ? +p.max_participants : null })); out = { ok: true, id: p.id || st.runs[st.runs.length - 1].id }; }
+    else if (fn === 'rc_run_delete') { st.runs = st.runs.filter(r => r.id !== body.p_id); }
     else if (fn === 'rc_member_save') { const p = body.p; const nm = Object.assign({ id: uid(), active: true, has_photo: false, access_code: 'WXYZ6789' }, p); st.members.push(nm); out = { ok: true, id: nm.id }; }
     else if (fn === 'rc_profile_save') { const p = body.p; if (p.key) Object.assign(st.profiles.find(x => x.key === p.key), { name: p.name, perms: p.perms, in_direttivo: p.in_direttivo }); else st.profiles.push({ key: 'c_new_' + st.profiles.length, name: p.name, perms: p.perms, builtin: false, in_direttivo: p.in_direttivo, rank: 100 }); out = { ok: true, key: p.key || 'c_new' }; }
     else if (fn === 'rc_profile_delete') { st.profiles = st.profiles.filter(x => x.key !== body.p_key); }
@@ -225,6 +226,34 @@ async function newPage(browser, vp, level, log, errors) {
   assert.strictEqual(gs.title, 'Roma - Lucca'); assert.strictEqual(gs.meeting.name, 'H-D Store Roma'); assert.strictEqual(gs.meeting.kind, 'hd'); assert.strictEqual(gs.dest.name, 'Viale Europa'); assert.ok(Math.abs(gs.dest.lat - 43.834718) < 1e-6);
   assert.deepStrictEqual(gs.stops.filter(x => !x.end).map(x => [x.name, x.day]), [['IP', 1], ['Q8', 1], ['', 1]]); assert.ok(gs.stops.every(x => x.lat && x.lng)); assert.strictEqual(gs.stops[2].addr, '43.68360, 10.91292'); assert.strictEqual(gs.route_url, GM.iphone_1.short);
   step('import Google Maps: ritrovo H-D Store, 3 tappe con coordinate, arrivo Lucca salvati');
+
+  /* nome dell'app e gestione rapida dei Run (scorrimento Modifica / Elimina con conferma) */
+  assert.strictEqual(await page.title(), '9076 RoadBook'); step('nome app: 9076 RoadBook');
+  for (let k = 0; k < 4 && await page.locator('.sheet.in').count(); k++) { await page.keyboard.press('Escape'); await wait(450); }
+  await page.waitForSelector('.rsw .run'); await wait(500);
+  async function swipeFirst() {
+    const b = await page.locator('.rsw .run').first().boundingBox(), y = b.y + b.height / 2;
+    await page.mouse.move(b.x + b.width - 20, y); await page.mouse.down();
+    for (let k = 1; k <= 8; k++) await page.mouse.move(b.x + b.width - 20 - k * 30, y + 1);
+    await page.mouse.up(); await wait(450);
+  }
+  const nRuns = await page.locator('.rsw .run').count();
+  await swipeFirst(); assert.strictEqual(await page.locator('.rsw.open').count(), 1); assert.strictEqual(await page.locator('.sheet.in').count(), 0, 'lo scorrimento non apre il dettaglio');
+  await page.screenshot({ path: SHOTS + '28-run-scorrimento.png' }); step('scorrimento: compaiono Modifica ed Elimina');
+  await page.click('.rsw.open .rsw-del'); await page.waitForSelector('.sheet.in .ask');
+  tt = await page.locator('.sheet.in').last().textContent(); assert.ok(tt.includes('Elimina il Run?') && tt.includes('non si può annullare'), tt);
+  await page.screenshot({ path: SHOTS + '29-run-conferma-elimina.png' });
+  await page.click('.sheet.in .ask .btn.sec'); await wait(500);
+  assert.ok(!log.some(l => l.fn === 'rc_run_delete')); assert.strictEqual(await page.locator('.rsw .run').count(), nRuns); step('elimina: Annulla non cancella nulla');
+  await swipeFirst(); await page.click('.rsw.open .rsw-del'); await page.waitForSelector('.sheet.in .ask'); await page.click('.sheet.in .ask .btn.dng'); await wait(900);
+  const del = log.filter(l => l.fn === 'rc_run_delete'); assert.strictEqual(del.length, 1); assert.ok(del[0].body.p_id);
+  assert.strictEqual(await page.locator('.rsw .run').count(), nRuns - 1); step('elimina: dopo la conferma il Run sparisce');
+  await swipeFirst(); await page.click('.rsw.open .rsw-edit'); await page.waitForSelector('#rf-title'); step('scorrimento: Modifica apre il modulo');
+  await page.keyboard.press('Escape'); await wait(600); for (let k = 0; k < 3 && await page.locator('.sheet.in').count(); k++) { await page.keyboard.press('Escape'); await wait(450); }
+  await page.locator('.rsw .run').first().click(); await page.waitForSelector('.sheet.in .sbar .sb.r');
+  assert.strictEqual((await page.locator('.sheet.in .sbar .sb.r').textContent()).trim(), 'Modifica');
+  await page.screenshot({ path: SHOTS + '30-run-dettaglio-modifica.png' });
+  await page.click('.sheet.in .sbar .sb.r'); await page.waitForSelector('#rf-title'); step('dettaglio: Modifica in alto a destra apre il modulo');
   assert.deepStrictEqual(errors, [], errors.join('\n'));
   await browser.close(); console.log('PLACES OK');
 })().catch(e => { console.error(e); process.exit(1); });
