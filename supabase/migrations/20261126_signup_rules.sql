@@ -7,6 +7,12 @@ alter table public.rc_signups add column if not exists requested_at timestamptz;
 alter table public.rc_signups drop constraint if exists rc_signups_pending_check;
 alter table public.rc_signups add constraint rc_signups_pending_check check (pending is null or pending in ('join', 'cancel'));
 
+/* correzione 4.7.0: senza incaricato della partenza (starter_id vuoto) il controllo dava null invece di false,
+   e «if not ...» lasciava passare chiunque: ora è sempre vero o falso */
+create or replace function rc_private.can_start(m public.rc_members, r public.rc_runs) returns boolean
+ language sql stable set search_path to 'public', 'rc_private'
+as $$ select coalesce(m.id is not null and m.active and (m.title in ('admin', 'direttore', 'vice_direttore') or m.id = r.starter_id), false) $$;
+
 create or replace function rc_private.push_send(p_kind text, p_ref text) returns void
  language plpgsql security definer set search_path to 'public', 'rc_private'
 as $$
@@ -258,6 +264,7 @@ begin
 end $function$;
 
 select pg_get_functiondef('public.rc_run_save(text,jsonb)'::regprocedure) like '%signup_until%' as save_ok,
+  pg_get_functiondef('rc_private.can_start(rc_members,rc_runs)'::regprocedure) like '%coalesce%' as start_fix_ok,
   to_regprocedure('public.rc_signup_decide(text,uuid,uuid,boolean)') is not null as decide_ok,
   pg_get_functiondef('public.rc_push_msgs(text,text,text)'::regprocedure) like '%p_kind = ''req_done''%' as push_ok,
   pg_get_functiondef('public.rc_sync(text)'::regprocedure) like '%''pending'', s.pending%' as sync_ok;
