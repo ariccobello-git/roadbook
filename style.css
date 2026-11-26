@@ -671,3 +671,14 @@ input,select,textarea{min-height:44px}
 .undo-bar{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));transform:translate(-50%,20px);opacity:0;z-index:85;display:flex;align-items:center;gap:14px;max-width:calc(100% - 32px);padding:12px 12px 12px 18px;border-radius:18px;background:rgba(28,28,32,.92);color:#fff;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:0 10px 30px rgba(0,0,0,.3);transition:opacity .25s,transform .3s var(--sp)}
 .undo-bar.in{opacity:1;transform:translate(-50%,0)}
 .undo-bar button{border:0;background:none;color:#ffb340;font:inherit;font-weight:700;padding:8px 10px;min-height:40px}
+/* iscrizioni: richiesta in attesa e richieste da approvare */
+.req-wait{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:14px;background:rgba(230,138,0,.14);color:var(--wa);font-weight:600;font-size:14px}
+.req-wait .ic{width:18px;height:18px}
+.req-wait span{flex:1;min-width:0}
+.req-wait .lnk{font-size:14px;padding:6px 4px;min-height:36px}
+.req-row{gap:10px}
+.req-b{width:44px;height:44px;flex:none;border:0;border-radius:50%;display:grid;place-items:center;transition:transform .2s var(--sp)}
+.req-b:active{transform:scale(.92)}
+.req-b.ok{background:var(--ok);color:#fff}
+.req-b.no{background:var(--fill);color:var(--er)}
+.req-b .ic{stroke:currentColor}

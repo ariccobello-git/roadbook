@@ -355,4 +355,12 @@ t('soste: rilevamento e ripartenza dal GPS', () => {
   assert.strictEqual(L.haltTick(st, 60 * S + 20 * S), null); assert.strictEqual(L.haltTick(st, 60 * S + 2 * M), null); assert.strictEqual(L.haltTick(st, 60 * S + 3 * M), 'stop', 'nessun aggiornamento = fermo');
   assert.strictEqual(L.haltTick(st, 60 * S + 10 * M), null, 'già in sosta'); assert.strictEqual(L.haltNew(true, { lat: 1, lng: 2 }).mode, 'halt');
 });
+t('iscrizioni: scadenza e posti', () => {
+  const T = Date.UTC(2030, 4, 5, 8, 0);
+  assert.strictEqual(L.signupClosed({ signup_until: new Date(T).toISOString() }, T - 1), false); assert.strictEqual(L.signupClosed({ signup_until: new Date(T).toISOString() }, T + 1), true);
+  assert.strictEqual(L.signupClosed({ signup_until: null }, T), false); assert.strictEqual(L.signupClosed({ signup_until: 'boh' }, T), false); assert.strictEqual(L.signupClosed(null, T), false);
+  const su = [{ status: 'si', member_id: 'a', passengers: 1 }, { status: 'si', member_id: 'b' }, { status: 'no', member_id: 'c' }, { status: 'forse', member_id: 'd', pending: 'join' }];
+  assert.strictEqual(L.isFull({ max_participants: 4 }, su, 'me', 0), false); assert.strictEqual(L.isFull({ max_participants: 4 }, su, 'me', 1), true, 'col passeggero non ci sta');
+  assert.strictEqual(L.isFull({ max_participants: 3 }, su, 'b', 0), false, 'il mio posto non conta'); assert.strictEqual(L.isFull({ max_participants: null }, su, 'me', 1), false); assert.strictEqual(L.isFull(null, su, 'me', 0), false);
+});
 console.log(n+' test passati');
