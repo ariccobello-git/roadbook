@@ -128,7 +128,7 @@ async function run(devName) {
   await page.click('#sos-btn'); await page.waitForSelector('.sos-kind'); await page.click('.sos-kind[data-k="salute_altro"]');
   await page.waitForSelector('#sos-parts .row'); assert((await page.locator('#sos-parts .row').count()) >= 1);
   await page.locator('#sos-parts .row').first().click(); await page.waitForSelector('#sos-rec');
-  await page.click('#sos-rec'); await page.waitForFunction(() => /^Stop$/.test(document.getElementById('sos-rec').textContent.trim()), null, { timeout: 5000 }).catch(() => { throw new Error('C1 registrazione non partita'); });
+  await page.click('#sos-rec'); await page.waitForFunction(() => /^Stop$/.test(document.getElementById('sos-rec').textContent.trim()), null, { timeout: 5000 }).catch(async () => { const d = await page.evaluate(() => ({ gum: String(navigator.mediaDevices && navigator.mediaDevices.getUserMedia).slice(0, 50), mr: String(window.MediaRecorder).slice(0, 40), sec: window.isSecureContext, btn: document.getElementById('sos-rec').textContent, body: document.body.innerText.slice(-200) })); throw new Error('C1 registrazione non partita ' + JSON.stringify(d)); });
   await page.click('#sos-rec'); await page.waitForFunction(() => /Vocale pronto/.test(document.body.innerText), null, { timeout: 5000 }).catch(() => { throw new Error('C1 vocale non pronto'); });
   await page.click('#sos-send'); await page.waitForSelector('#sos-done');
   const s2 = log.find(l => l.fn === 'rc_sos_send').body;
