@@ -1046,20 +1046,82 @@
   L.canStart = function (me, r) {
     return !!(me && me.id && r && me.active !== false && (L.START_TITLES.indexOf(me.title) >= 0 || (r.starter_id && me.id === r.starter_id)));
   };
-  /* fase della partenza: 'banner' da 30 minuti prima del ritrovo a 12 ore dopo, 'early' da 2 ore prima (solo nel dettaglio) */
-  L.startPhase = function (r, now) {
-    if (!r || r.status !== 'programmato' || r.started_at) return null;
-    var t0 = new Date(r.run_date).getTime(), n = now == null ? Date.now() : now, H = 3600000;
-    if (!isFinite(t0) || n > t0 + 12 * H || n < t0 - 2 * H) return null;
-    return n >= t0 - H / 2 ? 'banner' : 'early';
+  /* ora di partenza del giorno d (ora locale): giorno 1 = data del Run, gli altri all'orario scelto (day_starts) o alla stessa ora */
+  var HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/;
+  L.dayStart = function (r, d) {
+    var b = new Date(r && r.run_date), t = b.getTime();
+    if (!isFinite(t)) return NaN;
+    d = Math.max(1, d || 1);
+    var x = new Date(b.getFullYear(), b.getMonth(), b.getDate() + d - 1, b.getHours(), b.getMinutes()), m = d > 1 && r.day_starts && HHMM.exec(r.day_starts[String(d)] || '');
+    if (m) x.setHours(+m[1], +m[2], 0, 0);
+    return d === 1 ? t : x.getTime();
   };
+  L.dayStartTime = function (r, d) { var m = d > 1 && r && r.day_starts && HHMM.exec(r.day_starts[String(d)] || ''); return m ? m[0] : null; };
+  /* giorno che si può far partire adesso: da 2 ore prima a 12 ore dopo la sua partenza (come sul server) */
+  L.nextStartDay = function (r, now) {
+    if (!r || r.status !== 'programmato') return null;
+    var n = now == null ? Date.now() : now, H = 3600000, d, ds, last = L.runDays(r);
+    for (d = r.started_at ? (r.started_day || 1) + 1 : 1; d <= last; d++) {
+      ds = L.dayStart(r, d);
+      if (!isFinite(ds) || n < ds - 2 * H) return null;
+      if (n <= ds + 12 * H) return d;
+    }
+    return null;
+  };
+  /* fase della partenza: 'banner' da 30 minuti prima a 12 ore dopo, 'early' da 2 ore prima (solo nel dettaglio) */
+  L.startPhase = function (r, now) {
+    var n = now == null ? Date.now() : now, d = L.nextStartDay(r, n);
+    if (!d) return null;
+    return n >= L.dayStart(r, d) - 1800000 ? 'banner' : 'early';
+  };
+  /* un Run va in archivio 6 ore dopo la partenza dell'ultimo giorno */
+  L.isPast = function (r, now) {
+    var n = now == null ? Date.now() : now;
+    return r.status === 'concluso' || L.dayStart(r, L.runDays(r)) < n - 6 * 3600000;
+  };
+  /* chiave del "Ho visto": Run e giorno */
+  L.ackKey = function (r) { return r.id + ':' + (r.started_day || 1); };
   /* avviso "si parte" da confermare con "Ho visto": entro 12 ore dalla partenza, non per chi l'ha fatta partire */
   L.startAlertRun = function (runs, me, acks, now) {
     var n = now == null ? Date.now() : now, seen = acks || [];
     return (runs || []).filter(function (r) {
       var s = r.started_at ? new Date(r.started_at).getTime() : NaN;
-      return isFinite(s) && r.status !== 'annullato' && n - s < 12 * 3600000 && me && r.started_by !== me.id && seen.indexOf(r.id) < 0;
+      return isFinite(s) && r.status !== 'annullato' && n - s < 12 * 3600000 && me && r.started_by !== me.id && seen.indexOf(L.ackKey(r)) < 0;
     }).sort(function (a, b) { return new Date(b.started_at) - new Date(a.started_at); })[0] || null;
+  };
+
+  /* soste del gruppo dal GPS di chi guida: sosta sotto 5 km/h per 3 minuti (semafori e code non contano),
+     ripartenza sopra 20 km/h per 30 secondi e ad almeno 200 m dal punto di sosta (a piedi non riparte) */
+  L.HALT = { slowKmh: 5, slowMs: 180000, fastKmh: 20, fastMs: 30000, awayKm: 0.2, gapMs: 30000 };
+  L.haltNew = function (halted, at) { return { mode: halted ? 'halt' : 'move', slowSince: null, fastSince: null, at: at || null, last: null }; };
+  /* un campione GPS {lat, lng, t (ms), kmh (null se il telefono non la dà)}; restituisce 'stop', 'go' o null */
+  L.haltStep = function (st, s) {
+    var C = L.HALT, v = s.kmh, ev = null;
+    if (v == null || !isFinite(v)) v = st.last && s.t > st.last.t ? L.haversine(st.last, s) / ((s.t - st.last.t) / 3600000) : 0;
+    if (st.mode === 'move') {
+      st.fastSince = null;
+      if (v < C.slowKmh) {
+        if (st.slowSince == null) { st.slowSince = s.t; st.at = { lat: s.lat, lng: s.lng }; }
+        if (s.t - st.slowSince >= C.slowMs) { st.mode = 'halt'; ev = 'stop'; st.slowSince = null; }
+      } else st.slowSince = null;
+    } else {
+      st.slowSince = null;
+      if (!st.at) st.at = { lat: s.lat, lng: s.lng };
+      if (v >= C.fastKmh && L.haversine(st.at, s) >= C.awayKm) {
+        if (st.fastSince == null) st.fastSince = s.t;
+        if (s.t - st.fastSince >= C.fastMs) { st.mode = 'move'; ev = 'go'; st.fastSince = null; st.at = null; }
+      } else st.fastSince = null;
+    }
+    st.last = { lat: s.lat, lng: s.lng, t: s.t };
+    return ev;
+  };
+  /* da fermi il telefono può smettere di mandare posizioni: nessun aggiornamento per 30 s conta come fermo */
+  L.haltTick = function (st, t) {
+    var C = L.HALT;
+    if (st.mode !== 'move' || !st.last || t - st.last.t < C.gapMs) return null;
+    if (st.slowSince == null) { st.slowSince = st.last.t; st.at = { lat: st.last.lat, lng: st.last.lng }; }
+    if (t - st.slowSince >= C.slowMs) { st.mode = 'halt'; st.slowSince = null; return 'stop'; }
+    return null;
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = L; else root.RBL = L;
