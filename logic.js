@@ -522,6 +522,17 @@
     { name: 'Laurentino / Laurentina', lat: 41.79, lng: 12.475 }, { name: 'Monte Mario / Cassia', lat: 41.934, lng: 12.45 }, { name: 'Ostia', lat: 41.73, lng: 12.283 }
   ];
 
+  /* mappa Google del luogo dentro l'app (incorporamento senza chiave) e query per aprirlo in Google Maps: coordinate se presenti, altrimenti testo */
+  L.placeQuery = function (p, txt) {
+    if (L.hasCoords(p)) return (+p.lat).toFixed(6) + ',' + (+p.lng).toFixed(6);
+    var q = p ? [p.name, p.addr].filter(Boolean).join(', ') : '';
+    return (q || String(txt == null ? '' : txt)).trim().slice(0, 300);
+  };
+  L.mapEmbedUrl = function (p, txt, lang) {
+    var q = L.placeQuery(p, txt);
+    return q ? 'https://maps.google.com/maps?q=' + encodeURIComponent(q) + '&z=15&hl=' + (lang || 'it') + '&output=embed' : null;
+  };
+
   /* navigatore: solo Google Maps. Oltre 9 tappe intermedie il percorso si divide in tratte consecutive (ogni tratta riparte dall'arrivo della precedente) */
   L.NAV_MAX_WAYPOINTS = 9;
   L.navTool = function (v) { return v === 'none' ? 'none' : 'google'; };

@@ -176,7 +176,8 @@
 
     var info = h('div', { class: 'list' });
     info.appendChild(RB.row({ lead: RB.icon('clock'), title: RB.fmt.day(dt), sub: RB.fmt.time(dt), go: false }));
-    if (r.meeting_point) info.appendChild(RB.row({ lead: RB.icon('pin'), title: t('meeting'), sub: r.meeting_point, href: RB.mapsUrl(r.meeting_point) }));
+    var mq = RBL.placeQuery(r.meeting, r.meeting_point);
+    if (r.meeting_point) info.appendChild(RB.row({ lead: RB.icon('pin'), title: t('meeting'), sub: r.meeting_point, href: RB.mapsUrl(mq) }));
     if (r.destination) info.appendChild(RB.row({ lead: RB.icon('route'), title: t('destination'), sub: r.destination, href: RB.mapsUrl(r.destination) }));
     if (r.km) info.appendChild(RB.row({ title: t('distance'), value: r.km + ' km', go: false }));
     info.appendChild(RB.row({ title: t('difficulty'), value: t(DIFF[r.difficulty] || 'diff_media'), go: false }));
@@ -190,6 +191,8 @@
     var ru = seeRoute(r) ? RB.safeUrl(r.route_url) : null;
     if (ru) info.appendChild(RB.row({ lead: RB.icon('route'), title: t('route_link'), href: ru }));
     f.appendChild(info);
+    if (mq) f.appendChild(h('div', { class: 'list mapbox' }, h('iframe', { src: RBL.mapEmbedUrl(r.meeting, r.meeting_point, (RB.pref && RB.pref.lang) || 'it'), title: t('meeting_map'), loading: 'lazy', referrerpolicy: 'no-referrer-when-downgrade', allowfullscreen: '' }),
+      RB.row({ lead: RB.icon('pin'), title: t('meeting_open'), href: RB.mapsUrl(mq) })));
     if (r.description) f.appendChild(h('div', { class: 'card', style: 'white-space:pre-wrap' }, r.description));
 
     RB.weatherSection(r, f, ctl);

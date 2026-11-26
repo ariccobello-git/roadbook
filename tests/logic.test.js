@@ -43,6 +43,9 @@ t('navigazione', ()=>{
   assert.deepStrictEqual(seen,P(25)); assert.strictEqual(l25.length,3);
   const tricky=L.googleNav(['A&B=1','C|D','E#F'])[0]; assert.strictEqual(sp(tricky).get('origin'),'A&B=1'); assert.strictEqual(sp(tricky).get('waypoints'),'C|D');
   assert.strictEqual(L.navTool('none'),'none'); ['apple','both','google',undefined,null,''].forEach(v=>assert.strictEqual(L.navTool(v),'google'));
+  assert.strictEqual(L.placeQuery({lat:41.7799579,lng:12.4466032,name:'H-D'},'x'),'41.779958,12.446603'); assert.strictEqual(L.placeQuery({name:'Bar',addr:'Via A 1'},'x'),'Bar, Via A 1'); assert.strictEqual(L.placeQuery(null,' Ostia '),'Ostia'); assert.strictEqual(L.placeQuery(null,''),''); assert.strictEqual(L.placeQuery({lat:'',lng:''},'Roma'),'Roma');
+  const em=new URL(L.mapEmbedUrl(L.HD_STORE,'','fr')); assert.strictEqual(em.origin,'https://maps.google.com'); assert.strictEqual(em.searchParams.get('output'),'embed'); assert.strictEqual(em.searchParams.get('q'),'41.779958,12.446603'); assert.strictEqual(em.searchParams.get('hl'),'fr');
+  assert.strictEqual(new URL(L.mapEmbedUrl(null,'A&B #1')).searchParams.get('q'),'A&B #1'); assert.strictEqual(L.mapEmbedUrl(null,''),null);
   assert.strictEqual(L.HD_STORE.addr,'Via Pontina 583, 00128 Roma'); assert.strictEqual(L.HD_STORE.kind,'hd'); assert(Math.abs(L.HD_STORE.lat-41.78)<0.01&&Math.abs(L.HD_STORE.lng-12.447)<0.01);
 });
 t('date', ()=>{

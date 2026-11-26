@@ -134,6 +134,8 @@ async function newPage(browser, vp, level, log, errors) {
     assert.ok((await page.textContent('.sheet.in')).includes('Singola'), 'sistemazione assegnata visibile'); step('sistemazione ed extra assegnati dall\'organizzazione'); }
   const hrefs = await page.locator('.sheet.in a[href]').evaluateAll(a => a.map(x => x.getAttribute('href')));
   const gm = hrefs.find(h => h.includes('google.com/maps/dir'));
+  const emb = await page.locator('.sheet.in .mapbox iframe').getAttribute('src'); assert.ok(emb && emb.startsWith('https://maps.google.com/maps?q=Piazzale%20Ostiense%2C%20Roma') && emb.includes('output=embed'), 'mappa Google del ritrovo');
+  assert.ok(hrefs.some(h => h === 'https://www.google.com/maps/search/?api=1&query=Piazzale%20Ostiense%2C%20Roma'), 'apri ritrovo in Google Maps');
   assert.ok(gm && !hrefs.some(h => h.includes('maps.apple.com')), 'solo Google Maps per lo staff'); const gu = new URL(gm);
   assert.strictEqual(gu.searchParams.get('origin'), 'Piazzale Ostiense, Roma'); assert.strictEqual(gu.searchParams.get('destination'), 'Frascati'); assert.strictEqual(gu.searchParams.get('waypoints'), 'Via Roma 1, Grottaferrata|Piazza Marconi, Frascati');
   assert.ok(!txt.includes('Apple') && txt.includes('Via Roma 1, Grottaferrata')); step('navigazione: solo Google Maps con ritrovo, tappe e arrivo');

@@ -733,6 +733,8 @@
     ie_ruolo_sconosciuto: ["ruolo sconosciuto o non assegnabile", "unknown or non-assignable role", "rôle inconnu ou non attribuable"],
     yes: ["Sì", "Yes", "Oui"],
     no: ["No", "No", "Non"],
+    meeting_map: ["Mappa del ritrovo", "Meeting point map", "Carte du rendez-vous"],
+    meeting_open: ["Apri il ritrovo in Google Maps", "Open the meeting point in Google Maps", "Ouvrir le rendez-vous dans Google Maps"],
     nav_title: ["Navigazione", "Navigation", "Navigation"],
     nav_tool: ["Google Maps per i soci", "Google Maps for members", "Google Maps pour les membres"],
     nav_open_google: ["Apri in Google Maps", "Open in Google Maps", "Ouvrir dans Google Maps"],
