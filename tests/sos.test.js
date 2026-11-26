@@ -57,7 +57,7 @@ const STUB = `
   MR.isTypeSupported=function(){return true;};
   window.MediaRecorder=MR;
   if(!navigator.mediaDevices)Object.defineProperty(navigator,'mediaDevices',{value:{}});
-  navigator.mediaDevices.getUserMedia=function(){return Promise.resolve({getTracks:function(){return [{stop:function(){}}];}});};
+  Object.defineProperty(navigator.mediaDevices,'getUserMedia',{configurable:true,writable:true,value:function(){return Promise.resolve({getTracks:function(){return [{stop:function(){}}];}});}});
 })();`;
 
 async function run(devName) {
@@ -74,7 +74,7 @@ async function run(devName) {
     const ctx = await browser.newContext(Object.assign({}, opts, { locale: 'it-IT', timezoneId: 'Europe/Rome', geolocation: { latitude: 41.9, longitude: 12.5, accuracy: 25 }, permissions: ['geolocation'].concat(NATIVE && engine === pw.chromium ? ['microphone'] : []) }));
     const page = await ctx.newPage(); const log = []; await page.addInitScript(() => { try { localStorage.setItem('rb.tour', '1'); } catch (e) {} });
     page.on('pageerror', e => errors.push(devName + ' pageerror: ' + e.message));
-    page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource|favicon|net::ERR/.test(m.text())) errors.push(devName + ' console: ' + m.text()); });
+    page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource|favicon|net::ERR|CORS request did not succeed/.test(m.text())) errors.push(devName + ' console: ' + m.text()); });
     await page.addInitScript(STUB);
     await page.route('**/cdnjs.cloudflare.com/**/xlsx.full.min.js', r => r.fulfill({ contentType: 'application/javascript', body: fs.readFileSync('./node_modules/xlsx/dist/xlsx.full.min.js') }));
     const st = backend(page, level, log, flags);
@@ -128,7 +128,8 @@ async function run(devName) {
   await page.click('#sos-btn'); await page.waitForSelector('.sos-kind'); await page.click('.sos-kind[data-k="salute_altro"]');
   await page.waitForSelector('#sos-parts .row'); assert((await page.locator('#sos-parts .row').count()) >= 1);
   await page.locator('#sos-parts .row').first().click(); await page.waitForSelector('#sos-rec');
-  await page.click('#sos-rec'); await page.waitForTimeout(150); await page.click('#sos-rec'); await page.waitForFunction(() => /Vocale pronto/.test(document.body.innerText), null, { timeout: 5000 });
+  await page.click('#sos-rec'); await page.waitForFunction(() => /^Stop$/.test(document.getElementById('sos-rec').textContent.trim()), null, { timeout: 5000 }).catch(() => { throw new Error('C1 registrazione non partita'); });
+  await page.click('#sos-rec'); await page.waitForFunction(() => /Vocale pronto/.test(document.body.innerText), null, { timeout: 5000 }).catch(() => { throw new Error('C1 vocale non pronto'); });
   await page.click('#sos-send'); await page.waitForSelector('#sos-done');
   const s2 = log.find(l => l.fn === 'rc_sos_send').body;
   assert.equal(s2.p_code, 'ABCD2345'); assert.equal(s2.p_kind, 'salute_altro'); assert(s2.p_subject); assert(s2.p_voice && s2.p_voice.length > 100 && s2.p_ms <= 31000); ok('C1 salute altro + vocale + dati autenticati');
@@ -137,16 +138,16 @@ async function run(devName) {
   /* D. gestione: banner, lista, scheda, stato, export */
   ({ ctx, page, log, st } = await ctxFor('mgr', {}));
   await page.goto(BASE); await page.fill('#code', 'ABCD2345'); await page.click('button.btn.pri'); await page.waitForSelector('#sos-alert', { timeout: 8000 }); ok('D1 banner emergenza aperta');
-  await page.click('#sos-alert'); await page.waitForSelector('.sheet.in .row'); await page.locator('.sheet.in .row').first().click(); await page.waitForSelector('#sos-brief');
+  await page.click('#sos-alert'); await page.waitForSelector('.sheet.in .row'); await page.locator('.sheet.in .row').first().click(); await page.waitForSelector('.sheet.in #sos-brief');
   const tel = await page.locator('.sheet.in a[href^="tel:"]').evaluateAll(a => a.map(x => x.getAttribute('href'))); assert(tel.includes('tel:3331112233') && tel.includes('tel:3330001111')); ok('D2 scheda con chiamate a tocco');
   await noOverflow(page, 'scheda');
-  await page.locator('#sos-actions .row', { hasText: 'Prendo in carico' }).click(); await page.waitForFunction(() => /In gestione/.test(document.body.innerText), null, { timeout: 5000 }); ok('D3 presa in carico');
+  await page.locator('#sos-actions .row', { hasText: 'Prendo in carico' }).click(); await page.waitForFunction(() => /In gestione/.test(document.body.innerText), null, { timeout: 5000 }).catch(() => { throw new Error('D3 stato In gestione non mostrato'); }); ok('D3 presa in carico');
   const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 15000 }), page.locator('#sos-actions .row', { hasText: 'Word' }).click()]);
   assert(/\.doc$/.test(dl.suggestedFilename())); ok('D4 export Word');
   const [dl2] = await Promise.all([page.waitForEvent('download', { timeout: 20000 }), page.locator('#sos-actions .row', { hasText: 'PDF' }).click()]);
   const pth = await dl2.path(); assert(fs.readFileSync(pth).slice(0, 4).toString() === '%PDF'); ok('D5 export PDF valido');
   await page.locator('#sos-actions .row', { hasText: 'Chiudi emergenza' }).click(); await page.fill('#sos-cn', 'Risolto'); await page.locator('.sheet:has(#sos-cn) .sb.r').click();
-  await page.waitForFunction(() => /Chiusa/.test(document.body.innerText), null, { timeout: 5000 }); ok('D6 chiusura con nota');
+  await page.waitForFunction(() => /Chiusa/.test(document.body.innerText), null, { timeout: 5000 }).catch(() => { throw new Error('D6 stato Chiusa non mostrato'); }); ok('D6 chiusura con nota');
   await ctx.close(); await browser.close();
   return { res, errors };
 }
