@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   var RB = window.RB = window.RB || {};
-  RB.RELEASE = '4.5.0';
+  RB.RELEASE = '4.6.0';
 
   /* ---------- DOM sicuro: i testi sono sempre nodi di testo, mai HTML ---------- */
   function add(el, kids) {
@@ -156,15 +156,15 @@
   var swOpen = null;
   function swClose(w) { if (!w) return; w.classList.remove('open'); w.firstChild.style.transform = ''; if (swOpen === w) swOpen = null; }
   document.addEventListener('pointerdown', function (e) { if (swOpen && !swOpen.contains(e.target)) swClose(swOpen); }, true);
-  RB.swipe = function (node, actions) {
-    var acts = h('div', { class: 'rsw-acts', 'aria-hidden': 'true' }), wrap = h('div', { class: 'rsw' }, node, acts), W = 0;
+  RB.swipe = function (node, actions, cls) {
+    var acts = h('div', { class: 'rsw-acts', 'aria-hidden': 'true' }), wrap = h('div', { class: 'rsw' + (cls ? ' ' + cls : '') }, node, acts), W = 0;
     actions.forEach(function (a) {
       acts.appendChild(h('button', { type: 'button', class: 'rsw-b ' + (a.cls || ''), tabindex: '-1', onclick: function (e) { e.stopPropagation(); swClose(wrap); RB.feel('tap'); a.fn(); } }, RB.icon(a.icon), h('span', null, a.label)));
     });
     var x0 = 0, y0 = 0, dx = 0, mode = '', base = 0, id = null;
     node.addEventListener('pointerdown', function (e) {
       if (e.button > 0 || e.target.closest('.me')) return;
-      id = e.pointerId; x0 = e.clientX; y0 = e.clientY; dx = 0; mode = ''; W = acts.offsetWidth - 26; base = wrap.classList.contains('open') ? -W : 0;
+      id = e.pointerId; x0 = e.clientX; y0 = e.clientY; dx = 0; mode = ''; W = acts.offsetWidth - parseFloat(getComputedStyle(acts).paddingLeft); base = wrap.classList.contains('open') ? -W : 0;
     });
     node.addEventListener('pointermove', function (e) {
       if (e.pointerId !== id) return;
