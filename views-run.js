@@ -333,6 +333,13 @@
   function nextSunday9() {
     var d = new Date(); d.setDate(d.getDate() + ((7 - d.getDay()) % 7 || 7)); d.setHours(9, 0, 0, 0); return d.toISOString();
   }
+  /* link di Google Maps arrivato dal menu Condividi: nuovo Run con il percorso già letto */
+  RB.openShared = function () {
+    var txt = null; try { txt = sessionStorage.getItem('rb.share'); sessionStorage.removeItem('rb.share'); } catch (e) {}
+    if (!txt) return;
+    if (!RB.can('runs_edit')) { RB.toast(t('gm_noperm'), 'err'); return; }
+    RB.runForm(null); if (RB.runFormGmaps) RB.runFormGmaps(txt);
+  };
   /* nuovo Run: da zero oppure copiando l'ultimo (come "duplica evento" delle app di eventi) */
   RB.newRun = function () {
     var last = RB.runs().filter(function (r) { return r.status !== 'annullato' && isPast(r); }).sort(function (a, b) { return new Date(b.run_date) - new Date(a.run_date); })[0];
@@ -565,9 +572,29 @@
       holder.appendChild(pr);
       return holder;
     }
+    /* percorso condiviso da Google Maps per il giorno d: partenza (solo giorno 1), tappe, arrivo del giorno */
+    function applyGmaps(route, link, d) {
+      var x = RBL.gmapsToRun(route, 40 - stops.filter(function (s) { return s.day !== d || s.end; }).length);
+      if (!x) return;
+      stops = stops.filter(function (s) { return s.day !== d || s.end; });
+      if (d === 1 && x.meeting) meeting = x.meeting;
+      else if (d > 1 && x.meeting) x.stops.unshift(x.meeting);
+      x.stops.forEach(function (p) { stops.push({ time: '', name: p.name, addr: p.addr, kind: p.kind || 'altro', lat: p.lat, lng: p.lng, day: d, end: false }); });
+      if (d === ST.days) dest = x.dest; else setEnd(d, x.dest);
+      var u = document.getElementById('rf-url'); if (u && !u.value.trim()) u.value = link;
+      changedAll();
+      RB.toast(t('gm_done', route.points.length) + (x.dropped ? ' · ' + t('gm_dropped', x.dropped) : ''));
+    }
+    RB.runFormGmaps = function (text) { RB.gmapsImport({ text: text, onApply: function (rt, link) { applyGmaps(rt, link, ST.day); } }); };
     function drawPanel() {
       RB.clear(panel);
       var d = ST.day, multi = ST.days > 1, last = d === ST.days;
+      panel.appendChild(h('div', { class: 'list', style: 'margin-bottom:10px' }, RB.row({ lead: RB.icon('route'), title: t('gm_title'), sub: t('gm_sub'), id: 'rf-gmaps',
+        onclick: function () { RB.gmapsImport({ onApply: function (rt, link) {
+          var has = (d === 1 && meeting) || dest || stops.some(function (s) { return s.day === d; });
+          if (!has) { applyGmaps(rt, link, d); return; }
+          RB.ask({ title: t('gm_title'), msg: t('gm_replace'), ok: t('gm_apply'), no: t('cancel') }).then(function (y) { if (y) applyGmaps(rt, link, d); });
+        } }); } })));
       if (!multi || d === 1) {
         panel.appendChild(RB.placeRow({ label: t('meeting'), kinds: ['area', 'bar', 'altro'], withFungo: true, get: function () { return meeting; }, set: function (p) { meeting = p; }, changed: function () { changedAll(); } }));
       } else {

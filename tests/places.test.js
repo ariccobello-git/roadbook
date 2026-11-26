@@ -206,6 +206,25 @@ async function newPage(browser, vp, level, log, errors) {
   const hrefs = await TOP().locator('a[href]').evaluateAll(a => a.map(x => x.href));
   assert.ok(hrefs.some(h => h.includes('google.com/maps/dir') && h.includes('origin=41.824428%2C12.462984'))); assert.ok(hrefs.filter(h => h.includes('google.com/maps/dir')).length === 2 && !hrefs.some(h => h.includes('maps.apple.com'))); step('dettaglio: percorso per giorno con Google Maps');
   await page.screenshot({ path: SHOTS + '26-dettaglio-giorni.png' });
+
+  /* import da Google Maps: link breve copiato da iPhone, aperto dalla funzione sul server */
+  const GM = require('./fixtures/gmaps-links.json'); let expandCalls = 0;
+  await page.route('**/functions/v1/maps-expand', async r => { expandCalls++; const b = JSON.parse(r.request().postData() || '{}'); const hit = Object.values(GM).find(x => x.short === b.url); await r.fulfill({ contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(hit ? { ok: true, url: hit.long } : { ok: false, error: 'link_non_valido' }) }); });
+  await page.keyboard.press('Escape'); await wait(400);
+  await page.click('button[aria-label="Nuovo Run"]'); await page.waitForSelector('.sheet.in .row.act'); await page.click('.sheet.in .row.act:has-text("da zero")'); await page.waitForSelector('#rf-title'); await wait(500);
+  await page.fill('#rf-title', 'Roma - Lucca');
+  await page.click('#rf-gmaps'); await page.waitForSelector('#gm-in'); await wait(400);
+  await page.fill('#gm-in', 'Testo qualsiasi senza link'); await page.click('#gm-read'); await page.waitForSelector('#gm-out .banner'); step('import Google Maps: testo senza link segnalato');
+  await page.fill('#gm-in', 'Indicazioni per Lucca ' + GM.iphone_1.short); await page.click('#gm-read'); await page.waitForSelector('#gm-out .list .row');
+  assert.strictEqual(await page.locator('#gm-out .list .row').count(), 5); tt = await TOP().textContent(); assert.ok(tt.includes('5 punti trovati') && tt.includes('H-D Store Roma') && tt.includes('Viale Europa') && tt.includes('43.68360, 10.91292')); assert.strictEqual(expandCalls, 1);
+  await page.screenshot({ path: SHOTS + '27-import-gmaps.png' }); step('import Google Maps: anteprima di 5 punti dal link breve');
+  await TOP().locator('.sb.r').click(); await wait(700);
+  tt = await TOP().textContent(); assert.ok(tt.includes('H-D Store Roma') && tt.includes('Viale Europa') && tt.includes('Q8')); assert.strictEqual(await page.inputValue('#rf-url'), GM.iphone_1.short);
+  await TOP().locator('.sb.r').click(); await wait(800);
+  const gs = log.filter(l => l.fn === 'rc_run_save').pop().body.p;
+  assert.strictEqual(gs.title, 'Roma - Lucca'); assert.strictEqual(gs.meeting.name, 'H-D Store Roma'); assert.strictEqual(gs.meeting.kind, 'hd'); assert.strictEqual(gs.dest.name, 'Viale Europa'); assert.ok(Math.abs(gs.dest.lat - 43.834718) < 1e-6);
+  assert.deepStrictEqual(gs.stops.filter(x => !x.end).map(x => [x.name, x.day]), [['IP', 1], ['Q8', 1], ['', 1]]); assert.ok(gs.stops.every(x => x.lat && x.lng)); assert.strictEqual(gs.stops[2].addr, '43.68360, 10.91292'); assert.strictEqual(gs.route_url, GM.iphone_1.short);
+  step('import Google Maps: ritrovo H-D Store, 3 tappe con coordinate, arrivo Lucca salvati');
   assert.deepStrictEqual(errors, [], errors.join('\n'));
   await browser.close(); console.log('PLACES OK');
 })().catch(e => { console.error(e); process.exit(1); });

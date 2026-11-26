@@ -20,6 +20,13 @@
       }, function () { return { ok: false, error: 'network' }; });
   };
 
+  /* funzioni sul server (Edge Functions), es. apertura dei link brevi di Google Maps */
+  RB.fn = function (name, body) {
+    return fetch(URL_.replace('/rest/v1/rpc/', '/functions/v1/') + name, { method: 'POST', headers: { apikey: KEY, 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) })
+      .then(function (r) { return r.json().catch(function () { return null; }); }, function () { return { ok: false, error: 'network' }; })
+      .then(function (j) { return j && typeof j === 'object' ? j : { ok: false, error: 'server' }; });
+  };
+
   /* ---- sessione ---- */
   RB.normCode = function (s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); };
   RB.login = function (code) {
