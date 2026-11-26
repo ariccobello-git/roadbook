@@ -963,5 +963,83 @@
     return { runs: done.length, avg: withData.length ? Math.round(tot * 10 / withData.length) / 10 : 0, km: done.reduce(function (a, r) { return a + (r.km || 0); }, 0), top: top, byMonth: byMonth, active: Object.keys(byMember).length };
   };
 
+  /* ---------- import di un percorso condiviso da Google Maps ---------- */
+  /* primo link Google Maps dentro un testo condiviso ("Indicazioni per ... https://maps.app.goo.gl/...") */
+  L.gmapsFind = function (txt) {
+    var m = String(txt == null ? '' : txt).match(/https:\/\/(?:maps\.app\.goo\.gl|goo\.gl\/maps|(?:www\.|maps\.)?google\.(?:com|[a-z]{2}|co\.[a-z]{2}|com\.[a-z]{2})\/maps)[^\s"'<>]*/i);
+    return m ? m[0].replace(/[).,;]+$/, '') : null;
+  };
+  L.gmapsIsShort = function (u) { return /^https:\/\/(maps\.app\.goo\.gl|goo\.gl\/maps)\//i.test(String(u || '')); };
+  /* coordinate dal parametro geocode dei link condivisi da iPhone: per punto, 0x15 + lat*1e6 e 0x1d + lng*1e6 (interi a 32 bit) */
+  function b64bytes(s) {
+    s = String(s || '').replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '=';
+    var bin; try { bin = typeof atob === 'function' ? atob(s) : Buffer.from(s, 'base64').toString('binary'); } catch (e) { return null; }
+    var out = []; for (var i = 0; i < bin.length; i++) out.push(bin.charCodeAt(i) & 255); return out;
+  }
+  function i32(b, o) { var v = b[o] | (b[o + 1] << 8) | (b[o + 2] << 16) | (b[o + 3] << 24); return v; }
+  L.gmapsGeocode = function (g) {
+    var b = b64bytes(g);
+    if (!b || b.length < 10 || b[0] !== 0x15 || b[5] !== 0x1d) return null;
+    var lat = i32(b, 1) / 1e6, lng = i32(b, 6) / 1e6;
+    return Math.abs(lat) <= 90 && Math.abs(lng) <= 180 && (lat || lng) ? { lat: lat, lng: lng } : null;
+  };
+  var COORD_RE = /^\s*(-?\d{1,2}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)\s*$/;
+  function gPoint(txt, ll) {
+    txt = String(txt || '').replace(/\s+/g, ' ').trim();
+    var c = COORD_RE.exec(txt), p = { name: '', addr: '', kind: 'altro' };
+    if (c) { p.lat = +c[1]; p.lng = +c[2]; p.addr = p.lat.toFixed(5) + ', ' + p.lng.toFixed(5); }
+    else if (txt) { var i = txt.indexOf(','); p.name = (i > 0 ? txt.slice(0, i) : txt).trim().slice(0, 80); p.addr = txt.slice(0, 200); if (p.name === p.addr) p.addr = ''; }
+    if (ll && !c) { p.lat = ll.lat; p.lng = ll.lng; }
+    return (p.name || p.addr || L.hasCoords(p)) ? p : null;
+  }
+  /* da un link completo di Google Maps: partenza, tappe, arrivo (con coordinate se presenti) e strade da evitare.
+     Formati: maps?saddr=&daddr=A+to:B (iPhone), /maps/dir/A/B/... (Android e computer), /maps/dir/?api=1 */
+  L.parseGmaps = function (url) {
+    var u; try { u = new URL(url); } catch (e) { return null; }
+    if (!/^(www\.|maps\.)?google\.(?:com|[a-z]{2}|co\.[a-z]{2}|com\.[a-z]{2})$/i.test(u.hostname) || !/^\/maps/.test(u.pathname)) return null;
+    var q = u.searchParams, texts = [], lls = [], avoid = [], flg = q.get('dirflg') || '';
+    if (q.get('saddr') != null || q.get('daddr')) {
+      texts = [q.get('saddr') || ''].concat(String(q.get('daddr') || '').split(/\s+to:/));
+      lls = String(q.get('geocode') || '').split(';').map(L.gmapsGeocode);
+      if (lls.length !== texts.length) lls = [];
+    } else if (q.get('api') === '1' && q.get('destination')) {
+      texts = [q.get('origin') || ''].concat(q.get('waypoints') ? q.get('waypoints').split('|') : [], [q.get('destination')]);
+      if (!q.get('origin')) texts.shift();
+      String(q.get('avoid') || '').split(',').forEach(function (a) { if (/^(highways|tolls|ferries)$/.test(a)) avoid.push(a); });
+    } else {
+      var m = /^\/maps\/dir\/(.*?)(?:\/@|\/data=|\/?$)/.exec(u.pathname);
+      if (!m) return null;
+      texts = m[1].split('/').map(function (x) { try { return decodeURIComponent(x.replace(/\+/g, ' ')); } catch (e) { return x; } });
+      var data = /\/data=([^/?]*)/.exec(u.pathname), pairs = [], re = /!1d(-?\d+(?:\.\d+)?)!2d(-?\d+(?:\.\d+)?)/g, mm;
+      if (data) while ((mm = re.exec(data[1]))) pairs.push({ lng: +mm[1], lat: +mm[2] });
+      var named = texts.filter(function (x) { return x && !COORD_RE.test(x); });
+      if (pairs.length === named.length) { var k = 0; lls = texts.map(function (x) { return x && !COORD_RE.test(x) ? pairs[k++] : null; }); }
+      if (data && /!1b1/.test(data[1])) avoid.push('highways');
+      if (data && /!2b1/.test(data[1])) avoid.push('tolls');
+    }
+    if (/h/.test(flg)) avoid.push('highways');
+    if (/t/.test(flg)) avoid.push('tolls');
+    var pts = [], mine = false;
+    texts.forEach(function (x, i) {
+      if (!String(x || '').trim() || /^(la mia posizione|my location|ma position|posizione attuale|current location)$/i.test(String(x).trim())) { if (i === 0) mine = true; return; }
+      var p = gPoint(x, lls[i]); if (p) pts.push(p);
+    });
+    if (!pts.length) return null;
+    /* luoghi noti (H-D Store Roma, Fungo dell'EUR): nome e tipo predefiniti se il punto è entro 300 m */
+    pts = pts.map(function (p) {
+      var k = [L.HD_STORE, L.FUNGO].filter(function (x) { return L.hasCoords(p) && L.haversine({ lat: +p.lat, lng: +p.lng }, x) <= 0.3; })[0];
+      return k ? Object.assign({}, k) : p;
+    });
+    return { points: pts, fromMyLocation: mine, avoid: avoid.filter(function (a, i) { return avoid.indexOf(a) === i; }) };
+  };
+  /* punti importati → ritrovo (primo), tappe (intermedie, massimo max), arrivo (ultimo) */
+  L.gmapsToRun = function (g, max) {
+    var pts = (g && g.points) || [], n = pts.length;
+    if (!n) return null;
+    if (n === 1) return { meeting: null, stops: [], dest: pts[0], dropped: 0 };
+    var mid = pts.slice(1, -1), lim = max == null ? 40 : max;
+    return { meeting: g.fromMyLocation ? null : pts[0], stops: (g.fromMyLocation ? [pts[0]] : []).concat(mid).slice(0, lim), dest: pts[n - 1], dropped: Math.max(0, mid.length + (g.fromMyLocation ? 1 : 0) - lim) };
+  };
+
   if (typeof module !== 'undefined' && module.exports) module.exports = L; else root.RBL = L;
 })(typeof window !== 'undefined' ? window : this);

@@ -53,7 +53,7 @@
 
   function start() {
     RB.render();
-    RB.sync().then(function () { if (RB.S.code) { RB.render(); RB.startSync(); RB.sosStartPoll(); RB.sosFlush(); if (!RB.tourSeen()) setTimeout(RB.tour, 600); RB.payLoad().then(function (ok) { if (ok) RB.paySoftRender(); }); RB.openFromLink(); RB.liveResume(); } });
+    RB.sync().then(function () { if (RB.S.code) { RB.render(); RB.startSync(); RB.sosStartPoll(); RB.sosFlush(); if (!RB.tourSeen()) setTimeout(RB.tour, 600); RB.payLoad().then(function (ok) { if (ok) RB.paySoftRender(); }); RB.openFromLink(); RB.openShared(); RB.liveResume(); } });
   }
 
   /* ---------- struttura ---------- */
@@ -241,6 +241,9 @@
   RB.applyPref();
   if ('serviceWorker' in navigator && /^https:|^http:\/\/localhost/.test(location.href)) { window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); }); }
   var qs = new URLSearchParams(location.search), inv = qs.get('c');
+  /* percorso condiviso da Google Maps verso Roadbook (menu Condividi su Android): si apre dopo l'accesso */
+  var shared = [qs.get('su'), qs.get('sx'), qs.get('st')].filter(Boolean).join(' ');
+  if (shared) { try { if (RBL.gmapsFind(shared)) sessionStorage.setItem('rb.share', shared.slice(0, 3000)); history.replaceState(null, '', location.pathname); } catch (e) {} }
   if (inv) {
     try { history.replaceState(null, '', location.pathname); } catch (e) {}
     RB.login(inv).then(function (r) { if (r.ok) start(); else loginScreen(t('e_auth')); });

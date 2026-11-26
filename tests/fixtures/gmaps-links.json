@@ -1,0 +1,10 @@
+{
+  "iphone_1": {
+    "short": "https://maps.app.goo.gl/AVEAKm6HXonT2BFg9?g_st=ic",
+    "long": "https://maps.google.com/maps?geocode=FeWCfQIdV-u9ACkvYx4zsYwlEzF42ZoMWPjrYA%3D%3D;FTYzhwIdQQ6uACnp_li_HvcoEzEHP1RDtJFr8A%3D%3D;FRCplwIdUa-pACkZJBnnnjkqEzFaGap1LTuIkA%3D%3D;FQ6PmgIdm4SmAA%3D%3D;FV7dnAIdFSCgACk1emxHeoTVEjEOX6qtDsKlgw%3D%3D&daddr=IP,+58011+Capalbio+GR+to:Q8,+Via+Pisana,+112,+50028+Zona+Industriale+FI+to:43.6835978,10.9129227+to:Viale+Europa,+536,+55100+Lucca+LU&saddr=Harley-Davidson+Store+Roma,+Via+Pontina,+583,+00128+Roma+RM&dirflg=d&ftid=0x13258cb1331e632f:0x60ebf8580c9ad978;0x12d5847a476c7a35:0x83a5c20eadaa5f0e&g_st=ic"
+  },
+  "iphone_2": {
+    "short": "https://maps.app.goo.gl/AX6ATgCd2QjaBybF7?g_st=ic",
+    "long": "https://maps.google.com/maps?geocode=FV7dnAIdFSCgACk1emxHeoTVEjEOX6qtDsKlgw%3D%3D;FbyYowIdGL6PACnLQfK3V5bUEjHSKvDe7DNAOA%3D%3D;Fc1fpQIdvBSJACm52wlHGkPTEjEgrGy0pN-jZg%3D%3D&daddr=MyChef+%E2%80%A2+Riviera+Nord,+km.+48,7,+Autostrada+A12+Roma-Genova,+16039+Sestri+Levante+GE+to:Ristorante+Bagni+di+Sole,+Via+del+Tritone,+3,+16147+Genova+GE&saddr=Viale+Europa,+536,+55100+Lucca+LU&dirflg=d&ftid=0x12d5847a476c7a35:0x83a5c20eadaa5f0e;0x12d3431a4709dbb9:0x66a3dfa4b46cac20&g_st=ic"
+  }
+}

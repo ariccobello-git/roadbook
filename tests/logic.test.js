@@ -25,6 +25,35 @@ t('permessi: dipendenze', ()=>{
   assert.deepStrictEqual(L.setPerm(['route_view','runs_edit'],'route_view',false),[]);
   for (let i=0;i<50;i++){ let p=[]; for(let j=0;j<20;j++){ const k=L.PERMS[Math.floor(Math.random()*L.PERMS.length)]; p=L.setPerm(p,k,Math.random()<.6); assert.deepStrictEqual(L.closePerms(p),p); } }
 });
+t('import Google Maps', ()=>{
+  const F=require('./fixtures/gmaps-links.json');
+  const g1=L.parseGmaps(F.iphone_1.long); assert.strictEqual(g1.points.length,5); assert.strictEqual(g1.fromMyLocation,false); assert.deepStrictEqual(g1.avoid,[]);
+  assert.deepStrictEqual(g1.points[0],Object.assign({},L.HD_STORE)); assert.strictEqual(g1.points[1].name,'IP'); assert.strictEqual(g1.points[1].addr,'IP, 58011 Capalbio GR'); assert.strictEqual(g1.points[1].lat,42.414902); assert.strictEqual(g1.points[1].lng,11.406913);
+  assert.deepStrictEqual([g1.points[3].lat,g1.points[3].lng,g1.points[3].name],[43.6835978,10.9129227,'']); assert.strictEqual(g1.points[4].lat,43.834718);
+  const g2=L.parseGmaps(F.iphone_2.long); assert.deepStrictEqual(g2.points.map(p=>p.name),['Viale Europa','MyChef • Riviera Nord','Ristorante Bagni di Sole']); assert(g2.points.every(p=>L.hasCoords(p)));
+  // geocode: valori negativi e voce corta
+  assert.deepStrictEqual(L.gmapsGeocode('FQ6PmgIdm4SmAA=='),{lat:43.683598,lng:10.912923}); assert.strictEqual(L.gmapsGeocode('xx'),null); assert.strictEqual(L.gmapsGeocode(''),null);
+  const neg=Buffer.from([0x15,...new Uint8Array(new Int32Array([-33868820]).buffer),0x1d,...new Uint8Array(new Int32Array([-151209290]).buffer)]).toString('base64');
+  assert.deepStrictEqual(L.gmapsGeocode(neg),{lat:-33.86882,lng:-151.20929});
+  // geocode con numero di voci diverso dai punti: niente coordinate sbagliate
+  const bad=L.parseGmaps('https://maps.google.com/maps?saddr=Roma&daddr=Napoli+to:Bari&geocode=FeWCfQIdV-u9AA%3D%3D'); assert.strictEqual(bad.points.length,3); assert(!bad.points.some(p=>L.hasCoords(p)));
+  // formato /maps/dir con data, opzioni evita e coordinate a coppie
+  const d=L.parseGmaps("https://www.google.com/maps/dir/Fungo+dell%27EUR,+Roma/41.9,12.5/Frascati/@41.8,12.6,11z/data=!4m14!4m13!1m5!1m1!1s0x1:0x2!2m2!1d12.462984!2d41.824428!1m0!1m5!1m1!1s0x3:0x4!2m2!1d12.68!2d41.81!2m3!1b1!2b1!3e0");
+  assert.strictEqual(d.points[0].name,"Fungo dell'EUR"); assert.strictEqual(d.points[0].kind,'area'); assert.deepStrictEqual([d.points[1].lat,d.points[1].lng],[41.9,12.5]); assert.deepStrictEqual([d.points[2].name,d.points[2].lat],['Frascati',41.81]); assert.deepStrictEqual(d.avoid,['highways','tolls']);
+  // api=1 e "La mia posizione"
+  const a=L.parseGmaps('https://www.google.com/maps/dir/?api=1&origin=Roma&destination=Lucca&waypoints=Siena%7CPisa&avoid=tolls,bogus'); assert.deepStrictEqual(a.points.map(p=>p.name),['Roma','Siena','Pisa','Lucca']); assert.deepStrictEqual(a.avoid,['tolls']);
+  const me=L.parseGmaps('https://maps.google.com/maps?saddr=La+mia+posizione&daddr=Siena+to:Lucca&dirflg=dh'); assert.strictEqual(me.fromMyLocation,true); assert.deepStrictEqual(me.points.map(p=>p.name),['Siena','Lucca']); assert.deepStrictEqual(me.avoid,['highways']);
+  const rm=L.gmapsToRun(me); assert.strictEqual(rm.meeting,null); assert.deepStrictEqual(rm.stops.map(p=>p.name),['Siena']); assert.strictEqual(rm.dest.name,'Lucca');
+  // non percorsi o domini estranei
+  ['https://evil.com/maps?saddr=a&daddr=b','https://www.google.com/maps/place/Roma','https://www.google.com/search?q=x','nonunurl','https://www.google.com.evil.com/maps/dir/A/B'].forEach(u=>assert.strictEqual(L.parseGmaps(u),null,u));
+  // ritrovo, tappe, arrivo e limite tappe
+  const r1=L.gmapsToRun(g1); assert.strictEqual(r1.meeting.name,'H-D Store Roma'); assert.strictEqual(r1.stops.length,3); assert.strictEqual(r1.dest.name,'Viale Europa'); assert.strictEqual(r1.dropped,0);
+  const r2=L.gmapsToRun(g1,2); assert.strictEqual(r2.stops.length,2); assert.strictEqual(r2.dropped,1);
+  assert.deepStrictEqual(L.gmapsToRun({points:[{name:'X'}]}),{meeting:null,stops:[],dest:{name:'X'},dropped:0}); assert.strictEqual(L.gmapsToRun(null),null);
+  // ricerca del link nel testo condiviso
+  assert.strictEqual(L.gmapsFind('Indicazioni per Lucca: '+F.iphone_1.short+'.'),F.iphone_1.short); assert.strictEqual(L.gmapsFind('vedi (https://www.google.com/maps/dir/A/B)'),'https://www.google.com/maps/dir/A/B'); assert.strictEqual(L.gmapsFind('https://evil.com/maps'),null); assert.strictEqual(L.gmapsFind(null),null);
+  assert(L.gmapsIsShort(F.iphone_2.short)); assert(!L.gmapsIsShort(F.iphone_2.long));
+});
 t('navigazione', ()=>{
   const run={meeting_point:'Piazzale Ostiense, Roma',stops:[{name:'Caffè',addr:'Via A 1, Grottaferrata'},{name:'Solo nome',addr:''},{name:'x',addr:'  via a 1 grottaferrata '},{name:'Pranzo',addr:'41.9,12.5'}],destination:'Frascati'};
   const p=L.navPoints(run); assert.deepStrictEqual(p,['Piazzale Ostiense, Roma','Via A 1, Grottaferrata','41.9,12.5','Frascati']);

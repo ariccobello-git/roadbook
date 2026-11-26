@@ -101,6 +101,52 @@
   }
 
   /* ---------- selettore ---------- */
+  /* ---------- import da Google Maps: link condiviso (Condividi → Copia link) → anteprima → ritrovo, tappe, arrivo ---------- */
+  RB.gmapsRead = function (txt) {
+    var link = L.gmapsFind(txt);
+    if (!link) return Promise.resolve({ ok: false, error: 'gm_nolink' });
+    var full = L.gmapsIsShort(link) ? RB.fn('maps-expand', { url: link }).then(function (x) { return x && x.ok ? x.url : null; }) : Promise.resolve(link);
+    return full.then(function (u) {
+      var g = u ? L.parseGmaps(u) : null;
+      return g ? { ok: true, link: link, route: g } : { ok: false, error: u ? 'gm_noroute' : 'gm_nolink' };
+    });
+  };
+  /* o: {text, onApply(route, link)} */
+  RB.gmapsImport = function (o) {
+    var ta = h('textarea', { id: 'gm-in', rows: 3, maxlength: 3000, placeholder: 'https://maps.app.goo.gl/…', autocapitalize: 'off', autocorrect: 'off', spellcheck: 'false' });
+    ta.value = (o && o.text) || '';
+    var out = h('div', { id: 'gm-out' }), got = null;
+    function draw(res) {
+      RB.clear(out); got = null;
+      if (!res) return;
+      if (!res.ok) { out.appendChild(h('div', { class: 'banner wa' }, t(res.error))); return; }
+      got = res; var pts = res.route.points, l = h('div', { class: 'list' });
+      pts.forEach(function (p, i) {
+        var role = i === 0 && !res.route.fromMyLocation ? t('meeting') : i === pts.length - 1 ? t('destination') : t('stop_n', i + (res.route.fromMyLocation ? 1 : 0));
+        l.appendChild(RB.row({ lead: RB.icon(i === 0 || i === pts.length - 1 ? 'pin' : 'route'), title: role, sub: RB.placeLabel(p) || (+p.lat).toFixed(5) + ', ' + (+p.lng).toFixed(5), go: false }));
+      });
+      out.appendChild(RB.secT(t('gm_found', pts.length)));
+      out.appendChild(l);
+      if (res.route.fromMyLocation) out.appendChild(h('p', { class: 'sm', style: 'padding:0 6px' }, t('gm_mine')));
+      if (res.route.avoid.length) out.appendChild(h('p', { class: 'sm', style: 'padding:0 6px' }, t('gm_avoid', res.route.avoid.map(function (a) { return t('gm_av_' + a); }).join(', '))));
+    }
+    function read() {
+      var v = ta.value.trim(); if (!v) return;
+      RB.clear(out); out.appendChild(h('div', { class: 'pp-st' }, t('gm_reading')));
+      RB.gmapsRead(v).then(draw, function () { draw({ ok: false, error: 'gm_nolink' }); });
+    }
+    var bar = h('div', { class: 'pp-sf', style: 'display:flex;gap:8px;margin-top:8px' });
+    if (navigator.clipboard && navigator.clipboard.readText) bar.appendChild(h('button', { type: 'button', class: 'btn sec', id: 'gm-paste', onclick: function () {
+      navigator.clipboard.readText().then(function (x) { ta.value = x || ''; read(); }, function () { RB.toast(t('gm_paste_no'), 'err'); });
+    } }, RB.icon('copy'), t('gm_paste')));
+    bar.appendChild(h('button', { type: 'button', class: 'btn pri', id: 'gm-read', onclick: read }, RB.icon('route'), t('gm_read')));
+    var ctl = RB.sheet({ title: t('gm_title'), leftLabel: t('cancel'), content: h('div', null,
+      h('p', { class: 'sm', style: 'padding:0 6px' }, t('gm_help')), h('div', { class: 'list' }, RB.field(t('gm_link'), ta)), bar, out),
+      right: { label: t('gm_apply'), fn: function (c) { if (!got) { read(); return; } RB.feel('ok'); c.close(true); o.onApply(got.route, got.link); } } });
+    if (ta.value) read();
+    return ctl;
+  };
+
   /* o: {title, kinds, withFungo (pulsanti rapidi Fungo dell'EUR e H-D Store Roma), value, onpick} */
   RB.placePicker = function (o) {
     var kinds = o.kinds || L.PLACE_KINDS, sel = o.value ? clean(o.value) : null, kind = (sel && kinds.indexOf(sel.kind) >= 0 ? sel.kind : kinds[0]);
