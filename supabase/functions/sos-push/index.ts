@@ -1,7 +1,9 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import webpush from 'npm:web-push@3.6.7';
 
-/* 9076 RoadBook: emergenze (solo a chi le gestisce), prova notifiche, promemoria e partenza e ripartenza dei Run */
+/* 9076 RoadBook: emergenze (solo a chi le gestisce), prova notifiche, promemoria, partenza e ripartenza dei Run,
+   richieste di iscrizione e «Mi sono perso». I tipi diversi dalle emergenze passano da rc_push_msgs */
+const KINDS = ['test', 'remind', 'start', 'restart', 'req', 'req_done', 'lost', 'lost_go', 'lost_eta', 'lost_here', 'lost_off'];
 Deno.serve(async (req: Request) => {
   const key = req.headers.get('x-push-key') || '';
   const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
@@ -10,12 +12,12 @@ Deno.serve(async (req: Request) => {
   const kind = body && typeof body.kind === 'string' ? body.kind : '';
   let msgs: any[] = [];
   let pub = '', priv = '';
-  if (kind === 'test' || kind === 'remind' || kind === 'start' || kind === 'restart') {
-    const ep = kind === 'start' || kind === 'restart' ? body.run : body.endpoint;
+  if (KINDS.includes(kind)) {
+    const ep = kind === 'test' || kind === 'remind' ? body.endpoint : body.run;
     const { data: job, error } = await sb.rpc('rc_push_msgs', { p_key: key, p_kind: kind, p_endpoint: typeof ep === 'string' ? ep : null });
     if (error || !job || !job.ok) return new Response('forbidden', { status: 403 });
     pub = job.pub; priv = job.priv;
-    msgs = (job.msgs || []).map((m: any) => ({ sub: m, payload: { title: m.title, body: m.body, tag: m.tag, url: './' }, ttl: m.ttl || 600, urgency: kind === 'test' ? 'normal' : 'high' }));
+    msgs = (job.msgs || []).map((m: any) => ({ sub: m, payload: { title: m.title, body: m.body, tag: m.tag, url: typeof m.url === 'string' && m.url.startsWith('./') ? m.url : './' }, ttl: m.ttl || 600, urgency: kind === 'test' ? 'normal' : 'high' }));
   } else {
     const { data: job, error } = await sb.rpc('rc_push_job', { p_key: key });
     if (error || !job || !job.ok) return new Response('forbidden', { status: 403 });
