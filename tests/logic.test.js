@@ -309,4 +309,19 @@ t('secondo livello: GPX, QR, statistiche', () => {
   const sb = L.statsMember(runs, su, 'b', Date.UTC(2026, 5, 1)); assert.deepStrictEqual([sb.attended, sb.rate], [1, 50]); assert.strictEqual(L.statsMember(runs, su, 'zz', Date.UTC(2026, 5, 1)).attended, 0);
   const c = L.statsChapter(runs, su, [{ id: 'a', first_name: 'A' }, { id: 'b', first_name: 'B' }], Date.UTC(2026, 5, 1)); assert.strictEqual(c.runs, 2); assert.strictEqual(c.avg, 1.5); assert.strictEqual(c.top[0].id, 'a'); assert.strictEqual(c.active, 2);
 });
+t('partenza del Run: chi, quando, avviso', () => {
+  const H = 3600000, T = Date.UTC(2030, 4, 5, 8, 0), r = { id: 'r1', run_date: new Date(T).toISOString(), status: 'programmato', starter_id: 'inc' };
+  assert.ok(L.canStart({ id: 'd', title: 'direttore' }, r)); assert.ok(L.canStart({ id: 'v', title: 'vice_direttore' }, r)); assert.ok(L.canStart({ id: 'a', title: 'admin' }, r));
+  assert.ok(L.canStart({ id: 'inc', title: 'socio' }, r)); assert.ok(!L.canStart({ id: 'x', title: 'socio' }, r)); assert.ok(!L.canStart({ id: 'x', title: 'presidente' }, r));
+  assert.ok(!L.canStart({ id: 'd', title: 'direttore', active: false }, r)); assert.ok(!L.canStart(null, r)); assert.ok(!L.canStart({ id: 'x', title: 'socio' }, { starter_id: null }));
+  assert.strictEqual(L.startPhase(r, T - 3 * H), null); assert.strictEqual(L.startPhase(r, T - 2 * H), 'early'); assert.strictEqual(L.startPhase(r, T - H / 2 - 1), 'early');
+  assert.strictEqual(L.startPhase(r, T - H / 2), 'banner'); assert.strictEqual(L.startPhase(r, T + 12 * H), 'banner'); assert.strictEqual(L.startPhase(r, T + 12 * H + 1), null);
+  assert.strictEqual(L.startPhase(Object.assign({}, r, { started_at: new Date(T).toISOString() }), T), null); assert.strictEqual(L.startPhase(Object.assign({}, r, { status: 'annullato' }), T), null);
+  assert.strictEqual(L.startPhase({ status: 'programmato', run_date: 'boh' }, T), null); assert.strictEqual(L.startPhase(null, T), null);
+  const s = Object.assign({}, r, { started_at: new Date(T).toISOString(), started_by: 'd' }), s2 = { id: 'r2', status: 'programmato', started_at: new Date(T + H).toISOString(), started_by: 'd' };
+  assert.strictEqual(L.startAlertRun([s, s2], { id: 'me' }, [], T + 2 * H).id, 'r2'); assert.strictEqual(L.startAlertRun([s, s2], { id: 'me' }, ['r2'], T + 2 * H).id, 'r1');
+  assert.strictEqual(L.startAlertRun([s], { id: 'd' }, [], T + H), null, 'chi ha fatto partire'); assert.strictEqual(L.startAlertRun([s], { id: 'me' }, ['r1'], T + H), null);
+  assert.strictEqual(L.startAlertRun([s], { id: 'me' }, [], T + 12 * H), null, 'scaduto'); assert.strictEqual(L.startAlertRun([Object.assign({}, s, { status: 'annullato' })], { id: 'me' }, [], T + H), null);
+  assert.strictEqual(L.startAlertRun([r], { id: 'me' }, null, T), null); assert.strictEqual(L.startAlertRun(null, { id: 'me' }, null, T), null);
+});
 console.log(n+' test passati');

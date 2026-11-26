@@ -100,6 +100,7 @@
       h('button', { type: 'button', class: 'who-sos', id: 'sos-btn', 'aria-label': t('sos_btn'), title: t('sos_btn'), onclick: function () { RB.feel('tap'); RB.sosOpen('in'); } }, RB.icon('alert'), h('span', null, 'SOS'))));
     if (!RB.S.online) main.appendChild(h('div', { class: 'off-bar' }, t('offline')));
     var sb = RB.sosBanner(); if (sb) main.appendChild(sb);
+    var stb = RB.startBlock(); if (stb) main.appendChild(stb);
     if (RB.ui.tab === 'run') { var nb = RB.noticesBlock(); if (nb) main.appendChild(nb); hint(main); }
     try { RB.views[RB.ui.tab](main); } catch (e) { if (window.console) console.error(e); main.appendChild(h('div', { class: 'empty' }, h('b', null, t('e_generic')))); }
     window.scrollTo(0, y);
@@ -107,8 +108,9 @@
 
   /* ---------- eventi dati ---------- */
   RB.on('data', function (r) {
-    var sig = JSON.stringify([r.me, r.profiles, r.members, r.runs, r.signups, r.payments, r.settings, r.weather, r.reports]);
+    var sig = JSON.stringify([r.me, r.profiles, r.members, r.runs, r.signups, r.payments, r.settings, r.weather, r.reports, r.acks, RB.startDueKey()]);
     try { var c = r.settings && r.settings.chapter; if (c && c.logo) localStorage.setItem('rb.logo', c.logo); else localStorage.removeItem('rb.logo'); } catch (e) {}
+    RB.startAlert();
     if (sig === lastSig) return;
     lastSig = sig;
     if (activeInput(document.getElementById('view'))) pending = true; else RB.render();

@@ -1041,5 +1041,26 @@
     return { meeting: g.fromMyLocation ? null : pts[0], stops: (g.fromMyLocation ? [pts[0]] : []).concat(mid).slice(0, lim), dest: pts[n - 1], dropped: Math.max(0, mid.length + (g.fromMyLocation ? 1 : 0) - lim) };
   };
 
+  /* partenza del Run: la fanno Direttore, Vice direttore, Amministratore o l'incaricato scelto nel Run */
+  L.START_TITLES = ['admin', 'direttore', 'vice_direttore'];
+  L.canStart = function (me, r) {
+    return !!(me && me.id && r && me.active !== false && (L.START_TITLES.indexOf(me.title) >= 0 || (r.starter_id && me.id === r.starter_id)));
+  };
+  /* fase della partenza: 'banner' da 30 minuti prima del ritrovo a 12 ore dopo, 'early' da 2 ore prima (solo nel dettaglio) */
+  L.startPhase = function (r, now) {
+    if (!r || r.status !== 'programmato' || r.started_at) return null;
+    var t0 = new Date(r.run_date).getTime(), n = now == null ? Date.now() : now, H = 3600000;
+    if (!isFinite(t0) || n > t0 + 12 * H || n < t0 - 2 * H) return null;
+    return n >= t0 - H / 2 ? 'banner' : 'early';
+  };
+  /* avviso "si parte" da confermare con "Ho visto": entro 12 ore dalla partenza, non per chi l'ha fatta partire */
+  L.startAlertRun = function (runs, me, acks, now) {
+    var n = now == null ? Date.now() : now, seen = acks || [];
+    return (runs || []).filter(function (r) {
+      var s = r.started_at ? new Date(r.started_at).getTime() : NaN;
+      return isFinite(s) && r.status !== 'annullato' && n - s < 12 * 3600000 && me && r.started_by !== me.id && seen.indexOf(r.id) < 0;
+    }).sort(function (a, b) { return new Date(b.started_at) - new Date(a.started_at); })[0] || null;
+  };
+
   if (typeof module !== 'undefined' && module.exports) module.exports = L; else root.RBL = L;
 })(typeof window !== 'undefined' ? window : this);

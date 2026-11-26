@@ -1,5 +1,5 @@
 /* Roadbook · service worker: l'app si apre anche senza rete (rete prima, copia salvata come riserva) */
-var CACHE = 'roadbook-v35';
+var CACHE = 'roadbook-v36';
 var FILES = ['./', 'index.html', 'style.css', 'logic.js', 'ui.js', 'i18n.js', 'api.js', 'common.js', 'xls.js', 'places.js', 'views-run.js', 'views-people.js', 'views-admin.js', 'views-weather.js', 'wxscene.js', 'views-meteo.js', 'views-sos.js', 'sos.js', 'push.js', 'extras.js', 'vendor/qrcode.js', 'vendor/jsqr.js', 'vendor/jspdf.umd.min.js', 'views-pay.js', 'review.js', 'live.js', 'views-report.js', 'app.js', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', function (e) {
@@ -22,7 +22,7 @@ self.addEventListener('fetch', function (e) {
 /* notifiche push per le emergenze (arrivano anche ad app chiusa) */
 self.addEventListener('push', function (e) {
   var d = {}; try { d = e.data ? e.data.json() : {}; } catch (x) {}
-  e.waitUntil(self.registration.showNotification(d.title || 'Roadbook', {
+  e.waitUntil(self.registration.showNotification(d.title || '9076 RoadBook', {
     body: d.body || '', tag: d.tag || 'sos', renotify: true, requireInteraction: true, icon: 'icon-180.png', badge: 'icon-180.png',
     vibrate: [300, 150, 300, 150, 300], data: { url: d.url || './' }
   }));
