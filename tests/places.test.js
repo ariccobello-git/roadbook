@@ -20,7 +20,7 @@ const PROFILES = () => [
   { key: 'officer', name: 'Officer', perms: NOADM, builtin: true, in_direttivo: true, rank: 6 }, { key: 'socio', name: 'Socio', perms: ['members_view'], builtin: true, in_direttivo: false, rank: 7 },
   { key: 'c_seg_ab12', name: 'Segreteria', perms: ['members_view', 'phones_view', 'personal_view', 'payments_view'], builtin: false, in_direttivo: true, rank: 100 },
   { key: 'c_osp_0000', name: 'Ospite', perms: [], builtin: false, in_direttivo: false, rank: 100 }];
-const KINDS = { 3: 'presidente', 1: 'socio', ospite: 'c_osp_0000', seg: 'c_seg_ab12', rc: 'road_captain' };
+const KINDS = { adm: 'admin', 3: 'presidente', 1: 'socio', ospite: 'c_osp_0000', seg: 'c_seg_ab12', rc: 'road_captain' };
 
 function makeState(level) {
   const M = (fn, ln, title, extra) => Object.assign({ id: uid(), first_name: fn, last_name: ln, title, active: true, bike: null, has_photo: false, phone: '3331112233', email: 'a@b.it', birth_date: null, tessera: null, joined_on: '2018-05-01', notes: null, access_code: 'ABCD2345' }, extra);
@@ -58,6 +58,8 @@ function backend(page, level, log) {
     else if (fn === 'rc_signup') { const i = st.signups.findIndex(s => s.run_id === body.p_run && s.member_id === (body.p_member || st.me.id)); const row = { run_id: body.p_run, member_id: body.p_member || st.me.id, status: body.p_status, passengers: body.p_passengers, checked_in: false }; if (body.p_status === 'rimuovi') { if (i >= 0) st.signups.splice(i, 1); } else if (i >= 0) st.signups[i] = row; else st.signups.push(row); }
     else if (fn === 'rc_formation_save') { const r = st.runs.find(x => x.id === body.p_run); r.formation = body.p_formation; r.formation_published = body.p_publish; }
     else if (fn === 'rc_run_save') { const p = body.p; if (p.id) Object.assign(st.runs.find(r => r.id === p.id), { title: p.title, status: p.status, nav_tool: p.nav_tool, stops: p.stops }); else st.runs.push(Object.assign({ formation: [], formation_published: false, updated_at: new Date().toISOString() }, p, { id: uid(), km: p.km ? +p.km : null, max_participants: p.max_participants ? +p.max_participants : null })); out = { ok: true, id: p.id || st.runs[st.runs.length - 1].id }; }
+    else if (fn === 'rc_reset_counts') out = { ok: true, counts: { runs: 3, payments: 1, photos: 0, notices: 0, weather: 0, sos: 0, reports: 0, members: 11 } };
+    else if (fn === 'rc_reset') out = body.p_confirm === 'RESET' ? { ok: true, counts: { notices: 0 } } : { ok: false, error: 'conferma' };
     else if (fn === 'rc_run_delete') { st.runs = st.runs.filter(r => r.id !== body.p_id); }
     else if (fn === 'rc_member_save') { const p = body.p; const nm = Object.assign({ id: uid(), active: true, has_photo: false, access_code: 'WXYZ6789' }, p); st.members.push(nm); out = { ok: true, id: nm.id }; }
     else if (fn === 'rc_profile_save') { const p = body.p; if (p.key) Object.assign(st.profiles.find(x => x.key === p.key), { name: p.name, perms: p.perms, in_direttivo: p.in_direttivo }); else st.profiles.push({ key: 'c_new_' + st.profiles.length, name: p.name, perms: p.perms, builtin: false, in_direttivo: p.in_direttivo, rank: 100 }); out = { ok: true, key: p.key || 'c_new' }; }
@@ -254,6 +256,23 @@ async function newPage(browser, vp, level, log, errors) {
   assert.strictEqual((await page.locator('.sheet.in .sbar .sb.r').textContent()).trim(), 'Modifica');
   await page.screenshot({ path: SHOTS + '30-run-dettaglio-modifica.png' });
   await page.click('.sheet.in .sbar .sb.r'); await page.waitForSelector('#rf-title'); step('dettaglio: Modifica in alto a destra apre il modulo');
+
+  /* reset contenuti (amministratore): parola di conferma in minuscolo/misto e sempre "Sei sicuro?" */
+  await ctx.close();
+  ({ ctx, page, st } = await newPage(browser, { width: 390, height: 844 }, 'adm', log, errors));
+  await page.goto(BASE); await page.waitForSelector('#code'); await page.fill('#code', 'abcd-2345'); await page.click('text=Entra'); await page.waitForSelector('.run');
+  await page.click('.tabs >> text=Altro'); await page.waitForSelector('#reset-open'); await page.click('#reset-open'); await page.waitForSelector('#reset-box .pass');
+  await page.locator('#reset-box .pass[data-part="notices"] .sw').click(); await wait(300);
+  await page.fill('#rs-confirm', 'ReSeT '); await page.click('#rs-go'); await page.waitForSelector('.sheet.in .ask');
+  tt = await page.locator('.sheet.in .ask').last().innerText(); assert.ok(tt.includes('Senza copia'), tt); await page.locator('.sheet.in .ask .btn.dng').last().click(); await wait(500);
+  await page.waitForSelector('.sheet.in .ask'); tt = await page.locator('.sheet.in').last().innerText(); assert.ok(tt.includes('Sei sicuro?') && tt.includes('non si potranno recuperare'), tt);
+  await page.screenshot({ path: SHOTS + '31-reset-sei-sicuro.png' });
+  await page.locator('.sheet.in .ask .btn.sec').last().click(); await wait(500); assert.ok(!log.some(l => l.fn === 'rc_reset'), 'Annulla ha avviato il reset'); step('reset: Sei sicuro? con Annulla non cancella');
+  await page.click('#rs-go'); await page.waitForSelector('.sheet.in .ask'); await page.locator('.sheet.in .ask .btn.dng').last().click(); await wait(500);
+  await page.waitForSelector('.sheet.in .ask'); await page.locator('.sheet.in .ask .btn.dng').last().click(); await wait(900);
+  const rz = log.filter(l => l.fn === 'rc_reset'); assert.strictEqual(rz.length, 1); assert.deepStrictEqual(rz[0].body.p_parts, ['notices']); step('reset: "ReSeT" in caratteri misti accettato dopo la conferma');
+  await page.fill('#rs-confirm', 'resett'); await page.locator('#reset-box .pass[data-part="notices"] .sw').click(); await wait(300); await page.click('#rs-go'); await wait(400);
+  assert.strictEqual(await page.locator('.sheet.in .ask').count(), 0); assert.strictEqual(log.filter(l => l.fn === 'rc_reset').length, 1); step('reset: parola sbagliata rifiutata');
   assert.deepStrictEqual(errors, [], errors.join('\n'));
   await browser.close(); console.log('PLACES OK');
 })().catch(e => { console.error(e); process.exit(1); });

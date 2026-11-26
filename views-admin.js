@@ -99,14 +99,15 @@
         RB.xls.exportAll().then(function () { copied = true; RB.toast(t('exported')); draw(); }, function () { RB.toast(t('e_xls'), 'err'); });
       } }, RB.icon('file'), copied ? t('rz_copied') : t('rz_copy')));
       box.appendChild(RB.secT(t('rz_step2')));
-      var inp = RB.input('rs-confirm', typed, { max: 10, ph: 'RESET' }); inp.setAttribute('autocapitalize', 'characters'); inp.addEventListener('input', function () { typed = inp.value; });
+      var inp = RB.input('rs-confirm', typed, { max: 10, ph: 'RESET' }); inp.setAttribute('autocapitalize', 'off'); inp.setAttribute('autocorrect', 'off'); inp.setAttribute('spellcheck', 'false'); inp.addEventListener('input', function () { typed = inp.value; });
       box.appendChild(h('div', { class: 'list' }, RB.field(t('rz_type'), inp)));
       var n = PARTS.filter(function (k) { return sel[k]; }).length;
       var go = h('button', { type: 'button', class: 'btn sos-btn big', id: 'rs-go', disabled: n ? null : true, onclick: function () {
         if (String(RB.val('rs-confirm')).trim().toUpperCase() !== 'RESET') { RB.toast(t('rz_e_type'), 'err'); RB.feel('err'); return; }
         var parts = PARTS.filter(function (k) { return sel[k]; });
+        /* senza copia Excel prima l'avviso dedicato; poi sempre l'ultima domanda "Sei sicuro?" */
         var ready = copied ? Promise.resolve(true) : RB.ask({ title: t('rz_nocopy'), msg: t('rz_nocopy_msg'), ok: t('rz_go_anyway'), danger: true });
-        ready.then(function (ok) {
+        ready.then(function (ok) { return ok && RB.ask({ title: t('rz_sure'), msg: t('rz_sure_msg'), ok: t('rz_go_n', parts.length), no: t('cancel'), danger: true }); }).then(function (ok) {
           if (!ok) return;
           RB.act(go, function () { return RB.rpc('rc_reset', { p_code: RB.S.code, p_parts: parts, p_confirm: 'RESET' }); }, t('rz_done')).then(function (x) {
             if (x && x.ok) { sel = {}; typed = ''; RB.sync(); if (RB.payLoad) RB.payLoad(); load(); }

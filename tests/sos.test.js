@@ -39,7 +39,8 @@ function backend(page, level, log, flags) {
       out = { ok: true, id: ID(901), verified: !!body.p_code, identified: !!body.p_member || !!body.p_code };
     }
     else if (fn === 'rc_sos_poll') out = { ok: true, open: st.sos.status === 'closed' ? 0 : 1, last_id: st.sos.id, last_at: new Date().toISOString() };
-    else if (fn === 'rc_sos_list') out = { ok: true, items: [{ id: st.sos.id, created_at: new Date().toISOString(), kind: 'moto', status: st.sos.status, verified: true, has_voice: true, name: 'Mario Rossi', run: 'Giro dei Castelli', lat: 41.9, lng: 12.5, handled_by: null, closed_at: null }] };
+    else if (fn === 'rc_sos_delete') { st.sos.deleted = true; }
+    else if (fn === 'rc_sos_list') out = { ok: true, items: st.sos.deleted ? [] : [{ id: st.sos.id, created_at: new Date().toISOString(), kind: 'moto', status: st.sos.status, verified: true, has_voice: true, name: 'Mario Rossi', run: 'Giro dei Castelli', lat: 41.9, lng: 12.5, handled_by: null, closed_at: null }] };
     else if (fn === 'rc_sos_get') out = { ok: true, id: st.sos.id, kind: 'moto', status: st.sos.status, verified: true, created_at: new Date().toISOString(), voice: 'AAAA', voice_mime: 'audio/mp4', voice_ms: 5000,
       data: { reporter: { member: { name: 'Mario Rossi', phone: '3331112233', bike: 'Street Glide', tessera: '123' }, emergency: { blood: 'A+', allergies: 'Penicillina', meds: '', conditions: '', contact_name: 'Giulia', contact_phone: '3330001111', contact_rel: 'moglie', roadside: 'aci', plate: 'AB123CD' }, run: { title: 'Giro dei Castelli', date: new Date().toISOString(), meeting: 'Ostia', destination: 'Frascati' }, signup: { status: 'si', passengers: 1, checked_in: true } }, lat: 41.9, lng: 12.5, acc: 20, note: 'Guasto', notes: st.sos.notes } };
     else if (fn === 'rc_sos_set') { st.sos.status = body.p_status; if (body.p_note) st.sos.notes.push({ at: new Date().toISOString(), by: 'Marco Bianchi', status: body.p_status, text: body.p_note }); }
@@ -149,8 +150,20 @@ async function run(devName) {
   assert(/\.doc$/.test(dl.suggestedFilename())); ok('D4 export Word');
   const [dl2] = await Promise.all([page.waitForEvent('download', { timeout: 20000 }), page.locator('#sos-actions .row', { hasText: 'PDF' }).click()]);
   const pth = await dl2.path(); assert(fs.readFileSync(pth).slice(0, 4).toString() === '%PDF'); ok('D5 export PDF valido');
-  await page.locator('#sos-actions .row', { hasText: 'Chiudi emergenza' }).click(); await page.fill('#sos-cn', 'Risolto'); await page.locator('.sheet:has(#sos-cn) .sb.r').click();
-  await page.waitForFunction(() => /Chiusa/.test(document.body.innerText), null, { timeout: 5000 }).catch(() => { throw new Error('D6 stato Chiusa non mostrato'); }); ok('D6 chiusura con nota');
+  await page.locator('#sos-actions .row', { hasText: 'Chiudi emergenza' }).click(); await page.waitForSelector('.sheet.in .ask');
+  assert((await page.locator('.sheet.in .ask').last().innerText()).includes('storico'), 'D6 manca la domanda Sei sicuro'); await page.locator('.sheet.in .ask .btn.pri').last().click();
+  await page.waitForSelector('.sheet.in #sos-cn'); await page.fill('#sos-cn', 'Risolto'); await page.locator('.sheet:has(#sos-cn) .sb.r').click();
+  await page.waitForFunction(() => /Chiusa/.test(document.body.innerText), null, { timeout: 5000 }).catch(() => { throw new Error('D6 stato Chiusa non mostrato'); }); ok('D6 chiusura con Sei sicuro e nota');
+  /* eliminazione: Annulla non cancella; dalla lista, scorrendo, Elimina con conferma rossa */
+  await page.locator('#sos-actions .row', { hasText: 'Elimina emergenza' }).click(); await page.waitForSelector('.sheet.in .ask .btn.dng');
+  assert((await page.locator('.sheet.in .ask').last().innerText()).includes('non si potranno recuperare')); await page.locator('.sheet.in .ask .btn.sec').last().click(); await page.waitForTimeout(500);
+  assert(!log.some(l => l.fn === 'rc_sos_delete'), 'D7 Annulla ha cancellato'); ok('D7 elimina: Annulla non cancella');
+  await page.locator('.sheet.in .sb.l').last().click(); await page.waitForSelector('.sheet.in .rsw.in-list .row'); await page.waitForTimeout(500);
+  const rb = await page.locator('.rsw.in-list .row').first().boundingBox(), ry = rb.y + rb.height / 2;
+  await page.mouse.move(rb.x + rb.width - 20, ry); await page.mouse.down(); for (let k = 1; k <= 8; k++) await page.mouse.move(rb.x + rb.width - 20 - k * 25, ry + 1); await page.mouse.up(); await page.waitForTimeout(450);
+  await page.waitForSelector('.rsw.open .rsw-del'); await page.locator('.rsw.open .rsw-del').click(); await page.waitForSelector('.sheet.in .ask .btn.dng'); await page.locator('.sheet.in .ask .btn.dng').last().click();
+  await page.waitForFunction(() => /Nessuna emergenza|No emergenc|Aucune urgence/i.test(document.body.innerText) && !document.querySelector('.rsw.in-list'), null, { timeout: 5000 }).catch(() => { throw new Error('D8 emergenza non eliminata dalla lista'); });
+  assert(log.filter(l => l.fn === 'rc_sos_delete').length === 1); ok('D8 elimina dalla lista con scorrimento e conferma');
   await ctx.close(); await browser.close();
   return { res, errors };
 }

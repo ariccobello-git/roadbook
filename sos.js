@@ -238,8 +238,13 @@
           body.appendChild(RB.secT(t(g[1]) + ' · ' + items.length));
           var l = h('div', { class: 'list' });
           items.forEach(function (x) {
-            l.appendChild(RB.row({ lead: h('span', { class: 'sos-ic' + (x.status === 'closed' ? ' off' : '') }, RB.icon('alert')), title: (x.name || '—'), sub: kindLabel(x.kind) + ' · ' + fmtDate(new Date(x.created_at).getTime()) + (x.run ? ' · ' + x.run : '') + (x.verified ? '' : ' · ' + t('sos_unverified')), right: statChip(x.status),
-              onclick: function () { RB.sosDetail(x.id, load); } }));
+            var row = RB.row({ lead: h('span', { class: 'sos-ic' + (x.status === 'closed' ? ' off' : '') }, RB.icon('alert')), title: (x.name || '—'), sub: kindLabel(x.kind) + ' · ' + fmtDate(new Date(x.created_at).getTime()) + (x.run ? ' · ' + x.run : '') + (x.verified ? '' : ' · ' + t('sos_unverified')), right: statChip(x.status),
+              onclick: function () { RB.sosDetail(x.id, load); } });
+            /* scorri a sinistra: Chiudi (se non già chiusa) ed Elimina, sempre con "Sei sicuro?" */
+            var acts = [];
+            if (x.status !== 'closed') acts.push({ label: t('sos_close_s'), icon: 'check', cls: 'rsw-edit', fn: function () { RB.sosClose(x.id, load); } });
+            acts.push({ label: t('delete'), icon: 'trash', cls: 'rsw-del', fn: function () { RB.sosDelete(x.id, load); } });
+            l.appendChild(RB.swipe(row, acts, 'in-list'));
           });
           body.appendChild(l);
         });
@@ -302,15 +307,31 @@
     download(new Blob(['﻿', html], { type: 'application/msword' }), fname(g, 'doc')); return Promise.resolve(true);
   };
 
+  /* chiudi un'emergenza: conferma, poi nota facoltativa */
+  RB.sosClose = function (id, done) {
+    return RB.ask({ title: t('sos_close_q'), msg: t('sos_close_q_msg'), ok: t('sos_close'), no: t('cancel') }).then(function (ok) {
+      if (!ok) return false;
+      var inp = RB.input('sos-cn', '', { max: 250, ph: t('sos_close_ph') });
+      RB.sheet({ title: t('sos_close_t'), content: h('div', null, h('div', { class: 'list' }, RB.field(t('sos_note'), inp)), h('p', { class: 'sm' }, t('sos_close_help'))), leftLabel: t('cancel'),
+        right: { label: t('sos_close'), fn: function (c) { var note = RB.val('sos-cn'); c.close(true);
+          RB.act(null, function () { return RB.rpc('rc_sos_set', { p_code: RB.S.code, p_id: id, p_status: 'closed', p_note: note || null }); }, t('saved')).then(function (x) { if (x && x.ok && done) done(); }); } } });
+      return true;
+    });
+  };
+  /* elimina definitivamente un'emergenza: conferma rossa, i dati non si recuperano */
+  RB.sosDelete = function (id, done) {
+    return RB.ask({ title: t('sos_del_q'), msg: t('sos_del_msg'), ok: t('delete'), no: t('cancel'), danger: true }).then(function (ok) {
+      if (!ok) return false;
+      return RB.act(null, function () { return RB.rpc('rc_sos_delete', { p_code: RB.S.code, p_id: id }); }, t('deleted')).then(function (x) { if (x && x.ok && done) done(); return !!(x && x.ok); });
+    });
+  };
+
   RB.sosDetail = function (id, onchange) {
     var body = h('div', null, h('div', { class: 'empty' }, RB.icon('clock'), h('b', null, t('loading'))));
     var ctl = RB.sheet({ title: t('sos_r_title'), content: body, full: true, leftLabel: t('close'), right: null });
     var cur = null;
-    function setStatus(s, askNote) {
-      function go(note) { RB.act(null, function () { return RB.rpc('rc_sos_set', { p_code: RB.S.code, p_id: id, p_status: s, p_note: note || null }); }, t('saved')).then(function (x) { if (x && x.ok) { if (onchange) onchange(); load(); } }); }
-      if (!askNote) { go(''); return; }
-      var inp = RB.input('sos-cn', '', { max: 250, ph: t('sos_close_ph') });
-      var c2 = RB.sheet({ title: t('sos_close_t'), content: h('div', null, h('div', { class: 'list' }, RB.field(t('sos_note'), inp)), h('p', { class: 'sm' }, t('sos_close_help'))), leftLabel: t('cancel'), right: { label: t('sos_close'), fn: function (c) { go(RB.val('sos-cn')); c.close(true); } } });
+    function setStatus(s) {
+      RB.act(null, function () { return RB.rpc('rc_sos_set', { p_code: RB.S.code, p_id: id, p_status: s, p_note: null }); }, t('saved')).then(function (x) { if (x && x.ok) { if (onchange) onchange(); load(); } });
     }
     function load() {
       RB.rpc('rc_sos_get', { p_code: RB.S.code, p_id: id, p_export: false }).then(function (g) {
@@ -331,9 +352,10 @@
         mdl.full.forEach(function (s) { body.appendChild(RB.secT(s.title)); body.appendChild(h('div', { class: 'list' }, s.rows.map(function (r) { return RB.row({ title: r[0], value: r[1], go: false }); }))); });
         body.appendChild(RB.secT(t('sos_r_actions')));
         var al = h('div', { class: 'list', id: 'sos-actions' });
-        if (g.status === 'open') al.appendChild(RB.row({ lead: RB.icon('check'), title: t('sos_take'), go: false, onclick: function () { setStatus('handling', false); } }));
-        if (g.status !== 'closed') al.appendChild(RB.row({ lead: RB.icon('check'), title: t('sos_close'), go: false, onclick: function () { setStatus('closed', true); } }));
-        if (g.status === 'closed') al.appendChild(RB.row({ lead: RB.icon('clock'), title: t('sos_reopen'), go: false, onclick: function () { setStatus('open', false); } }));
+        if (g.status === 'open') al.appendChild(RB.row({ lead: RB.icon('check'), title: t('sos_take'), go: false, onclick: function () { setStatus('handling'); } }));
+        if (g.status !== 'closed') al.appendChild(RB.row({ lead: RB.icon('check'), title: t('sos_close'), go: false, onclick: function () { RB.sosClose(id, function () { if (onchange) onchange(); load(); }); } }));
+        if (g.status === 'closed') al.appendChild(RB.row({ lead: RB.icon('clock'), title: t('sos_reopen'), go: false, onclick: function () { setStatus('open'); } }));
+        al.appendChild(RB.row({ lead: RB.icon('trash'), title: t('sos_del_btn'), go: false, cls: 'dng', onclick: function () { RB.sosDelete(id, function () { if (onchange) onchange(); ctl.close(true); }); } }));
         al.appendChild(RB.row({ lead: RB.icon('share'), title: t('sos_share_brief'), go: false, onclick: function () { var txt = RB.sosBriefText(g); if (navigator.share) navigator.share({ text: txt }).catch(function () {}); else RB.copy(txt).then(function () { RB.toast(t('copied')); }); } }));
         function exp(kind) { return RB.rpc('rc_sos_get', { p_code: RB.S.code, p_id: id, p_export: true }).then(function (gg) { if (!gg || !gg.ok) throw new Error('x'); return kind === 'pdf' ? RB.sosExportPdf(gg) : RB.sosExportDoc(gg); }).then(function () { RB.toast(t('exported')); }, function () { RB.toast(t('e_generic'), 'err'); }); }
         al.appendChild(RB.row({ lead: RB.icon('file'), title: t('sos_export_pdf'), go: false, onclick: function () { exp('pdf'); } }));

@@ -3,7 +3,9 @@ const fs=require('fs'), path=require('path').join(__dirname,'..')+'/';
 global.window={}; global.navigator={language:'it'};
 const src=fs.readFileSync(path+'i18n.js','utf8'); 
 const RB={pref:{lang:'it'}}; global.window.RB=RB; eval(src.replace('var RB = window.RB = window.RB || {};','var RB = window.RB;'));
-const D=RB.dict; let bad=0; const PERMS=require(path+'logic.js').PERMS;
+const D=RB.dict; let bad=0;
+/* chiavi doppie: in un oggetto vince l'ultima e la prima sparisce senza errori */
+{ const seen={}; for(const m of src.matchAll(/^\s+([a-z0-9_]+): \[|, ([a-z0-9_]+): \[/gm)){ const k=m[1]||m[2]; if(seen[k]){console.log('DOPPIA',k); bad++;} seen[k]=1; } } const PERMS=require(path+'logic.js').PERMS;
 for(const k in D){ if(D[k].length!==3||D[k].some(x=>!x||!x.trim())){console.log('INCOMPLETA',k); bad++;}
   const ph=a=>(a.match(/\{\d\}|\{anno\}/g)||[]).sort().join(); if(new Set(D[k].map(ph)).size!==1){console.log('SEGNAPOSTO',k); bad++;} }
 const files=fs.readdirSync(path).filter(f=>f.endsWith('.js')&&f!=='i18n.js'&&f!=='sw.js');
