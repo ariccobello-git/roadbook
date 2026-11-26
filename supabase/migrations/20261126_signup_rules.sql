@@ -22,7 +22,7 @@ end $$;
 create or replace function public.rc_signup(p_code text, p_run uuid, p_status text, p_passengers integer default 0, p_member uuid default null::uuid, p_room text default null::text, p_extras jsonb default null::jsonb)
  returns jsonb language plpgsql security definer set search_path to 'public', 'rc_private'
 as $function$
-declare m rc_members; sm boolean; target uuid; r rc_runs; taken int; v_ex jsonb; cur rc_signups; closed boolean; full boolean;
+declare m rc_members; sm boolean; target uuid; r rc_runs; taken int; v_ex jsonb; cur rc_signups; v_closed boolean; v_full boolean;
 begin
   m := rc_private.auth(p_code);
   if m.id is null then return rc_private.err('auth'); end if;
@@ -34,7 +34,7 @@ begin
   if not sm and r.status <> 'programmato' then return rc_private.err('run_chiuso'); end if;
   if not exists (select 1 from rc_members where id = target and active) then return rc_private.err('non_trovato'); end if;
   select * into cur from rc_signups where run_id = p_run and member_id = target;
-  closed := not sm and r.signup_until is not null and now() > r.signup_until;
+  v_closed := not sm and r.signup_until is not null and now() > r.signup_until;
   /* ritiro della mia richiesta in attesa */
   if p_status = 'ritira' then
     if cur.pending = 'join' and cur.status <> 'si' then delete from rc_signups where run_id = p_run and member_id = target;
@@ -42,7 +42,7 @@ begin
     return jsonb_build_object('ok', true);
   end if;
   /* cancellarsi dopo la scadenza: serve l'approvazione */
-  if closed and cur.status = 'si' and p_status in ('no', 'forse', 'rimuovi') then
+  if v_closed and cur.status = 'si' and p_status in ('no', 'forse', 'rimuovi') then
     update rc_signups set pending = 'cancel', requested_at = now() where run_id = p_run and member_id = target;
     perform rc_private.push_send('req', p_run || ':' || target);
     return jsonb_build_object('ok', true, 'pending', 'cancel');
@@ -64,8 +64,8 @@ begin
   end if;
   if p_status = 'si' and not sm then
     select coalesce(sum(1 + passengers), 0) into taken from rc_signups where run_id = p_run and status = 'si' and member_id <> target;
-    full := r.max_participants is not null and taken + 1 + p_passengers > r.max_participants;
-    if cur.status is distinct from 'si' and (closed or full) then
+    v_full := r.max_participants is not null and taken + 1 + p_passengers > r.max_participants;
+    if cur.status is distinct from 'si' and (v_closed or v_full) then
       /* richiesta di partecipazione: decide il direttivo */
       insert into rc_signups (run_id, member_id, status, passengers, room, extras, pending, requested_at)
         values (p_run, target, coalesce(cur.status, 'forse'), p_passengers, nullif(p_room, ''), coalesce(v_ex, '{}'::jsonb), 'join', now())
@@ -73,9 +73,9 @@ begin
         room = case when p_room is null then rc_signups.room else nullif(p_room, '') end,
         extras = case when p_extras is null then rc_signups.extras else v_ex end;
       perform rc_private.push_send('req', p_run || ':' || target);
-      return jsonb_build_object('ok', true, 'pending', 'join', 'reason', case when closed then 'scaduto' else 'completo' end);
+      return jsonb_build_object('ok', true, 'pending', 'join', 'reason', case when v_closed then 'scaduto' else 'completo' end);
     end if;
-    if full then return rc_private.err('completo'); end if;
+    if v_full then return rc_private.err('completo'); end if;
   end if;
   insert into rc_signups (run_id, member_id, status, passengers, room, extras) values (p_run, target, p_status, p_passengers, nullif(p_room, ''), coalesce(v_ex, '{}'::jsonb))
   on conflict (run_id, member_id) do update set status = excluded.status, passengers = excluded.passengers, updated_at = now(), pending = null, requested_at = null,
