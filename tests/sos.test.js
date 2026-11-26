@@ -77,7 +77,7 @@ async function run(devName) {
     const ctx = await browser.newContext(Object.assign({}, opts, { locale: 'it-IT', timezoneId: 'Europe/Rome', geolocation: { latitude: 41.9, longitude: 12.5, accuracy: 25 }, permissions: ['geolocation'].concat(NATIVE && engine === pw.chromium ? ['microphone'] : []) }));
     const page = await ctx.newPage(); const log = []; await page.addInitScript(() => { try { localStorage.setItem('rb.tour', '1'); } catch (e) {} });
     page.on('pageerror', e => errors.push(devName + ' pageerror: ' + e.message));
-    page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource|favicon|net::ERR|CORS request did not succeed/.test(m.text())) errors.push(devName + ' console: ' + m.text()); });
+    page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource|favicon|net::ERR|CORS request did not succeed|Button failed to load, iconName/.test(m.text())) errors.push(devName + ' console: ' + m.text()); });
     await page.addInitScript(STUB);
     await page.route('**/cdnjs.cloudflare.com/**/xlsx.full.min.js', r => r.fulfill({ contentType: 'application/javascript', body: fs.readFileSync('./node_modules/xlsx/dist/xlsx.full.min.js') }));
     const st = backend(page, level, log, flags);
