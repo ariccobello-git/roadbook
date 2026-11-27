@@ -1,6 +1,6 @@
 /* Roadbook · service worker: l'app si apre anche senza rete (rete prima, copia salvata come riserva) */
-var CACHE = 'roadbook-v40';
-var FILES = ['./', 'index.html', 'style.css', 'logic.js', 'ui.js', 'i18n.js', 'api.js', 'common.js', 'xls.js', 'places.js', 'views-run.js', 'views-people.js', 'views-admin.js', 'views-weather.js', 'wxscene.js', 'views-meteo.js', 'views-sos.js', 'sos.js', 'push.js', 'extras.js', 'vendor/qrcode.js', 'vendor/jsqr.js', 'vendor/jspdf.umd.min.js', 'views-pay.js', 'review.js', 'live.js', 'lost.js', 'views-report.js', 'app.js', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
+var CACHE = 'roadbook-v41';
+var FILES = ['./', 'index.html', 'style.css', 'logic.js', 'ui.js', 'i18n.js', 'api.js', 'common.js', 'xls.js', 'places.js', 'views-run.js', 'views-people.js', 'views-admin.js', 'views-weather.js', 'wxscene.js', 'views-meteo.js', 'views-sos.js', 'sos.js', 'push.js', 'extras.js', 'vendor/qrcode.js', 'vendor/jsqr.js', 'vendor/jspdf.umd.min.js', 'views-pay.js', 'review.js', 'live.js', 'lost.js', 'help.js', 'views-report.js', 'app.js', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(FILES); }).then(function () { return self.skipWaiting(); }));
