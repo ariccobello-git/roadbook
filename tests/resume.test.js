@@ -58,7 +58,9 @@ async function run(devName, base) {
   await backend(ctx);
   await ctx.addInitScript(() => { try { localStorage.setItem('rb.tour', '1'); localStorage.setItem('rb.hint', '1'); } catch (e) {} });
   let page = await ctx.newPage(); const errors = [], res = [], ok = n => res.push(n);
-  page.on('pageerror', e => errors.push(devName + ' pageerror: ' + e.message));
+  /* Safari segnala come errore le richieste interrotte dalla ricarica ("access control checks"): non sono errori dell'app */
+  const onErr = e => { if (!/access control checks/.test(e.message)) errors.push(devName + ' pageerror: ' + e.message); };
+  page.on('pageerror', onErr);
   const mark = () => page.evaluate(() => { window.__same = 1; window.__v = document.getElementById('view'); });
   const rebuilt = () => page.evaluate(() => window.__v !== document.getElementById('view'));
   const same = () => page.evaluate(() => window.__same === 1);
@@ -85,7 +87,7 @@ async function run(devName, base) {
     /* parte 2 con service worker: sessione salvata, si apre la pagina d'accesso con «Continua come» (non servono dati dal server) */
     const ctx2 = await browser.newContext(Object.assign({}, opts, { locale: 'it-IT', timezoneId: 'Europe/Rome' }));
     await ctx2.addInitScript(() => { try { localStorage.setItem('rb.code', 'ABCD2345'); localStorage.setItem('rb.cache', JSON.stringify({ ok: true, me: { first_name: 'Mario', last_name: 'Rossi' } })); } catch (e) {} });
-    page = await ctx2.newPage(); page.on('pageerror', e => errors.push(devName + ' pageerror: ' + e.message));
+    page = await ctx2.newPage(); page.on('pageerror', onErr);
     await page.goto(base); await page.waitForSelector('#resume');
 
     /* D. rete debole (10 s): l'app si apre dalla copia salvata entro pochi secondi */
