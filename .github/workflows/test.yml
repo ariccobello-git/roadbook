@@ -27,5 +27,5 @@ jobs:
         run: cd tests && node keys.test.js && node logic.test.js
         shell: bash
       - name: SOS su telefoni, tablet e computer con motore nativo
-        run: cd tests && ENGINE=native node sos.test.js all && ENGINE=native node extras.test.js all && ENGINE=native node pay.test.js all && ENGINE=native node start.test.js all
+        run: cd tests && ENGINE=native node sos.test.js all && ENGINE=native node extras.test.js all && ENGINE=native node pay.test.js all && ENGINE=native node start.test.js all && ENGINE=native node resume.test.js all
         shell: bash
