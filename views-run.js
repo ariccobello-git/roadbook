@@ -285,8 +285,44 @@
       RB.ui.alertsAll ? t('al_less') : '+' + (na - 1)));
     if (na) root.appendChild(al);
     if (!next.length) root.appendChild(RB.empty('run', t('no_runs'), RB.can('runs_edit') ? t('no_runs_staff') : t('no_runs_member')));
-    next.forEach(function (r, i) { root.appendChild(runCard(r, i)); });
+    /* vista Socio: il prossimo giro in grande, gli altri sotto in piccolo */
+    var hero = RB.simpleView() ? next.filter(function (r) { return r.status !== 'annullato'; })[0] : null;
+    if (hero) root.appendChild(nextHero(hero));
+    next.filter(function (r) { return r !== hero; }).forEach(function (r, i) { root.appendChild(runCard(r, hero ? i + 1 : i)); });
   };
+
+  /* card del prossimo Run per i soci: quando, dove, meteo e la risposta con un tocco.
+     Durante il giro diventa la schermata essenziale: Emergenza, Mi sono perso, programma */
+  function daysTo(dt) { var a = new Date(), b = new Date(dt); a.setHours(0, 0, 0, 0); b.setHours(0, 0, 0, 0); return Math.round((b - a) / 86400000); }
+  function nextHero(r) {
+    var dt = new Date(r.run_date), mine = mySignup(r.id), going = mine && mine.status === 'si';
+    var live = !!(r.started_at && RB.liveWindow(r) && going), today = RB.liveWindow(r) && !r.started_at;
+    var n = daysTo(dt), when = n <= 0 ? t('nx_today') : n === 1 ? t('nx_tomorrow') : t('nx_in_days', n);
+    var mp = r.meeting && RBL.hasCoords(r.meeting) ? r.meeting : null, nav = mp ? RBL.lostNavUrl(mp) : null;
+    var stop = function (e) { e.stopPropagation(); };
+    var card = h('div', { class: 'nx' + (live ? ' live' : ''), id: 'nx', 'data-run': r.id, role: 'button', tabindex: '0', 'aria-label': r.title,
+      onclick: function () { RB.feel('tap'); RB.openRun(r.id); }, onkeydown: function (e) { if (e.key === 'Enter') RB.openRun(r.id); } });
+    card.appendChild(h('div', { class: 'nx-when' }, live ? h('span', { class: 'nx-dot' }) : null, live ? t('nx_live') : when + ' · ' + RB.fmt.day(dt)));
+    card.appendChild(h('h2', { class: 'nx-t' }, r.title));
+    var where = (r.meeting && r.meeting.name) || r.meeting_point || '';
+    card.appendChild(h('div', { class: 'nx-meta' }, h('span', null, RB.icon('clock'), RB.fmt.time(dt)), where ? h('span', null, RB.icon('pin'), where) : null));
+    var chips = h('div', { class: 'chips nx-chips' }), wc = RB.wxChip(r);
+    if (wc) chips.appendChild(wc);
+    if (r.km) chips.appendChild(RB.chip(r.km + ' km', '', 'route'));
+    if (going && live) chips.appendChild(RB.chip(t('nx_going'), 'ok', 'check'));
+    if (chips.children.length) card.appendChild(chips);
+    if (live) {
+      /* in moto non si cercano menu: tre tasti grandi, raggiungibili col pollice */
+      card.appendChild(h('div', { class: 'nx-acts', onclick: stop },
+        h('button', { type: 'button', class: 'nx-act sos', id: 'nx-sos', onclick: function () { RB.feel('tap'); RB.sosOpen('in'); } }, RB.icon('alert'), h('span', null, t('sos_btn'))),
+        RB.lostRun && (RB.lostRun() || {}).id === r.id ? h('button', { type: 'button', class: 'nx-act lost', id: 'nx-lost', onclick: function () { RB.feel('tap'); RB.lostAsk(r); } }, RB.icon('pin'), h('span', null, t('lost_btn'))) : null,
+        h('button', { type: 'button', class: 'nx-act', id: 'nx-open', onclick: function () { RB.feel('tap'); RB.openRun(r.id); } }, RB.icon('route'), h('span', null, t('nx_program')))));
+      return card;
+    }
+    if (today && going && nav) card.appendChild(h('a', { class: 'btn pri big nx-nav', id: 'nx-nav', href: nav, target: '_blank', rel: 'noopener', onclick: stop }, RB.icon('route'), t('nx_nav_meet')));
+    if (r.status === 'programmato') card.appendChild(h('div', { class: 'nx-me', onclick: stop }, respSeg(r)));
+    return card;
+  }
 
   /* ---------- dettaglio ---------- */
   RB.openRun = function (id) {

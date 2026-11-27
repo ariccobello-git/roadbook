@@ -10,6 +10,8 @@
   RB.errMsg = function (code) { return RB.has('e_' + code) ? RB.t('e_' + code) : RB.t('e_generic'); };
   RB.refresh = function () { if (RB.render) RB.render(); };
   RB.isStaff = function () { return RB.can('runs_edit') || RB.can('formation_edit') || RB.can('signups_manage'); };
+  /* vista Socio: chi non ha nessun permesso oltre a vedere l'elenco dei soci */
+  RB.simpleView = function () { var p = (RB.S.me && RB.S.me.perms) || []; return !!RB.S.me && p.every(function (k) { return k === 'members_view'; }); };
   RB.chapterName = function () { var s = RB.S.d && RB.S.d.settings && RB.S.d.settings.chapter; return (s && s.name) || 'Roma Chapter'; };
   RB.appUrl = function () { return location.origin + location.pathname.replace(/index\.html$/, ''); };
   /* WhatsApp gratis: si apre la scelta della chat, il direttivo tocca il gruppo del Chapter */

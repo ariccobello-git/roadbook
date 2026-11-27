@@ -134,7 +134,7 @@ function setupRun(st, W) {
   const t0 = setupRun(st, fixture(0, 0, true)); st.weather[st.runs[0].id] = fixture(t0, 1, true);
   await login(page);
   /* meteo nell'elenco: chip e avviso */
-  assert.ok((await page.textContent('.run')).includes('Critico'), 'chip meteo critico sul Run'); step('elenco Run: chip meteo "Critico"');
+  assert.ok((await page.textContent('.run, #nx')).includes('Critico'), 'chip meteo critico sul Run'); step('elenco Run: chip meteo "Critico"');
   const bn = await page.textContent('.view'); assert.ok(bn.includes('temporale') && bn.includes('Giro dei Castelli Romani'), 'avviso in cima'); step('avviso importante in cima all\'elenco (temporale a Frascati)');
   /* intervallo di verifica meteo: 60 di base, scelta 30 */
   await page.click('.tab[data-tab=altro]'); await wait(300);
@@ -155,7 +155,7 @@ function setupRun(st, W) {
   const ps = log.filter(l => l.fn === 'rc_member_photo').pop(); assert.ok(ps && /^data:image\/jpeg;base64,/.test(ps.body.p_data) && ps.body.p_data.length < 60000); step('foto salvata insieme all\'anagrafica del nuovo socio');
   await page.keyboard.press('Escape'); await wait(400);
   await page.click('.tab[data-tab=run]'); await wait(300);
-  await page.click('.run'); await page.waitForSelector('.sheet.in .row'); await wait(400);
+  await page.click('.run, #nx'); await page.waitForSelector('.sheet.in .row'); await wait(400);
   const pn = page.locator('.sheet.in .list:has(.av) .row .rt b').first(); await pn.click(); await page.waitForSelector('.mcard .tess.big'); await page.screenshot({ path: SHOTS + '42-scheda-tessera.png' }); step('tocco sul nome tra i partecipanti: apre la foto tessera');
   await page.keyboard.press('Escape'); await wait(300);
   if (await page.locator('.sheet.in .fmn').count()) { await page.locator('.sheet.in .fmn').first().click(); await page.waitForSelector('.mcard .tess.big'); step('tocco sul nome nella formazione: apre la foto tessera'); await page.keyboard.press('Escape'); await wait(300); }
@@ -187,7 +187,7 @@ function setupRun(st, W) {
   await page.keyboard.press('Escape'); await wait(400); if (await page.locator('.sheet.in .ask').count()) { await page.locator('.sheet.in .ask button').first().click(); await wait(300); }
   await page.screenshot({ path: SHOTS + '30-run-meteo.png' });
   /* dettaglio */
-  await page.click('.run h3'); await page.waitForSelector('.sheet.in .wxc'); await page.waitForTimeout(400);
+  await page.click(':is(.run h3,.nx .nx-t)'); await page.waitForSelector('.sheet.in .wxc'); await page.waitForTimeout(400);
   let tt = await page.textContent('.sheet.in');
   assert.ok(tt.includes('Meteo lungo il percorso') && tt.includes('Pioggia prevista a Caffè Castelli') && /Frascati alle \d\d:\d\d: temporale/.test(tt), 'avvisi nel dettaglio: ' + tt.slice(0, 400));
   assert.ok(tt.includes('km/h') && tt.includes('💧') && tt.includes('raff.') && tt.includes('Aggiornato alle'), 'parametri moto'); step('dettaglio: pioggia lungo il percorso, temporale critico e parametri (vento, raffiche, pioggia)');
@@ -198,7 +198,7 @@ function setupRun(st, W) {
   /* dato vecchio + senza rete: resta l'ultimo valore */
   st.weather[st.runs[0].id] = fixture(t0, 5, true); await page.evaluate(() => RB.sync()); await wait(400);
   await ctx.setOffline(true); await page.evaluate(() => RB.sync()); await wait(600);
-  await page.click('.run h3'); await page.waitForSelector('.sheet.in .wxc'); await wait(400);
+  await page.click(':is(.run h3,.nx .nx-t)'); await page.waitForSelector('.sheet.in .wxc'); await wait(400);
   assert.ok(await page.locator('#wx-stale').count() === 1 && (await page.textContent('#wx-stale')).includes('Ultima verifica alle'), 'avviso dato vecchio'); assert.ok((await page.textContent('.sheet.in')).includes('Caffè Castelli'), 'ultimo dato ancora visibile offline'); step('senza rete: ultimo dato orario ancora visibile con avviso "ultima verifica"');
   await page.screenshot({ path: SHOTS + '32-meteo-offline.png' });
   await page.keyboard.press('Escape'); await wait(300); await ctx.setOffline(false);
@@ -211,7 +211,7 @@ function setupRun(st, W) {
   await page.selectOption('#ar-status', 'annullato'); await wait(200); assert.strictEqual(await page.locator('.view .run').count(), 0); await page.selectOption('#ar-status', ''); await wait(200);
   const yrs = await page.locator('#ar-year option').allTextContents(); assert.ok(yrs.length >= 2 && yrs[0] === 'Tutti gli anni'); await page.selectOption('#ar-year', yrs[1]); await wait(200); assert.ok(await page.locator('.view .run').count() <= c1); await page.selectOption('#ar-year', ''); await wait(200);
   step('archivio: ricerca per testo, stato e anno');
-  await page.click('.run h3:has-text("Pranzo di fine stagione")'); await page.waitForSelector('.sheet.in'); await wait(500);
+  await page.click(':is(.run h3,.nx .nx-t):has-text(\"Pranzo di fine stagione\")'); await page.waitForSelector('.sheet.in'); await wait(500);
   await page.click('.sheet.in .row:has-text("Richiama come nuovo Run")'); await page.waitForSelector('#rf-title'); await wait(400);
   assert.strictEqual(await page.inputValue('#rf-title'), 'Pranzo di fine stagione'); assert.ok(!(await page.textContent('.sheet.in:last-of-type')).includes('Concluso') || true);
   assert.strictEqual(await page.locator('.sheet.in .seg button:has-text("Concluso")').count(), 0, 'stato non modificabile in un nuovo Run');
@@ -263,7 +263,7 @@ function setupRun(st, W) {
   const t1 = setupRun(st, fixture(0, 0, false)); st.weather[st.runs[0].id] = fixture(t1, 1, false); st.runs[0].meeting = null; st.runs[0].dest = null; st.runs[0].stops = [];
   await login(page);
   assert.strictEqual(await page.locator('.tab[data-tab=report]').count(), 0); step('socio: nessuna scheda Report');
-  await page.click('.run h3'); await page.waitForSelector('.sheet.in .wxc'); await wait(400);
+  await page.click(':is(.run h3,.nx .nx-t)'); await page.waitForSelector('.sheet.in .wxc'); await wait(400);
   tt = await page.textContent('.sheet.in'); assert.ok(tt.includes('Meteo lungo il percorso') && tt.includes('Frascati') && !tt.includes('Caffè Castelli'), 'socio: solo ritrovo e destinazione'); step('socio: meteo su ritrovo e destinazione, senza tappe');
   await ctx.close();
   /* ---- road captain: nessun report ---- */

@@ -294,17 +294,18 @@ async function newPage(browser, vp, level, log, errors) {
   await page.goto(BASE + '?c=ABCD2345'); await page.waitForSelector('.run'); assert.ok(!page.url().includes('c=')); step('accesso da link di invito (codice rimosso dall\'indirizzo)');
   /* socio semplice: nessuna area staff, nessun dato riservato */
   assert.strictEqual(await page.locator('button[aria-label="Nuovo Run"]').count(), 0); step('socio: nessun pulsante Nuovo Run');
-  await page.click('.tab[data-tab=soci]'); await page.waitForSelector('.search'); assert.strictEqual(await page.locator('button[aria-label="Nuovo socio"]').count(), 0);
-  await page.click('.list .row:has-text("Mario Rossi")'); await page.waitForSelector('.sheet.in'); await page.waitForTimeout(300); const mt = await page.textContent('.sheet.in'); assert.ok(!/Telefono|Invito|@/.test(mt)); step('socio: scheda senza telefono, email e inviti');
-  await page.keyboard.press('Escape'); await page.waitForTimeout(300);
+  assert.deepStrictEqual(await page.$$eval('.tab', x => x.map(e => e.getAttribute('data-tab'))), ['run', 'meteo', 'quote', 'altro']); await page.waitForSelector('#nx .nx-me .seg'); step('socio: 4 schede e il prossimo Run in grande con la risposta');
+  await page.click('.tab[data-tab=altro]'); await page.click('#sa-chapter'); await page.waitForSelector('.sheet.in #chapter'); await page.locator('.sheet.in #chapter .seg button:has-text("Soci")').click(); await page.waitForSelector('.sheet.in .search'); assert.strictEqual(await page.locator('button[aria-label="Nuovo socio"]').count(), 0);
+  await page.click('.sheet.in .list .row:has-text("Mario Rossi")'); await page.waitForSelector('.sheet.in'); await page.waitForTimeout(300); const mt = await page.textContent('.sheet.in'); assert.ok(!/Telefono|Invito|@/.test(mt)); step('socio: scheda senza telefono, email e inviti');
+  await page.keyboard.press('Escape'); await page.waitForTimeout(300); await page.keyboard.press('Escape'); await page.waitForTimeout(300);
   await page.click('.tab[data-tab=quote]'); await page.waitForSelector('.view .list'); await page.waitForTimeout(300); { const qs = await page.textContent('.view'); assert.ok(qs.includes('Le mie quote') && qs.includes('Come pagare') && !qs.includes('Registro quote')); step('socio: vede le proprie quote per Run, nessun registro'); }
-  await page.click('.tab[data-tab=altro]'); await page.waitForSelector('#dealer-list .row'); await page.click('#dealer-list .row'); await page.waitForSelector('.sheet.in a.row');
+  await page.click('.tab[data-tab=altro]'); await page.waitForSelector('#sa-dealer'); await page.click('#sa-dealer'); await page.waitForSelector('.sheet.in a.row');
   { const hr = await page.locator('.sheet.in a.row').evaluateAll(e => e.map(x => [x.getAttribute('href'), x.getAttribute('target')])); const hs = hr.map(x => x[0]);
     assert.ok(hs.includes('tel:+39065080088') && hs.includes('https://wa.me/393517478842') && hs.includes('mailto:info@harley-davidson-store-roma.it') && hs.some(x => /facebook\.com\/HarleyDavidsonStoreRoma/.test(x)) && hs.some(x => /instagram\.com\/harleydavidsonstoreroma/.test(x)), JSON.stringify(hs));
     assert.ok(hr.filter(x => /^(tel|mailto)/.test(x[0])).every(x => !x[1]), 'tel e mailto senza nuova scheda'); assert.ok((await page.textContent('.sheet.in')).includes('Via Pontina, 583') && !(await page.textContent('.sheet.in')).includes('Modifica')); }
   await page.screenshot({ path: SHOTS + '48-concessionaria.png' }); await page.keyboard.press('Escape'); await page.waitForTimeout(300); step('concessionaria: chiama, WhatsApp, email, indirizzo, social (socio non modifica)');
   /* dati per le emergenze */
-  await page.waitForSelector('#emg-list .row'); assert.ok((await page.textContent('#emg-list')).includes('Non ancora inseriti')); await page.click('#emg-list .row'); await page.waitForSelector('#em-cn');
+  await page.waitForSelector('#emg-row'); assert.ok((await page.textContent('#emg-row')).includes('Non ancora inseriti')); await page.click('#emg-row'); await page.waitForSelector('#em-cn');
   { const tx = await page.textContent('.sheet.in'); assert.ok(tx.includes('Marco Bianchi') && tx.includes('Persona da avvisare') && tx.includes('Consenso') && tx.includes('Gruppo sanguigno')); assert.ok(!(await page.isVisible('#em-al')), 'dati facoltativi chiusi di default'); }
   await page.screenshot({ path: SHOTS + '49-emergenza-form.png' });
   await tclick('#em-save'); await page.waitForTimeout(250); assert.ok(!log.some(l => l.fn === 'rc_emergency_save'), 'senza contatto non salva');
@@ -312,10 +313,10 @@ async function newPage(browser, vp, level, log, errors) {
   await page.fill('#em-cp', '+39 333 1234567'); await tclick('#em-save'); await page.waitForTimeout(250); assert.ok(!log.some(l => l.fn === 'rc_emergency_save'), 'senza consenso non salva');
   await tclick('#em-more'); await page.fill('#em-al', 'penicillina'); await tclick('.sos-blood button[data-v="A+"]'); await tclick('.sos-seg button[data-v="assicura"]'); await tclick('.pass .sw'); await tclick('#em-save'); await page.waitForTimeout(500);
   { const es = log.filter(l => l.fn === 'rc_emergency_save').pop(); assert.ok(es && es.body.p_consent === true && es.body.p_data.contact_name === 'Anna Bianchi' && es.body.p_data.blood === 'A+' && es.body.p_data.roadside === 'assicura' && es.body.p_data.allergies === 'penicillina', JSON.stringify(es && es.body)); }
-  assert.ok((await page.textContent('#emg-list')).includes('Inseriti')); step('dati emergenza: obbligatori, consenso, salvataggio');
-  await page.click('#emg-list .row'); await page.waitForSelector('#em-cn'); assert.strictEqual(await page.inputValue('#em-cn'), 'Anna Bianchi'); assert.strictEqual(await page.inputValue('#em-al'), 'penicillina');
+  assert.ok((await page.textContent('#emg-row')).includes('Inseriti')); step('dati emergenza: obbligatori, consenso, salvataggio');
+  await page.click('#emg-row'); await page.waitForSelector('#em-cn'); assert.strictEqual(await page.inputValue('#em-cn'), 'Anna Bianchi'); assert.strictEqual(await page.inputValue('#em-al'), 'penicillina');
   await tclick('.row:has-text("Elimina i miei dati di emergenza")'); await tclick('.btn.dng'); await page.waitForTimeout(500);
-  assert.ok(log.some(l => l.fn === 'rc_emergency_delete') && (await page.textContent('#emg-list')).includes('Non ancora inseriti')); step('dati emergenza: eliminazione');
+  assert.ok(log.some(l => l.fn === 'rc_emergency_delete') && (await page.textContent('#emg-row')).includes('Non ancora inseriti')); step('dati emergenza: eliminazione');
   await page.click('.tab[data-tab=altro]'); await page.waitForTimeout(300); assert.ok(!(await page.textContent('.view')).includes('Importa soci')); step('socio: Altro senza strumenti staff');
   await page.screenshot({ path: SHOTS + '13-altro-socio.png' });
   await ctx.close();
@@ -353,16 +354,16 @@ async function newPage(browser, vp, level, log, errors) {
 
   /* socio: nessun percorso; se l'organizzatore lo condivide, solo lo strumento scelto */
   ({ ctx, page, st } = await newPage(browser, M, 1, log, errors));
-  await page.goto(BASE + '?c=ABCD2345'); await page.waitForSelector('.run'); await page.click('.run h3'); await page.waitForSelector('.sheet.in .list'); await page.waitForTimeout(400);
+  await page.goto(BASE + '?c=ABCD2345'); await page.waitForSelector('#nx'); await page.click('#nx .nx-t'); await page.waitForSelector('.sheet.in .list'); await page.waitForTimeout(400);
   let sh = await page.locator('.sheet.in a[href]').evaluateAll(a => a.map(x => x.getAttribute('href')));
   assert.ok(!sh.some(h => /maps\/dir|saddr/.test(h)) && !(await page.textContent('.sheet.in')).includes('Grottaferrata')); step('socio: nessun percorso né tappe');
   await ctx.close();
   ({ ctx, page, st } = await newPage(browser, M, 'pub', log, errors));
-  await page.goto(BASE + '?c=ABCD2345'); await page.waitForSelector('.run'); await page.click('.run h3'); await page.waitForSelector('.sheet.in .list'); await page.waitForTimeout(400);
+  await page.goto(BASE + '?c=ABCD2345'); await page.waitForSelector('#nx'); await page.click('#nx .nx-t'); await page.waitForSelector('.sheet.in .list'); await page.waitForTimeout(400);
   sh = await page.locator('.sheet.in a[href]').evaluateAll(a => a.map(x => x.getAttribute('href')));
   assert.ok(sh.some(h => h.includes('google.com/maps/dir')) && !sh.some(h => h.includes('maps.apple.com'))); step('socio con percorso condiviso: vede il pulsante Google Maps');
   st.runs[0].nav_tool = 'none'; await page.keyboard.press('Escape'); await page.waitForTimeout(300); await page.evaluate(() => RB.sync()); await page.waitForTimeout(400);
-  await page.click('.run h3'); await page.waitForSelector('.sheet.in .list'); await page.waitForTimeout(300);
+  await page.click('#nx .nx-t'); await page.waitForSelector('.sheet.in .list'); await page.waitForTimeout(300);
   assert.strictEqual(await page.locator('.sheet.in a[href*="google.com/maps/dir"]').count(), 0); assert.ok((await page.textContent('.sheet.in')).includes('Via Roma 1')); step('Google Maps nascosto: restano le tappe ma nessun pulsante');
   await ctx.close();
 
