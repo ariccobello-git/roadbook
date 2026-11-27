@@ -94,6 +94,20 @@ async function run(devName) {
   await page.click('#x-tools .row:has-text("Statistiche del Chapter")'); await page.waitForSelector('#x-stats .xbar'); assert((await page.textContent('#x-stats')).includes('Più presenti')); ok('statistiche Chapter');
   await page.keyboard.press('Escape'); await page.waitForTimeout(350);
 
+  /* aiuto e domande frequenti */
+  const faqBad = await page.evaluate(() => { const F = window.RB.helpFaq, bad = []; Object.keys(F).forEach(g => F[g].forEach((x, i) => { if (x.length !== 2 || x.some(p => p.length !== 3 || p.some(v => typeof v !== 'string' || v.trim().length < 3))) bad.push(g + i); })); return bad; });
+  assert.deepEqual(faqBad, [], 'FAQ incomplete');
+  await page.click('#x-help-row'); await page.waitForSelector('.sheet.in #help .faq');
+  const nSoci = await page.locator('.sheet.in #help .faq').count(); assert(nSoci >= 12, 'FAQ soci ' + nSoci);
+  await page.locator('.sheet.in #help-tabs button:has-text("Direttivo")').click(); await page.waitForFunction(n => document.querySelectorAll('.sheet.in #help .faq').length !== n, nSoci);
+  assert(/Come creo un Run/.test(await page.locator('.sheet.in #help-list').innerText())); assert.equal(await page.locator('.sheet.in #help-tabs button').count(), 2, 'senza permessi di amministrazione niente scheda Amministrazione');
+  await page.fill('.sheet.in #help-q', 'codice'); await page.waitForFunction(() => /Ho perso il codice/.test(document.querySelector('.sheet.in #help-list').innerText));
+  await page.locator('.sheet.in .faq summary:has-text("Ho perso il codice")').click(); await page.waitForSelector('.sheet.in .faq[open] p'); assert(/Il mio codice/.test(await page.locator('.sheet.in .faq[open] p').innerText()));
+  await page.fill('.sheet.in #help-q', 'zzqqxx'); await page.waitForSelector('.sheet.in #help-list .empty'); await page.fill('.sheet.in #help-q', '');
+  await noOverflow('aiuto'); if (process.env.SHOTS) { await page.locator('.sheet.in .faq summary').first().click(); await page.screenshot({ path: 'shots/help-' + devName.replace(/\W+/g, '_') + '.png' }); }
+  await page.locator('.sheet.in #help-install').click(); await page.waitForSelector('.sheet.in #ig'); await page.locator('.sheet.in:has(#ig) .sb.l').click(); await page.waitForFunction(() => !document.querySelector('.sheet.in #ig'));
+  await page.locator('.sheet.in:has(#help) .sb.l').click(); await page.waitForFunction(() => !document.querySelector('.sheet.in #help')); ok('aiuto: domande per soci e direttivo, ricerca, guida all\'installazione');
+
   /* avvisi: nuovo */
   await page.click('#x-tools .row:has-text("Avvisi")'); await page.click('#nt-new'); await page.waitForSelector('#nt-t');
   await page.fill('#nt-t', 'Raduno annullato'); await page.fill('#nt-b', 'Per maltempo'); await page.locator('.sheet:has(#nt-t) .sb.r').click();
