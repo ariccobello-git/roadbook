@@ -198,10 +198,10 @@
   };
   RB.extrasSection = function (root) {
     var l = h('div', { class: 'list', id: 'x-tools' });
-    l.appendChild(RB.row({ lead: RB.icon('user'), title: t('x2_card'), sub: t('x2_card_d'), onclick: function () { RB.cardSheet(); } }));
+    l.appendChild(RB.row({ lead: RB.icon('qr'), title: t('x2_card'), sub: t('x2_card_d'), onclick: function () { RB.cardSheet(); } }));
     l.appendChild(RB.row({ lead: RB.icon('route'), title: t('x2_stats'), sub: t('x2_stats_d'), onclick: function () { RB.statsSheet(false); } }));
     if (RB.can('members_view')) l.appendChild(RB.row({ lead: RB.icon('route'), title: t('x2_st_chapter'), sub: t('x2_st_chapter_d'), onclick: function () { RB.statsSheet(true); } }));
-    l.appendChild(RB.row({ lead: RB.icon('quote'), title: t('help_title'), sub: t('help_sub'), id: 'x-help-row', onclick: function () { RB.helpSheet(); } }));
+    l.appendChild(RB.row({ lead: RB.icon('help'), title: t('help_title'), sub: t('help_sub'), id: 'x-help-row', onclick: function () { RB.helpSheet(); } }));
     if (RB.can('runs_edit')) {
       l.appendChild(RB.row({ lead: RB.icon('quote'), title: t('x2_notices'), sub: t('x2_notices_d'), onclick: function () { RB.noticesManage(); } }));
       l.appendChild(RB.row({ lead: RB.icon('file'), title: t('x2_import'), sub: t('x2_import_d'), onclick: function () { RB.runImport(); } }));

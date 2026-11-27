@@ -50,7 +50,8 @@
       err, btn, resumeBtn, h('p', { class: 'sm', style: 'text-align:center' }, t('login_help')),
       RB.isStandalone() ? null : h('button', { type: 'button', class: 'btn ghost', id: 'login-install', onclick: RB.installGuide }, RB.icon('plus'), t('ig_how_login')),
       h('button', { type: 'button', class: 'btn sos-btn sos-login', id: 'sos-public', onclick: function () { RB.feel('tap'); RB.sosOpen('public'); } }, RB.icon('alert'), t('sos_btn')), h('div', { class: 'lg' }, langs), h('p', { class: 'sm', style: 'text-align:center;opacity:.45;font-size:11px;margin-top:14px', id: 'rel' }, 'Release ' + RB.RELEASE)));
-    setTimeout(function () { try { code.focus(); } catch (e) {} }, 300);
+    /* niente focus se nel frattempo si è aperto un pannello (es. Emergenza): ruberebbe il testo digitato */
+    setTimeout(function () { try { if (!RB.sheets.length && document.body.contains(code)) code.focus(); } catch (e) {} }, 300);
   }
 
   function start() {
@@ -124,8 +125,11 @@
     var stb = RB.startBlock(); if (stb) main.appendChild(stb);
     var hb = RB.haltBlock(); if (hb) main.appendChild(hb);
     var lb = RB.lostBlock(); if (lb) main.appendChild(lb);
-    if (RB.ui.tab === 'run') { var nb = RB.noticesBlock(); if (nb) main.appendChild(nb); hint(main); }
+    /* avvisi e invito a installare: nella vista Socio vanno sotto il prossimo Run, che resta il primo in vista */
+    var pre = null, at = main.lastChild;
+    if (RB.ui.tab === 'run') { pre = document.createDocumentFragment(); var nb = RB.noticesBlock(); if (nb) pre.appendChild(nb); hint(pre); if (!RB.simpleView()) { main.appendChild(pre); pre = null; } }
     try { RB.views[RB.ui.tab](main); } catch (e) { if (window.console) console.error(e); main.appendChild(h('div', { class: 'empty' }, h('b', null, t('e_generic')))); }
+    if (pre) { var nx = main.querySelector('#nx'); if (nx) nx.after(pre); else main.insertBefore(pre, at ? at.nextSibling : main.firstChild); }
     window.scrollTo(0, y);
   };
 
@@ -153,7 +157,7 @@
     root.appendChild(h('div', { class: 'card', style: 'display:flex;align-items:center;gap:14px' },
       h('button', { type: 'button', 'aria-label': t('change_photo'), onclick: function () { if (RB.mem(me.id)) RB.photoMenu(RB.mem(me.id)); } }, av),
       h('div', { style: 'min-width:0;flex:1' }, h('b', { style: 'font-size:19px' }, RB.fullName(m)), h('div', { class: 'chips', style: 'margin-top:4px' }, RB.chip(RB.titleName(me.title), 'acc'), RB.simpleView() ? null : RB.chip(anyTool ? t('area_staff') : t('area_member'), ''))),
-      h('button', { type: 'button', class: 'card-out', id: 'card-out', 'aria-label': t('logout'), title: t('logout'), onclick: askLogout }, RB.icon('out'), h('span', null, t('logout')))));
+      RB.simpleView() ? null : h('button', { type: 'button', class: 'card-out', id: 'card-out', 'aria-label': t('logout'), title: t('logout'), onclick: askLogout }, RB.icon('out'), h('span', null, t('logout')))));
 
     var shown = false, codeRow = RB.row({ lead: RB.icon('user'), title: t('my_code'), sub: '••••-••••', go: false });
     var csub = codeRow.querySelector('.rt span');
@@ -215,7 +219,7 @@
 
   /* Altro per i soci: solo ciò che serve, raggruppato per uso; il resto sta in fogli dedicati */
   function simpleAltro(root, meList, codeRow) {
-    meList.insertBefore(RB.row({ lead: RB.icon('user'), title: t('x2_card'), sub: t('x2_card_d'), id: 'sa-card', onclick: function () { RB.cardSheet(); } }), codeRow);
+    meList.insertBefore(RB.row({ lead: RB.icon('qr'), title: t('x2_card'), sub: t('x2_card_d'), id: 'sa-card', onclick: function () { RB.cardSheet(); } }), codeRow);
     root.appendChild(h('div', { class: 'list', id: 'push-list', style: 'margin-top:14px' }, RB.pushRow(), emgRow()));
     root.appendChild(h('div', { class: 'list', id: 'sa-more', style: 'margin-top:14px' },
       RB.can('members_view') ? RB.row({ lead: RB.icon('soci'), title: t('sa_chapter'), sub: t('sa_chapter_d'), id: 'sa-chapter', onclick: chapterSheet }) : null,

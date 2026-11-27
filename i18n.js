@@ -269,7 +269,7 @@
     sa_prefs: ["Aspetto e lingua", "Appearance and language", "Apparence et langue"],
     help_title: ["Aiuto e domande frequenti", "Help and FAQ", "Aide et questions fréquentes"],
     help_sub: ["Risposte rapide, guida e installazione", "Quick answers, guide and install", "Réponses rapides, guide et installation"],
-    help_search: ["Cerca: codice, notifiche, quota…", "Search: code, notifications, fee…", "Rechercher : code, notifications, cotisation…"],
+    help_search: ["Cerca una domanda", "Search a question", "Chercher une question"],
     help_g_soci: ["Soci", "Members", "Membres"],
     help_g_dir: ["Direttivo", "Board", "Bureau"],
     help_g_adm: ["Amministrazione", "Admin", "Administration"],
