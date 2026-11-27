@@ -198,6 +198,7 @@ async function newPage(browser, vp, level, log, errors) {
 
   /* salvataggio */
   await TOP().locator('.sb.r').click(); await wait(800);
+  await page.waitForSelector('.sheet.in .ask'); await page.locator('.sheet.in .ask .btn.sec').last().click(); await wait(400); console.log('ok - Run nuovo: proposta di avvisare il gruppo WhatsApp, rifiutata');
   const sv = log.filter(l => l.fn === 'rc_run_save').pop().body.p;
   assert.strictEqual(sv.days, 2); assert.strictEqual(sv.meeting.name, "Fungo dell'EUR"); assert.strictEqual(sv.meeting.lat, 41.824428); assert.strictEqual(sv.route_public, false);
   assert.strictEqual(sv.dest.name, 'Bar Appia'); assert.ok(sv.stops.some(s => s.end && s.day === 1 && s.addr.includes('Milano'))); assert.ok(sv.stops.some(s => s.day === 1 && !s.end && s.name === 'Punto panoramico' && s.lat));

@@ -199,7 +199,12 @@ async function run(devName) {
   Object.assign(st.lost[0], { status: 'sent', stop: st.lost[0].tip, sent_at: new Date().toISOString() }); await page.evaluate(() => window.RB.sync());
   await page.waitForSelector('.sheet.in #lost-nav', { timeout: 15000 });
   const sendL = log.find(l => l.fn === 'rc_lost_send'); assert(sendL && sendL.body.p_run === ID(50), 'H2 richiesta'); assert(typeof sendL.body.p_lat === 'number', devName + ' H2 posizione mancante');
-  const href = await page.locator('#lost-nav').getAttribute('href'); assert(/dir_action=navigate&destination=41\.800000%2C12\.680000$/.test(href), devName + ' link ' + href); await noOverflow(page, 'scheda perso'); ok('H2b sosta confermata: navigazione verso la sosta'); if (process.env.SHOTS) await page.screenshot({ path: 'shots/lost-h2-' + devName.replace(/\W+/g, '_') + '.png' });
+  const href = await page.locator('#lost-nav').getAttribute('data-href'); assert(/dir_action=navigate&destination=41\.800000%2C12\.680000$/.test(href), devName + ' link ' + href); await noOverflow(page, 'scheda perso'); ok('H2b sosta confermata: navigazione verso la sosta'); if (process.env.SHOTS) await page.screenshot({ path: 'shots/lost-h2-' + devName.replace(/\W+/g, '_') + '.png' });
+  await page.click('.sheet.in #lost-nav'); await page.waitForSelector('.sheet.in #lost-nav-go');
+  assert.equal(await page.locator('.sheet.in #lost-nav-go').getAttribute('href'), href, 'H2c link Maps nel promemoria');
+  const shTx = await page.locator('.sheet.in #lost-share').innerText(); assert(/Condividi avanzamento del viaggio/.test(shTx) && /Luca Gialli/.test(shTx), devName + ' H2c passi ' + shTx);
+  assert.equal(await page.locator('.sheet.in #lost-share li').count(), 3); await noOverflow(page, 'promemoria condivisione'); if (process.env.SHOTS) await page.screenshot({ path: 'shots/lost-h2c-' + devName.replace(/\W+/g, '_') + '.png' });
+  await page.locator('.sheet.in:has(#lost-share) .sb.l').click(); await page.waitForFunction(() => !document.querySelector('.sheet.in #lost-share')); ok('H2c promemoria: condividi il viaggio con il capogruppo da Google Maps');
   for (let i = 0; i < 40 && !log.some(l => l.fn === 'rc_lost_pos' && l.body.p_eta_min != null); i++) await page.waitForTimeout(250);
   const posL = log.find(l => l.fn === 'rc_lost_pos' && l.body.p_eta_min != null); assert(posL && posL.body.p_eta_min === 25, devName + ' H3 ora prevista ' + (posL && posL.body.p_eta_min)); ok('H3 ora prevista dal servizio di percorsi (25 min)');
   await page.waitForSelector('.sheet.in #lost-eta'); await page.locator('.sheet.in .sb.l').last().click();
@@ -217,7 +222,7 @@ async function run(devName) {
   assert(/Bar Frascati/.test(await page.locator('.sheet.in .lost-opt.sel').innerText()), devName + ' I2 proposta ' + await page.locator('.sheet.in .lost-opt.sel').innerText());
   assert.equal(await page.locator('.sheet.in .lost-opt:has-text("Bar Frascati")').count(), 1, 'I2 proposta doppia'); assert.equal(await page.locator('.sheet.in #lost-call').getAttribute('href'), 'tel:3339990000'); ok('I2 sosta proposta dal server e chiamata al socio'); if (process.env.SHOTS) await page.screenshot({ path: 'shots/lost-i2-' + devName.replace(/\W+/g, '_') + '.png' });
   await page.click('.sheet.in #lost-send-stop'); await page.waitForSelector('.sheet.in #lost-eta', { timeout: 6000 });
-  const stopL = log.find(l => l.fn === 'rc_lost_stop'); assert(stopL && stopL.body.p_stop.name === 'Bar Frascati' && stopL.body.p_stop.lat === 41.8); ok('I3 sosta inviata, ora prevista visibile');
+  const stopL = log.find(l => l.fn === 'rc_lost_stop'); assert(stopL && stopL.body.p_stop.name === 'Bar Frascati' && stopL.body.p_stop.lat === 41.8); assert.equal(await page.locator('.sheet.in #lost-follow').getAttribute('href'), 'https://wa.me/393339990000', 'I3 segui su WhatsApp'); ok('I3 sosta inviata, ora prevista visibile, segui su WhatsApp');
   await page.locator('.sheet.in .sb.l').last().click(); await page.waitForTimeout(350);
   await page.evaluate(() => window.RB.haltStart(window.RB.run(window.RB.runs()[0].id))); await page.waitForSelector('#halt-block .halt-b[data-min="0"]');
   await page.click('#halt-block .halt-b[data-min="0"]'); await page.waitForSelector('.sheet.in .ask'); assert(/Ripartire senza Mario Rossi/.test(await page.locator('.sheet.in:has(.ask)').last().innerText()));

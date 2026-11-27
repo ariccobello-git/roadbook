@@ -178,6 +178,7 @@ async function newPage(browser, vp, level, log, errors) {
   await tclick('.sb.r'); await page.waitForTimeout(500);
   const rs = log.filter(l => l.fn === 'rc_run_save').pop();
   assert.ok(rs && rs.body.p.title === 'Giro di prova' && rs.body.p.stops.length === 1 && rs.body.p.stops[0].addr === 'Via A 1, Roma' && rs.body.p.nav_tool === 'none' && rs.body.p.fee === '15.5' && rs.body.p.rooms.length === 2 && rs.body.p.rooms[0].price === '120' && rs.body.p.extras[0].name === 'Cena' && JSON.stringify(rs.body.p.installments) === JSON.stringify([{ due_on: '2026-12-01', pct: '30' }, { due_on: '2027-01-10', pct: '70' }]) && /Z$/.test(rs.body.p.run_date)); step('nuovo Run salvato con indirizzo tappa e navigatore');
+  await page.waitForSelector('.sheet.in .ask'); assert.ok(/gruppo WhatsApp/.test(await page.locator('.sheet.in:has(.ask)').last().innerText())); await page.locator('.sheet.in .ask .btn.sec').last().click(); await page.waitForFunction(() => !document.querySelector('.sheet.in .ask')); step('Run nuovo: proposta di avvisare il gruppo WhatsApp');
   assert.strictEqual(await page.locator('.run').count(), 3);
 
   /* soci */

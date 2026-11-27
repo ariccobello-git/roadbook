@@ -29,6 +29,7 @@
     });
     return box;
   };
+  RB.noticeText = function (n) { return t('wa_notice', n.title, (n.body || '').trim(), RB.appUrl()).replace(/\n{3,}/g, '\n\n'); };
   RB.noticesManage = function () {
     var body = h('div'), ctl = RB.sheet({ title: t('x2_notices'), content: body, full: true, leftLabel: t('close') });
     function edit(n) {
@@ -36,10 +37,14 @@
       var pin = n ? !!n.pinned : false, days = n && n.expires_at ? Math.max(1, Math.round((new Date(n.expires_at) - Date.now()) / 86400000)) : 14;
       var d2 = RB.input('nt-d', days, { type: 'number', min: 1, mode: 'numeric' });
       var c2 = RB.sheet({ title: n ? t('x2_n_edit') : t('x2_n_new'), leftLabel: t('cancel'), right: { label: t('save'), fn: function (cc) {
-        var v = (RB.val('nt-t') || '').trim(); if (!v) { RB.toast(t('e_dati_mancanti'), 'err'); return; }
-        RB.act(cc.right, function () { return RB.write('rc_notice_save', { p_id: n ? n.id : null, p_title: v, p_body: document.getElementById('nt-b').value, p_pinned: pin, p_days: parseInt(RB.val('nt-d'), 10) || null }); }, t('saved')).then(function (x) { if (x && x.ok) { cc.close(true); RB.noticesLoad(true).then(draw); } });
+        var v = (RB.val('nt-t') || '').trim(); if (!v) { RB.toast(t('e_dati_mancanti'), 'err'); return; } var bv = document.getElementById('nt-b').value;
+        RB.act(cc.right, function () { return RB.write('rc_notice_save', { p_id: n ? n.id : null, p_title: v, p_body: bv, p_pinned: pin, p_days: parseInt(RB.val('nt-d'), 10) || null }); }, t('saved')).then(function (x) { if (x && x.ok) { cc.close(true); RB.noticesLoad(true).then(draw); if (!n) askWa({ title: v, body: bv }); } });
       } }, content: h('div', null, h('div', { class: 'list' }, RB.field(t('x2_n_title'), ti), RB.field(t('x2_n_body'), bo), RB.field(t('x2_n_days'), d2)),
         h('div', { class: 'list', style: 'margin-top:10px' }, h('div', { class: 'pass' }, h('span', null, t('x2_n_pin')), RB.toggle(pin, function (on) { pin = on; })))) });
+    }
+    /* dopo la pubblicazione: un tocco per mandarlo anche sul gruppo WhatsApp del Chapter */
+    function askWa(n) {
+      RB.ask({ title: t('wa_ask_t'), msg: t('wa_ask_m'), ok: t('wa_send') }).then(function (y) { if (y) RB.waSend(RB.noticeText(n)); });
     }
     function draw() {
       RB.clear(body);
@@ -49,7 +54,7 @@
       var l = h('div', { class: 'list', style: 'margin-top:12px' });
       items.forEach(function (n) {
         l.appendChild(RB.row({ title: n.title, sub: (n.expires_at ? t('x2_n_until', RB.fmt.dayShort(n.expires_at)) : t('x2_n_always')), onclick: function () { edit(n); },
-          right: h('button', { type: 'button', class: 'btn ghost sm2', 'aria-label': t('delete'), onclick: function (e) { e.stopPropagation(); RB.ask({ title: t('x2_n_del'), msg: n.title, ok: t('delete'), danger: true }).then(function (y) { if (y) RB.write('rc_notice_delete', { p_id: n.id }).then(function () { RB.noticesLoad(true).then(draw); }); }); } }, RB.icon('x')) }));
+          right: h('span', { class: 'nt-acts' }, h('button', { type: 'button', class: 'btn ghost sm2 nt-wa', 'aria-label': t('wa_send'), onclick: function (e) { e.stopPropagation(); RB.waSend(RB.noticeText(n)); } }, RB.icon('chat')), h('button', { type: 'button', class: 'btn ghost sm2', 'aria-label': t('delete'), onclick: function (e) { e.stopPropagation(); RB.ask({ title: t('x2_n_del'), msg: n.title, ok: t('delete'), danger: true }).then(function (y) { if (y) RB.write('rc_notice_delete', { p_id: n.id }).then(function () { RB.noticesLoad(true).then(draw); }); }); } }, RB.icon('x'))) }));
       });
       body.appendChild(l);
     }

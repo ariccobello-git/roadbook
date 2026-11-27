@@ -709,3 +709,10 @@ input,select,textarea{min-height:44px}
 .sos-kind.lost .sk-i{background:linear-gradient(135deg,#0a84ff,#5e5ce6)}
 @keyframes lostPulse{0%,100%{box-shadow:0 10px 26px rgba(215,0,21,.3)}50%{box-shadow:0 10px 34px rgba(215,0,21,.55)}}
 @media (prefers-reduced-motion:reduce){.lost-card.open:not(.mine){animation:none}}
+/* passi numerati: condivisione viaggio e guida all'installazione */
+.lost-share,.ig-box{background:var(--card);border:1px solid var(--sep);border-radius:18px;padding:14px 16px;margin:12px 0}
+.steps,.lost-share ol{counter-reset:st;list-style:none;margin:10px 0 4px;padding:0}
+.steps li,.lost-share li{counter-increment:st;position:relative;padding:4px 0 8px 36px;line-height:1.4}
+.steps li:before,.lost-share li:before{content:counter(st);position:absolute;left:0;top:2px;width:24px;height:24px;border-radius:50%;background:var(--acc);color:#fff;font:600 13px/24px system-ui;text-align:center}
+.ig-tabs{margin:4px 0 6px}
+.ig-tip{font-size:13px;color:var(--mu);margin:6px 0 0}

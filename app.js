@@ -47,6 +47,7 @@
       h('h1', null, '9076 RoadBook'), h('p', { class: 'sub' }, t('login_sub')),
       h('div', { class: 'list' }, h('label', { class: 'field' }, h('span', null, t('access_code')), code)),
       err, btn, resumeBtn, h('p', { class: 'sm', style: 'text-align:center' }, t('login_help')),
+      RB.isStandalone() ? null : h('button', { type: 'button', class: 'btn ghost', id: 'login-install', onclick: RB.installGuide }, RB.icon('plus'), t('ig_how_login')),
       h('button', { type: 'button', class: 'btn sos-btn sos-login', id: 'sos-public', onclick: function () { RB.feel('tap'); RB.sosOpen('public'); } }, RB.icon('alert'), t('sos_btn')), h('div', { class: 'lg' }, langs), h('p', { class: 'sm', style: 'text-align:center;opacity:.45;font-size:11px;margin-top:14px', id: 'rel' }, 'Release ' + RB.RELEASE)));
     setTimeout(function () { try { code.focus(); } catch (e) {} }, 300);
   }
@@ -70,14 +71,33 @@
     app.appendChild(h('div', { class: 'shell' }, tabs, h('main', { class: 'view', id: 'view' })));
   }
 
+  RB.isStandalone = function () { return !!((window.navigator && navigator.standalone) || (window.matchMedia && matchMedia('(display-mode: standalone)').matches)); };
+  RB.isIOS = function () { return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); };
+  function installNow() { if (!installEvt) return false; installEvt.prompt(); installEvt = null; RB.render(); return true; }
+
+  /* guida all'installazione: iPhone (Safari) e Android (Chrome), anche prima dell'accesso */
+  RB.installGuide = function () {
+    var os = RB.isIOS() ? 'ios' : 'android', body = h('div', { id: 'ig' }), steps = h('div', { class: 'ig-box' });
+    function draw() {
+      RB.clear(steps);
+      var k = os === 'ios' ? [t('ig_ios_1'), t('ig_ios_2'), t('ig_ios_3'), t('ig_4')] : [t('ig_and_1'), t('ig_and_2'), t('ig_and_3'), t('ig_4')];
+      steps.setAttribute('data-os', os);
+      steps.appendChild(h('ol', { class: 'steps' }, k.map(function (x) { return h('li', null, x); })));
+      if (os === 'android' && installEvt) steps.appendChild(h('button', { type: 'button', class: 'btn pri', id: 'ig-install', onclick: function () { if (installNow()) ctl.close(); } }, t('install')));
+      steps.appendChild(h('p', { class: 'ig-tip' }, os === 'ios' ? t('ig_ios_tip') : t('ig_and_tip')));
+    }
+    body.appendChild(h('p', { class: 'sm' }, t('ig_intro')));
+    body.appendChild(h('div', { class: 'ig-tabs' }, RB.seg([{ v: 'ios', label: 'iPhone' }, { v: 'android', label: 'Android' }], os, function (v) { os = v; draw(); })));
+    body.appendChild(steps); draw();
+    var ctl = RB.sheet({ title: t('ig_title'), content: body, leftLabel: t('close') });
+    return ctl;
+  };
+
   function hint(root) {
-    var standalone = (window.navigator && navigator.standalone) || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
     var dismissed = false; try { dismissed = localStorage.getItem('rb.hint') === '1'; } catch (e) {}
-    if (standalone || dismissed) return;
-    var ios = /iPad|iPhone|iPod/.test(navigator.userAgent);
-    if (!ios && !installEvt) return;
-    var card = h('div', { class: 'card' }, h('h3', null, t('install_title')), h('p', { class: 'sm' }, ios ? t('install_ios') : t('install_other')),
-      !ios ? h('button', { type: 'button', class: 'btn pri', onclick: function () { installEvt.prompt(); installEvt = null; RB.render(); } }, t('install')) : null,
+    if (RB.isStandalone() || dismissed) return;
+    var card = h('div', { class: 'card', id: 'install-hint' }, h('h3', null, t('install_title')), h('p', { class: 'sm' }, t('install_other')),
+      installEvt && !RB.isIOS() ? h('button', { type: 'button', class: 'btn pri', onclick: installNow }, t('install')) : h('button', { type: 'button', class: 'btn pri', id: 'hint-how', onclick: RB.installGuide }, t('ig_how')),
       h('button', { type: 'button', class: 'btn sec', onclick: function () { try { localStorage.setItem('rb.hint', '1'); } catch (e) {} RB.render(); } }, t('later')));
     root.appendChild(card);
   }
