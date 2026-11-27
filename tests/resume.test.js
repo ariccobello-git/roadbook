@@ -53,10 +53,11 @@ async function run(devName, base) {
   let engine = pw.chromium;
   if (NATIVE) engine = pw[dev.defaultBrowserType || 'chromium']; else delete opts.defaultBrowserType;
   const browser = await engine.launch(NATIVE ? {} : { executablePath: process.env.CHROME || undefined, args: ['--no-sandbox'] });
-  const ctx = await browser.newContext(Object.assign({}, opts, { locale: 'it-IT', timezoneId: 'Europe/Rome' }));
+  /* parte 1 senza service worker: in WebKit le richieste passate dal service worker sfuggono al finto server dei dati */
+  const ctx = await browser.newContext(Object.assign({}, opts, { locale: 'it-IT', timezoneId: 'Europe/Rome', serviceWorkers: 'block' }));
   await backend(ctx);
   await ctx.addInitScript(() => { try { localStorage.setItem('rb.tour', '1'); localStorage.setItem('rb.hint', '1'); } catch (e) {} });
-  const page = await ctx.newPage(), errors = [], res = [], ok = n => res.push(n);
+  let page = await ctx.newPage(); const errors = [], res = [], ok = n => res.push(n);
   page.on('pageerror', e => errors.push(devName + ' pageerror: ' + e.message));
   const mark = () => page.evaluate(() => { window.__same = 1; window.__v = document.getElementById('view'); });
   const rebuilt = () => page.evaluate(() => window.__v !== document.getElementById('view'));
@@ -80,6 +81,12 @@ async function run(devName, base) {
     await page.evaluate(() => { document.getElementById('app').innerHTML = ''; });
     await Promise.all([page.waitForEvent('load'), away(page, 0)]);
     await page.waitForSelector('.run, #nx', { timeout: 8000 }); ok('C app vuota: ricarica e riprende');
+
+    /* parte 2 con service worker: sessione salvata, si apre la pagina d'accesso con «Continua come» (non servono dati dal server) */
+    const ctx2 = await browser.newContext(Object.assign({}, opts, { locale: 'it-IT', timezoneId: 'Europe/Rome' }));
+    await ctx2.addInitScript(() => { try { localStorage.setItem('rb.code', 'ABCD2345'); localStorage.setItem('rb.cache', JSON.stringify({ ok: true, me: { first_name: 'Mario', last_name: 'Rossi' } })); } catch (e) {} });
+    page = await ctx2.newPage(); page.on('pageerror', e => errors.push(devName + ' pageerror: ' + e.message));
+    await page.goto(base); await page.waitForSelector('#resume');
 
     /* D. rete debole (10 s): l'app si apre dalla copia salvata entro pochi secondi */
     await page.waitForFunction(() => navigator.serviceWorker && navigator.serviceWorker.controller, null, { timeout: 10000 });
