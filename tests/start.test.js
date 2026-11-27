@@ -28,7 +28,7 @@ function mk(who, started, multi, sign) {
     if (sign.mineSi) signups.push({ run_id: run.id, member_id: me.id, status: 'si', passengers: 0, checked_in: false });
     if (sign.reqs) { signups.push({ run_id: run.id, member_id: ID(2), status: 'forse', passengers: 0, checked_in: false, pending: 'join', requested_at: new Date().toISOString() }); signups.push({ run_id: run.id, member_id: ID(3), status: 'si', passengers: 0, checked_in: false, pending: 'cancel', requested_at: new Date().toISOString() }); }
   }
-  return { me: { id: me.id, first_name: me.first_name, last_name: me.last_name, title: me.title, active: true, perms }, profiles: [], members, runs: [run], signups, payments: [], settings: { chapter: { name: 'Roma Chapter' } }, weather: {}, reports: [], acks: multi ? [ID(50) + ':1'] : [], halts: [] };
+  return { me: { id: me.id, first_name: me.first_name, last_name: me.last_name, title: me.title, active: true, perms }, profiles: [], members, runs: [run], signups, payments: [], settings: { chapter: { name: 'Roma Chapter' } }, weather: {}, reports: [], acks: multi ? [ID(50) + ':1'] : [], halts: [], lost: [] };
 }
 
 function backend(page, who, started, log, multi, sign) {
@@ -55,6 +55,10 @@ function backend(page, who, started, log, multi, sign) {
       else if (cur) Object.assign(cur, { status: body.p_status, pending: null }); else st.signups.push({ run_id: r.id, member_id: me, status: body.p_status, passengers: 0 });
     }
     else if (fn === 'rc_signup_decide') { const i = st.signups.findIndex(x => x.member_id === body.p_member), x = st.signups[i]; if (x.pending === 'join' && body.p_ok) Object.assign(x, { status: 'si', pending: null }); else if (x.pending === 'cancel' && body.p_ok) st.signups.splice(i, 1); else if (x.status === 'forse') st.signups.splice(i, 1); else x.pending = null; }
+    else if (fn === 'rc_lost_send') { const x = { id: ID(900), run_id: body.p_run, member_id: st.me.id, status: 'open', lat: body.p_lat, lng: body.p_lng, pos_at: new Date().toISOString(), stop: null, tip: { name: 'Bar Frascati', addr: '', lat: 41.8, lng: 12.68 }, created_at: new Date().toISOString(), helpers: [{ id: ID(4), name: 'Luca Gialli', phone: '333 111 2233', role: 'rc' }, { id: ID(1), name: 'Laura Verdi', phone: '3334445566', role: 'safety' }] }; st.lost.push(x); out = { ok: true, id: x.id, status: x.status }; }
+    else if (fn === 'rc_lost_pos') { const x = st.lost.find(y => y.id === body.p_id); if (body.p_eta_min != null) Object.assign(x, { eta: new Date(Date.now() + body.p_eta_min * 60000).toISOString(), eta_at: new Date().toISOString() }); out = { ok: true, status: x.status }; }
+    else if (fn === 'rc_lost_stop') { const x = st.lost.find(y => y.id === body.p_id); Object.assign(x, { stop: body.p_stop, status: 'sent', sent_at: new Date().toISOString(), eta: new Date(Date.now() + 20 * 60000).toISOString(), eta_at: new Date().toISOString() }); }
+    else if (fn === 'rc_lost_close') { const x = st.lost.find(y => y.id === body.p_id); Object.assign(x, { status: body.p_found ? 'arrived' : 'closed', done_at: new Date().toISOString() }); }
     else if (fn === 'rc_run_halt') {
       const open = st.halts.find(x => !x.ended_at), now = new Date().toISOString();
       if (body.p_action === 'stop' && !open) st.halts.push({ id: ID(700 + st.halts.length), run_id: r.id, day: r.started_day || 1, lat: 41.9, lng: 12.5, started_at: now, ended_at: null, restart_at: null });
@@ -77,8 +81,9 @@ async function run(devName) {
   const errors = [], res = [];
   const ok = n => res.push(n);
   async function login(who, started, multi, sign) {
-    const ctx = await browser.newContext(Object.assign({}, opts, { locale: 'it-IT', timezoneId: 'Europe/Rome' }));
+    const ctx = await browser.newContext(Object.assign({}, opts, { locale: 'it-IT', timezoneId: 'Europe/Rome', geolocation: { latitude: 41.85, longitude: 12.6, accuracy: 15 }, permissions: ['geolocation'] }));
     const page = await ctx.newPage(), log = [];
+    await page.route('**/router.project-osrm.org/**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 'Ok', routes: [{ duration: 1500, distance: 21000 }] }), headers: { 'access-control-allow-origin': '*' } }));
     await page.addInitScript(() => { try { localStorage.setItem('rb.tour', '1'); } catch (e) {} });
     page.on('pageerror', e => errors.push(devName + ' pageerror: ' + e.message));
     page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource|favicon|net::ERR|CORS request did not succeed/.test(m.text())) errors.push(devName + ' console: ' + m.text()); });
@@ -183,6 +188,48 @@ async function run(devName) {
   assert(log.some(l => l.fn === 'rc_signup_decide' && l.body.p_ok === true && l.body.p_member === ID(2))); ok('G2 approvazione');
   await page.locator('.sheet.in .req-row .req-b.no').click(); await page.waitForSelector('.sheet.in .ask .btn.dng'); await page.locator('.sheet.in .ask .btn.dng').last().click();
   await page.waitForFunction(() => !document.querySelector('.sheet.in .req-row'), null, { timeout: 5000 }); assert(log.some(l => l.fn === 'rc_signup_decide' && l.body.p_ok === false)); ok('G3 rifiuto con conferma');
+  /* H. Mi sono perso (socio): dall'SOS, attesa con chiamata a capogruppo e safety, sosta confermata, navigazione, ora prevista, ritrovato */
+  ({ ctx, page, log, st } = await login('socio', true));
+  await page.click('#start-ack'); await page.waitForFunction(() => !document.getElementById('start-alert'));
+  st.signups.push({ run_id: ID(50), member_id: ID(2), status: 'si', passengers: 0, checked_in: false }); await page.evaluate(() => window.RB.sync());
+  await page.click('#sos-btn'); await page.waitForSelector('.sheet.in #sos-lost'); await noOverflow(page, 'sos perso'); ok('H1 SOS: «Mi sono perso» durante il Run');
+  await page.click('#sos-lost'); await page.waitForSelector('.sheet.in .ask'); assert(/posto sicuro/.test(await page.locator('.sheet.in .ask').last().innerText())); await ask(page).locator('.btn.pri').click();
+  await page.waitForSelector('.sheet.in #lost-wait', { timeout: 15000 }); assert.equal(await page.locator('.sheet.in #lost-nav').count(), 0, 'H2 la sosta non deve arrivare prima della conferma');
+  assert.equal(await page.locator('.sheet.in #lost-call-rc').getAttribute('href'), 'tel:3331112233'); assert.equal(await page.locator('.sheet.in #lost-call-safety').count(), 1); ok('H2 in attesa: chiama capogruppo o safety, nessuna sosta prima della conferma'); if (process.env.SHOTS) await page.screenshot({ path: 'shots/lost-h2w-' + devName.replace(/\W+/g, '_') + '.png' });
+  Object.assign(st.lost[0], { status: 'sent', stop: st.lost[0].tip, sent_at: new Date().toISOString() }); await page.evaluate(() => window.RB.sync());
+  await page.waitForSelector('.sheet.in #lost-nav', { timeout: 15000 });
+  const sendL = log.find(l => l.fn === 'rc_lost_send'); assert(sendL && sendL.body.p_run === ID(50), 'H2 richiesta'); assert(typeof sendL.body.p_lat === 'number', devName + ' H2 posizione mancante');
+  const href = await page.locator('#lost-nav').getAttribute('href'); assert(/dir_action=navigate&destination=41\.800000%2C12\.680000$/.test(href), devName + ' link ' + href); await noOverflow(page, 'scheda perso'); ok('H2b sosta confermata: navigazione verso la sosta'); if (process.env.SHOTS) await page.screenshot({ path: 'shots/lost-h2-' + devName.replace(/\W+/g, '_') + '.png' });
+  for (let i = 0; i < 40 && !log.some(l => l.fn === 'rc_lost_pos' && l.body.p_eta_min != null); i++) await page.waitForTimeout(250);
+  const posL = log.find(l => l.fn === 'rc_lost_pos' && l.body.p_eta_min != null); assert(posL && posL.body.p_eta_min === 25, devName + ' H3 ora prevista ' + (posL && posL.body.p_eta_min)); ok('H3 ora prevista dal servizio di percorsi (25 min)');
+  await page.waitForSelector('.sheet.in #lost-eta'); await page.locator('.sheet.in .sb.l').last().click();
+  await page.waitForSelector('#lost-block .lost-card.mine'); assert(/Bar Frascati/i.test(await page.locator('#lost-block').innerText())); ok('H4 card in cima: Vai a Bar Frascati'); if (process.env.SHOTS) await page.screenshot({ path: 'shots/lost-h4-' + devName.replace(/\W+/g, '_') + '.png' });
+  await page.click('#lost-block .lost-card.mine'); await page.waitForSelector('.sheet.in #lost-found'); await page.click('.sheet.in #lost-found'); await page.waitForSelector('.sheet.in .ask'); await ask(page).locator('.btn.pri').click();
+  await page.waitForFunction(() => !document.querySelector('#lost-block .lost-card.mine'), null, { timeout: 5000 }); assert(log.some(l => l.fn === 'rc_lost_close' && l.body.p_found === true)); ok('H5 ritrovato il gruppo');
+  await ctx.close();
+  /* I. Mi sono perso (capogruppo incaricato): avviso, sosta proposta dal server, invio, conferma prima di ripartire */
+  ({ ctx, page, log, st } = await login('inc', true));
+  await page.click('#start-ack').catch(() => {}); await page.waitForFunction(() => !document.getElementById('start-alert'));
+  Object.assign(st.runs[0], { meeting: { name: 'Piazzale Ostiense', lat: 41.87, lng: 12.48 }, stops: [{ name: 'Bar Frascati', addr: 'Piazza Marconi, Frascati', lat: 41.8, lng: 12.68, day: 1, kind: 'bar' }], dest: { name: 'Rocca di Papa', lat: 41.76, lng: 12.71 } });
+  st.lost.push({ id: ID(901), run_id: ID(50), member_id: ID(2), status: 'open', lat: 41.9, lng: 12.55, pos_at: new Date().toISOString(), stop: null, tip: { name: 'Bar Frascati', addr: 'Piazza Marconi, Frascati', lat: 41.8, lng: 12.68 }, phone: '3339990000', created_at: new Date().toISOString() });
+  await page.evaluate(() => window.RB.sync()); await page.waitForSelector('#lost-block .lost-card.open'); assert(/Mario Rossi/i.test(await page.locator('#lost-block').innerText())); await noOverflow(page, 'card perso'); ok('I1 avviso: Mario Rossi si è perso'); if (process.env.SHOTS) await page.screenshot({ path: 'shots/lost-i1-' + devName.replace(/\W+/g, '_') + '.png' });
+  await page.click('#lost-block .lost-card.open'); await page.waitForSelector('.sheet.in #lost-opts .lost-opt.sel', { timeout: 15000 });
+  assert(/Bar Frascati/.test(await page.locator('.sheet.in .lost-opt.sel').innerText()), devName + ' I2 proposta ' + await page.locator('.sheet.in .lost-opt.sel').innerText());
+  assert.equal(await page.locator('.sheet.in .lost-opt:has-text("Bar Frascati")').count(), 1, 'I2 proposta doppia'); assert.equal(await page.locator('.sheet.in #lost-call').getAttribute('href'), 'tel:3339990000'); ok('I2 sosta proposta dal server e chiamata al socio'); if (process.env.SHOTS) await page.screenshot({ path: 'shots/lost-i2-' + devName.replace(/\W+/g, '_') + '.png' });
+  await page.click('.sheet.in #lost-send-stop'); await page.waitForSelector('.sheet.in #lost-eta', { timeout: 6000 });
+  const stopL = log.find(l => l.fn === 'rc_lost_stop'); assert(stopL && stopL.body.p_stop.name === 'Bar Frascati' && stopL.body.p_stop.lat === 41.8); ok('I3 sosta inviata, ora prevista visibile');
+  await page.locator('.sheet.in .sb.l').last().click(); await page.waitForTimeout(350);
+  await page.evaluate(() => window.RB.haltStart(window.RB.run(window.RB.runs()[0].id))); await page.waitForSelector('#halt-block .halt-b[data-min="0"]');
+  await page.click('#halt-block .halt-b[data-min="0"]'); await page.waitForSelector('.sheet.in .ask'); assert(/Ripartire senza Mario Rossi/.test(await page.locator('.sheet.in:has(.ask)').last().innerText()));
+  await ask(page).locator('.btn.sec').click(); await page.waitForTimeout(400); assert(!log.some(l => l.fn === 'rc_run_halt' && l.body.p_action === 'call'), 'I4 Aspettiamo ha fatto ripartire');
+  await page.click('#halt-block .halt-b[data-min="0"]'); await page.waitForSelector('.sheet.in .ask'); await ask(page).locator('.btn.pri').click();
+  await page.waitForFunction(() => !document.getElementById('halt-block'), null, { timeout: 5000 }); ok('I4 prima di ripartire: «Aspettiamo» o «Riparti lo stesso»');
+  await ctx.close();
+  /* direttore: informato, interviene solo se vuole */
+  ({ ctx, page, log, st } = await login('dir', true));
+  st.lost.push({ id: ID(902), run_id: ID(50), member_id: ID(2), status: 'open', lat: 41.9, lng: 12.55, pos_at: new Date().toISOString(), stop: null, tip: null, created_at: new Date().toISOString() });
+  await page.evaluate(() => window.RB.sync()); await page.waitForSelector('#lost-block .lost-card.open'); assert(/se ne occupano/i.test(await page.locator('#lost-block').innerText()));
+  await page.click('#lost-block .lost-card.open'); await page.waitForSelector('.sheet.in #lost-info'); ok('I5 direttore: informato, comandi disponibili solo se vuole');
   await ctx.close(); await browser.close();
   return { res, errors };
 }

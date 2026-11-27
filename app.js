@@ -102,6 +102,7 @@
     var sb = RB.sosBanner(); if (sb) main.appendChild(sb);
     var stb = RB.startBlock(); if (stb) main.appendChild(stb);
     var hb = RB.haltBlock(); if (hb) main.appendChild(hb);
+    var lb = RB.lostBlock(); if (lb) main.appendChild(lb);
     if (RB.ui.tab === 'run') { var nb = RB.noticesBlock(); if (nb) main.appendChild(nb); hint(main); }
     try { RB.views[RB.ui.tab](main); } catch (e) { if (window.console) console.error(e); main.appendChild(h('div', { class: 'empty' }, h('b', null, t('e_generic')))); }
     window.scrollTo(0, y);
@@ -109,7 +110,7 @@
 
   /* ---------- eventi dati ---------- */
   RB.on('data', function (r) {
-    var sig = JSON.stringify([r.me, r.profiles, r.members, r.runs, r.signups, r.payments, r.settings, r.weather, r.reports, r.acks, r.halts, RB.startDueKey()]);
+    var sig = JSON.stringify([r.me, r.profiles, r.members, r.runs, r.signups, r.payments, r.settings, r.weather, r.reports, r.acks, r.halts, r.lost, RB.startDueKey()]);
     try { var c = r.settings && r.settings.chapter; if (c && c.logo) localStorage.setItem('rb.logo', c.logo); else localStorage.removeItem('rb.logo'); } catch (e) {}
     RB.startAlert();
     if (sig === lastSig) return;

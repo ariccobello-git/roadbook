@@ -682,3 +682,30 @@ input,select,textarea{min-height:44px}
 .req-b.ok{background:var(--ok);color:#fff}
 .req-b.no{background:var(--fill);color:var(--er)}
 .req-b .ic{stroke:currentColor}
+/* «Mi sono perso»: card in cima, scheda e scelta della sosta */
+.lost-block{display:flex;flex-direction:column;gap:10px;margin:0 0 12px}
+.lost-card{display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:0;border-radius:22px;padding:14px;color:#fff;font:inherit;background:linear-gradient(135deg,#0a84ff,#5e5ce6);box-shadow:0 10px 26px rgba(10,132,255,.3);transition:transform .2s var(--sp)}
+.lost-card.open:not(.mine){background:linear-gradient(135deg,#ff453a,#d70015);box-shadow:0 10px 26px rgba(215,0,21,.3);animation:lostPulse 1.6s ease-in-out infinite}
+.lost-card.arrived{background:linear-gradient(135deg,#30d158,#248a3d);box-shadow:0 10px 26px rgba(36,138,61,.3)}
+.lost-card:active{transform:scale(.98)}
+.lost-card>.ic{stroke:#fff;flex:none;opacity:.8}
+.lost-tx{display:flex;flex-direction:column;min-width:0;flex:1}
+.lost-tx small{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;opacity:.92}
+.lost-tx b{font-size:17px;line-height:1.25;overflow-wrap:anywhere}
+.lost-ic{width:44px;height:44px;flex:none;border-radius:50%;background:rgba(255,255,255,.22);display:grid;place-items:center}
+.lost-ic .ic{stroke:#fff}
+.lost-head{display:flex;align-items:center;gap:12px;padding:14px;border-radius:20px;color:#fff;background:linear-gradient(135deg,#0a84ff,#5e5ce6);margin:4px 0 12px}
+.lost-head.open{background:linear-gradient(135deg,#ff453a,#d70015)}
+.lost-head.arrived,.lost-head.closed{background:linear-gradient(135deg,#30d158,#248a3d)}
+.lost-head>span:last-child{display:flex;flex-direction:column;min-width:0}
+.lost-head small{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;opacity:.9}
+.lost-head b{font-size:19px;line-height:1.2;overflow-wrap:anywhere}
+.lost-head span span{font-size:14px;opacity:.9}
+#lost-nav{display:flex;align-items:center;justify-content:center;gap:10px;min-height:60px;font-size:18px;text-decoration:none}
+#lost-nav .ic{stroke:currentColor}
+.row.lost-opt.sel{background:var(--acc-soft)}
+.row.lost-opt.sel .rt b{color:var(--acc-t)}
+.sos-kind.lost{border-color:rgba(10,132,255,.35);margin-top:10px}
+.sos-kind.lost .sk-i{background:linear-gradient(135deg,#0a84ff,#5e5ce6)}
+@keyframes lostPulse{0%,100%{box-shadow:0 10px 26px rgba(215,0,21,.3)}50%{box-shadow:0 10px 34px rgba(215,0,21,.55)}}
+@media (prefers-reduced-motion:reduce){.lost-card.open:not(.mine){animation:none}}
