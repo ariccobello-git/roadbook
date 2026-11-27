@@ -921,7 +921,14 @@
         }
         var p = { id: r ? r.id : null, title: title, run_date: new Date(dtv).toISOString(), meeting_point: '', destination: '', meeting: meeting, dest: dest, days: ST.days, route_public: ST.pub,
           description: RB.val('rf-desc'), km: RB.val('rf-km'), difficulty: diff, route_url: url, nav_tool: nav, status: status, max_participants: RB.val('rf-max'), fee: RB.val('rf-fee').replace(',', '.'), causale: ST.causale, rooms: ST.rooms.map(function (x) { return { id: x.id, name: x.name.trim(), price: String(x.price).replace(',', '.') }; }), extras: ST.extras.map(function (x) { return { id: x.id, name: x.name.trim(), price: String(x.price).replace(',', '.') }; }), installments: ST.inst.map(function (x) { return { due_on: x.due_on, pct: String(x.pct).replace(',', '.') }; }), starter_id: ST.starter || '', signup_until: until ? new Date(until).toISOString() : '', day_starts: (function () { var o = {}, k; for (k in ST.dayStarts) if (+k >= 2 && +k <= ST.days && ST.dayStarts[k]) o[k] = ST.dayStarts[k]; return o; })(), stops: out };
-        RB.act(ctl.right, function () { return RB.geo.withTimes(p).then(function (q) { return RB.write('rc_run_save', { p: q }); }); }, t('saved')).then(function (x) { if (x && x.ok) ctl.close(true); });
+        RB.act(ctl.right, function () { return RB.geo.withTimes(p).then(function (q) { return RB.write('rc_run_save', { p: q }); }); }, t('saved')).then(function (x) {
+          if (!x || !x.ok) return;
+          ctl.close(true);
+          /* Run nuovo e pubblicato: un tocco per avvisare il gruppo WhatsApp del Chapter */
+          if (!p.id && x.id && status === 'programmato') RB.ask({ title: t('wa_ask_t'), msg: t('wa_ask_run'), ok: t('wa_send') }).then(function (y) {
+            if (y) RB.waSend(t('inv_text', title, RB.fmt.full(String(p.run_date).slice(0, 10)), RB.runLink({ id: x.id })));
+          });
+        });
       } } });
     return ctl;
   };

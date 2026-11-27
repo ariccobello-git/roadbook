@@ -166,6 +166,15 @@
     if (lp) draw(lp); else here(draw);
   }
 
+  /* prima di Google Maps: l'unico tocco che serve per farsi seguire dal capogruppo anche a schermo spento */
+  function shareSheet(x, nav) {
+    var rc = (x.helpers || []).filter(function (p) { return p.role === 'rc'; })[0] || (x.helpers || [])[0];
+    var go = h('a', { class: 'btn pri big', id: 'lost-nav-go', href: nav, target: '_blank', rel: 'noopener', onclick: function () { RB.feel('tap'); setTimeout(function () { c.close(); }, 300); } }, RB.icon('route'), t('lost_share_go'));
+    var c = RB.sheet({ title: t('lost_share_t'), leftLabel: t('close'), content: h('div', { class: 'lost-share', id: 'lost-share' },
+      h('ol', null, h('li', null, t('lost_share_1')), h('li', null, t('lost_share_2')), h('li', null, rc ? t('lost_share_3n', rc.name) : t('lost_share_3'))),
+      h('p', { class: 'sm' }, t('lost_share_d')), go) });
+    return c;
+  }
   function callRow(title, phone, id) {
     var row = RB.row({ lead: RB.icon('phone'), title: title, sub: phone, href: 'tel:' + String(phone).replace(/[^+\d]/g, ''), go: false, id: id });
     row.removeAttribute('target'); row.removeAttribute('rel'); return row;
@@ -195,7 +204,7 @@
       }
       if (mine && x.status === 'sent') {
         var nav = L.lostNavUrl(s);
-        if (nav) box.appendChild(h('a', { class: 'btn pri big', id: 'lost-nav', href: nav, target: '_blank', rel: 'noopener', onclick: function () { RB.feel('tap'); tick(true); } }, RB.icon('route'), t('lost_nav')));
+        if (nav) box.appendChild(h('button', { type: 'button', class: 'btn pri big', id: 'lost-nav', 'data-href': nav, onclick: function () { RB.feel('tap'); tick(true); shareSheet(x, nav); } }, RB.icon('route'), t('lost_nav')));
         box.appendChild(h('p', { class: 'sm' }, t('lost_nav_help')));
       }
       if (mine && x.status === 'open') box.appendChild(h('p', { class: 'sm', id: 'lost-wait' }, t('lost_wait')));
@@ -211,6 +220,7 @@
       if (!mine) {
         var m = RB.mem(x.member_id), ph = x.phone || (m && m.phone);
         if (ph && L.lostActive(x)) acts.appendChild(callRow(t('lost_call', (m && m.first_name) || name(x)), ph, 'lost-call'));
+        if (ph && x.status === 'sent' && RB.waDigits(ph)) acts.appendChild(RB.row({ lead: RB.icon('chat'), title: t('lost_follow_wa', (m && m.first_name) || name(x)), sub: t('lost_follow_wa_d'), href: 'https://wa.me/' + RB.waDigits(ph), go: false, id: 'lost-follow' }));
         if (x.status === 'sent' && !changing) acts.appendChild(RB.row({ lead: RB.icon('edit'), title: t('lost_change'), id: 'lost-change', go: false, onclick: function () { changing = true; draw(); } }));
       }
       if (L.lostActive(x)) {

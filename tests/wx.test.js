@@ -217,6 +217,7 @@ function setupRun(st, W) {
   assert.strictEqual(await page.locator('.sheet.in .seg button:has-text("Concluso")').count(), 0, 'stato non modificabile in un nuovo Run');
   await page.locator('.sheet.in .sb.r').last().click(); await wait(700);
   const cl = log.filter(l => l.fn === 'rc_run_save').pop().body.p; assert.strictEqual(cl.id, null); assert.strictEqual(cl.status, 'programmato'); assert.ok(new Date(cl.run_date) > new Date()); step('Run archiviato richiamato come nuovo (id nuovo, data futura)');
+  await page.waitForSelector('.sheet.in .ask'); await page.locator('.sheet.in .ask .btn.sec').last().click(); await page.waitForFunction(() => !document.querySelector('.sheet.in .ask')); step('Run richiamato: proposta di avvisare il gruppo WhatsApp');
   await page.keyboard.press('Escape'); await wait(500);
 
   /* ---- dashboard e report ---- */

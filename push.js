@@ -6,7 +6,7 @@
   function u8(b64) { var p = '='.repeat((4 - b64.length % 4) % 4), s = atob((b64 + p).replace(/-/g, '+').replace(/_/g, '/')), a = new Uint8Array(s.length), i; for (i = 0; i < s.length; i++) a[i] = s.charCodeAt(i); return a; }
   RB.pushSupported = function () { return !!(navigator.serviceWorker && window.PushManager && window.Notification); };
   /* su iPhone e iPad le notifiche funzionano solo se l'app è aggiunta alla schermata Home */
-  RB.pushNeedsInstall = function () { return /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window.navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches)); };
+  RB.pushNeedsInstall = function () { return RB.isIOS() && !RB.isStandalone(); };
   RB.pushState = function () {
     if (!RB.pushSupported()) return Promise.resolve(RB.pushNeedsInstall() ? 'install' : 'unsupported');
     if (Notification.permission === 'denied') return Promise.resolve('denied');
@@ -38,10 +38,11 @@
     var btn = h('button', { type: 'button', class: 'btn ghost sm2', id: 'push-btn', style: 'display:none' }, '');
     var tbtn = h('button', { type: 'button', class: 'btn ghost sm2', id: 'push-test', style: 'display:none' }, t('push_test'));
     tbtn.addEventListener('click', function () { RB.pushTest().then(function (r) { RB.toast(r && r.ok ? t('push_test_sent') : (r && r.error === 'not_found' ? t('push_test_none') : RB.errMsg(r && r.error)), r && r.ok ? '' : 'err'); }); });
-    row.appendChild(btn); row.appendChild(tbtn);
+    var ibtn = h('button', { type: 'button', class: 'btn ghost sm2', id: 'push-install', style: 'display:none', onclick: function () { RB.installGuide(); } }, t('ig_how'));
+    row.appendChild(btn); row.appendChild(tbtn); row.appendChild(ibtn);
     function paint() {
       RB.pushState().then(function (s) {
-        sub.textContent = s === 'on' ? (RB.can('emergency_manage') ? t('push_s_on_mgr') : t('push_s_on')) : t('push_s_' + s); btn.style.display = (s === 'on' || s === 'off') ? '' : 'none'; btn.textContent = s === 'on' ? t('push_off') : t('push_on'); btn.setAttribute('data-s', s); tbtn.style.display = s === 'on' ? '' : 'none';
+        sub.textContent = s === 'on' ? (RB.can('emergency_manage') ? t('push_s_on_mgr') : t('push_s_on')) : t('push_s_' + s); btn.style.display = (s === 'on' || s === 'off') ? '' : 'none'; btn.textContent = s === 'on' ? t('push_off') : t('push_on'); btn.setAttribute('data-s', s); tbtn.style.display = s === 'on' ? '' : 'none'; ibtn.style.display = s === 'install' ? '' : 'none';
       });
     }
     btn.addEventListener('click', function () {

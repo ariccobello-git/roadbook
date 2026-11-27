@@ -57,7 +57,18 @@ async function run(devName) {
   const st = backend(page, log);
   const noOverflow = async label => { const w = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth })); assert(w.sw <= w.cw + 1, `${devName} ${label}: scroll orizzontale`); };
   const sheet = () => page.locator('.sheet.in').last();
-  await page.goto(BASE); await page.fill('#code', 'ABCD2345'); await page.click('button.btn.pri'); await page.waitForSelector('.tab[data-tab=run]');
+  await page.addInitScript(() => { window.__opened = []; window.open = u => { window.__opened.push(String(u)); return null; }; });
+  await page.goto(BASE); await page.waitForSelector('#code');
+  /* guida all'installazione, già prima dell'accesso */
+  await page.click('#login-install'); await page.waitForSelector('.sheet.in #ig .steps li');
+  assert.equal(await page.locator('.sheet.in #ig .steps li').count(), 4);
+  await page.locator('.sheet.in #ig .seg button:has-text("Android")').click(); await page.waitForSelector('.sheet.in .ig-box[data-os=android]');
+  assert(/Chrome/.test(await page.locator('.sheet.in .ig-box').innerText()));
+  await page.locator('.sheet.in #ig .seg button:has-text("iPhone")').click(); await page.waitForSelector('.sheet.in .ig-box[data-os=ios]');
+  assert(/Aggiungi alla schermata Home/.test(await page.locator('.sheet.in .ig-box').innerText())); await noOverflow('guida installazione'); if (process.env.SHOTS) await page.screenshot({ path: 'shots/install-' + devName.replace(/\W+/g, '_') + '.png' });
+  await page.locator('.sheet.in .sb.l').click(); await page.waitForFunction(() => !document.querySelector('.sheet.in #ig')); ok('guida installazione iPhone e Android');
+  await page.fill('#code', 'ABCD2345'); await page.click('button.btn.pri'); await page.waitForSelector('.tab[data-tab=run]');
+  await page.waitForSelector('#install-hint #hint-how'); ok('invito a installare per tutti');
 
   /* avvisi sulla scheda Run */
   await page.waitForSelector('#notices .notice.pin'); assert((await page.textContent('#notices')).includes('Cena sociale')); ok('avviso visibile');
@@ -88,6 +99,12 @@ async function run(devName) {
   await page.fill('#nt-t', 'Raduno annullato'); await page.fill('#nt-b', 'Per maltempo'); await page.locator('.sheet:has(#nt-t) .sb.r').click();
   await page.waitForFunction(() => /Raduno annullato/.test(document.body.innerText), null, { timeout: 5000 });
   const sv = log.find(l => l.fn === 'rc_notice_save').body; assert.equal(sv.p_title, 'Raduno annullato'); assert.equal(sv.p_days, 14); ok('nuovo avviso');
+  await page.waitForSelector('.sheet.in .ask'); assert(/gruppo WhatsApp/.test(await page.locator('.sheet.in:has(.ask)').last().innerText()));
+  await page.locator('.sheet.in .ask .btn.pri').last().click(); await page.waitForFunction(() => window.__opened.length > 0);
+  const wa1 = decodeURIComponent((await page.evaluate(() => window.__opened.pop())).replace('https://wa.me/?text=', ''));
+  assert(/^📣 Raduno annullato\nPer maltempo\n\nApri 9076 RoadBook: http/.test(wa1), devName + ' testo WhatsApp ' + wa1);
+  await page.waitForSelector('.sheet.in .nt-wa'); await page.locator('.sheet.in .nt-wa').first().click(); await page.waitForFunction(() => window.__opened.length > 0);
+  assert(/^https:\/\/wa\.me\/\?text=/.test(await page.evaluate(() => window.__opened.pop()))); ok('avviso inviato sul gruppo WhatsApp');
   await page.keyboard.press('Escape'); await page.waitForTimeout(300); await page.keyboard.press('Escape'); await page.waitForTimeout(350);
 
   /* scheda Run: calendario, elenco, scansione */

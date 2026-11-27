@@ -182,7 +182,7 @@
     box.appendChild(h('p', { class: 'sm', style: 'text-align:center' }, t('inv_help')));
     box.appendChild(qr);
     box.appendChild(h('div', { class: 'list' }, h('div', { class: 'field' }, h('span', null, t('inv_link')), h('input', { type: 'text', readonly: true, '.value': url, id: 'inv-url', onclick: function () { this.select(); } }))));
-    box.appendChild(h('button', { type: 'button', class: 'btn pri', id: 'inv-wa', onclick: function () { window.open('https://wa.me/?text=' + encodeURIComponent(txt), '_blank', 'noopener'); } }, RB.icon('chat'), t('inv_wa')));
+    box.appendChild(h('button', { type: 'button', class: 'btn pri', id: 'inv-wa', onclick: function () { RB.waSend(txt); } }, RB.icon('chat'), t('inv_wa')));
     if (navigator.share) box.appendChild(h('button', { type: 'button', class: 'btn sec', onclick: function () { navigator.share({ title: r.title, text: txt }).catch(function () {}); } }, RB.icon('share'), t('inv_share')));
     box.appendChild(h('button', { type: 'button', class: 'btn ghost', onclick: function () { RB.copy(url).then(function () { RB.toast(t('copied')); }); } }, t('inv_copy')));
     loadScript('vendor/qrcode.js', function () { return window.qrcode; }).then(function () {
