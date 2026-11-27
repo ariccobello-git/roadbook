@@ -1,5 +1,5 @@
-/* Roadbook · service worker: l'app si apre anche senza rete (rete prima, copia salvata come riserva) */
-var CACHE = 'roadbook-v42';
+/* Roadbook · service worker: l'app si apre anche senza rete (rete prima, copia salvata come riserva o se la rete tarda) */
+var CACHE = 'roadbook-v43';
 var FILES = ['./', 'index.html', 'style.css', 'logic.js', 'ui.js', 'i18n.js', 'api.js', 'common.js', 'xls.js', 'places.js', 'views-run.js', 'views-people.js', 'views-admin.js', 'views-weather.js', 'wxscene.js', 'views-meteo.js', 'views-sos.js', 'sos.js', 'push.js', 'extras.js', 'vendor/qrcode.js', 'vendor/jsqr.js', 'vendor/jspdf.umd.min.js', 'views-pay.js', 'review.js', 'live.js', 'lost.js', 'help.js', 'views-report.js', 'app.js', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', function (e) {
@@ -10,13 +10,24 @@ self.addEventListener('activate', function (e) {
     return Promise.all(ks.filter(function (k) { return k !== CACHE; }).map(function (k) { return caches.delete(k); }));
   }).then(function () { return self.clients.claim(); }));
 });
+/* con rete debole non si resta sulla pagina bianca: dopo 3 secondi si usa la copia salvata (la rete aggiorna comunque la copia) */
+var WAIT_MS = 3000;
 self.addEventListener('fetch', function (e) {
   var req = e.request, url = new URL(req.url);
   if (req.method !== 'GET' || url.origin !== location.origin) return;
-  e.respondWith(fetch(req).then(function (res) {
-    if (res && res.ok) { var copy = res.clone(); caches.open(CACHE).then(function (c) { c.put(req, copy); }); }
+  var net = fetch(req).then(function (res) {
+    if (res && res.ok) { var copy = res.clone(); caches.open(CACHE).then(function (c) { return c.put(req, copy); }); }
     return res;
-  }).catch(function () { return caches.match(req).then(function (r) { return r || caches.match('index.html'); }); }));
+  });
+  var saved = function () { return caches.match(req).then(function (r) { return r || (req.mode === 'navigate' ? caches.match('index.html') : null); }); };
+  e.respondWith(new Promise(function (resolve) {
+    var done = false, finish = function (r) { if (!done && r) { done = true; resolve(r); } };
+    var timer = setTimeout(function () { saved().then(finish); }, WAIT_MS);
+    net.then(function (r) { clearTimeout(timer); finish(r); }, function () {
+      clearTimeout(timer); saved().then(function (r) { finish(r || Response.error()); });
+    });
+  }));
+  e.waitUntil(net.then(function () {}, function () {}));
 });
 
 /* notifiche push per le emergenze (arrivano anche ad app chiusa) */

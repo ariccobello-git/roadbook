@@ -306,14 +306,25 @@
       } } });
   }
 
-  /* ---------- ritorno dallo sfondo (iOS può scartare la memoria grafica: schermo bianco) ---------- */
+  /* ---------- ritorno dallo sfondo (iOS può scartare la memoria grafica: schermo bianco) ----------
+     dopo una pausa lunga la schermata si ricostruisce; se il disegno non riparte, l'app si ricarica
+     (codice, dati e GPS del Run sono salvati e riprendono da soli) */
+  var hiddenAt = 0, AWAY_MS = 180000;
+  function reloadKeep() { try { if (RB.S.code) sessionStorage.setItem('rb.resume', RB.ui.tab || 'run'); } catch (e) {} location.reload(); }
   function resumed() {
-    var root = document.documentElement; root.classList.remove('bg');
-    if (!app.firstChild || !document.body.clientHeight) { location.reload(); return; }
-    app.style.display = 'none'; void app.offsetHeight; app.style.display = '';
+    document.documentElement.classList.remove('bg');
+    var away = hiddenAt ? Date.now() - hiddenAt : 0; hiddenAt = 0;
+    if (!app.firstChild) { reloadKeep(); return; }
+    if (away >= AWAY_MS && RB.S.code && !activeInput(document.getElementById('view'))) { shellKey = ''; RB.render(); }
+    else { app.style.display = 'none'; void app.offsetHeight; app.style.display = ''; }
+    var drawn = false;
+    requestAnimationFrame(function () { drawn = true; });
+    setTimeout(function () { if (!drawn && !document.hidden) reloadKeep(); }, 2500);
   }
-  document.addEventListener('visibilitychange', function () { if (document.hidden) document.documentElement.classList.add('bg'); else resumed(); });
-  window.addEventListener('pageshow', function (e) { if (e.persisted) resumed(); });
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) { if (!hiddenAt) hiddenAt = Date.now(); document.documentElement.classList.add('bg'); } else resumed();
+  });
+  window.addEventListener('pageshow', function (e) { if (e.persisted && !document.hidden) resumed(); });
 
   /* ---------- avvio ---------- */
   RB.applyPref();
@@ -327,6 +338,9 @@
     RB.login(inv).then(function (r) { if (r.ok) start(); else loginScreen(t('e_auth')); });
   } else {
     /* la schermata di accesso è sempre la pagina iniziale; con una sessione salvata si può riprenderla con un tocco */
+    /* ricaricata da sola al ritorno dallo sfondo: riprende subito, senza passare dall'accesso */
+    var back = null; try { back = sessionStorage.getItem('rb.resume'); sessionStorage.removeItem('rb.resume'); } catch (e) {}
+    if (back && RB.restore()) { RB.ui.tab = back; start(); return; }
     var saved = null;
     try { if (localStorage.getItem('rb.code')) { var cd = JSON.parse(localStorage.getItem('rb.cache') || 'null'); saved = (cd && cd.ok && cd.me) ? cd.me : { first_name: '', last_name: '' }; } } catch (e) {}
     loginScreen('', saved);

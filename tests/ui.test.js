@@ -284,7 +284,7 @@ async function newPage(browser, vp, level, log, errors) {
   assert.ok(await page.evaluate(() => document.documentElement.classList.contains('bg'))); 
   await page.evaluate(() => { Object.defineProperty(document, 'hidden', { value: false, configurable: true }); document.dispatchEvent(new Event('visibilitychange')); });
   await page.waitForTimeout(200); assert.ok(!(await page.evaluate(() => document.documentElement.classList.contains('bg'))) && await page.locator('.view').count() === 1); step('ritorno dallo sfondo: animazioni riprese, schermata intatta');
-  await page.evaluate(() => { document.getElementById('app').innerHTML = ''; document.dispatchEvent(new Event('visibilitychange')); }); await page.waitForSelector('#code'); step('schermo vuoto al ritorno: ricarica e riparte dall\'accesso'); await page.click('#resume'); await page.waitForSelector('.view');
+  await page.evaluate(() => { document.getElementById('app').innerHTML = ''; document.dispatchEvent(new Event('visibilitychange')); }); await page.waitForSelector('.view'); assert.strictEqual(await page.locator('#code').count(), 0); step('schermo vuoto al ritorno: ricarica e riprende senza passare dall\'accesso');
   // logout
   await page.click('.tab[data-tab=altro]'); await page.click('.row.act.dng'); await tclick('.btn.dng'); await page.waitForSelector('#code'); step('uscita');
   await ctx.close();
