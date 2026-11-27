@@ -5,7 +5,8 @@
   var TABS = [['run', 'run', 'tab_run'], ['meteo', 'sun', 'tab_meteo'], ['soci', 'soci', 'tab_soci'], ['dir', 'dir', 'tab_dir'], ['quote', 'quote', 'tab_quote'], ['report', 'chart', 'tab_report'], ['altro', 'altro', 'tab_altro']];
   var lastSig = '', pending = false, installEvt = null, shellKey = '';
   /* Soci e Direttivo servono solo a chi può vedere l'elenco dei soci */
-  function visibleTabs() { return TABS.filter(function (x) { return x[0] === 'report' ? RB.can('reports_view') : ((x[0] !== 'soci' && x[0] !== 'dir') || RB.can('members_view')); }); }
+  /* soci: 4 schede (Run, Meteo, Quote, Altro); Soci e Direttivo stanno in Altro → Il Chapter */
+  function visibleTabs() { var simple = RB.simpleView(); return TABS.filter(function (x) { return x[0] === 'report' ? RB.can('reports_view') : ((x[0] !== 'soci' && x[0] !== 'dir') || (RB.can('members_view') && !simple)); }); }
 
   window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); installEvt = e; if (RB.S.code) RB.render(); });
 
@@ -49,7 +50,8 @@
       err, btn, resumeBtn, h('p', { class: 'sm', style: 'text-align:center' }, t('login_help')),
       RB.isStandalone() ? null : h('button', { type: 'button', class: 'btn ghost', id: 'login-install', onclick: RB.installGuide }, RB.icon('plus'), t('ig_how_login')),
       h('button', { type: 'button', class: 'btn sos-btn sos-login', id: 'sos-public', onclick: function () { RB.feel('tap'); RB.sosOpen('public'); } }, RB.icon('alert'), t('sos_btn')), h('div', { class: 'lg' }, langs), h('p', { class: 'sm', style: 'text-align:center;opacity:.45;font-size:11px;margin-top:14px', id: 'rel' }, 'Release ' + RB.RELEASE)));
-    setTimeout(function () { try { code.focus(); } catch (e) {} }, 300);
+    /* niente focus se nel frattempo si è aperto un pannello (es. Emergenza): ruberebbe il testo digitato */
+    setTimeout(function () { try { if (!RB.sheets.length && document.body.contains(code)) code.focus(); } catch (e) {} }, 300);
   }
 
   function start() {
@@ -123,8 +125,11 @@
     var stb = RB.startBlock(); if (stb) main.appendChild(stb);
     var hb = RB.haltBlock(); if (hb) main.appendChild(hb);
     var lb = RB.lostBlock(); if (lb) main.appendChild(lb);
-    if (RB.ui.tab === 'run') { var nb = RB.noticesBlock(); if (nb) main.appendChild(nb); hint(main); }
+    /* avvisi e invito a installare: nella vista Socio vanno sotto il prossimo Run, che resta il primo in vista */
+    var pre = null, at = main.lastChild;
+    if (RB.ui.tab === 'run') { pre = document.createDocumentFragment(); var nb = RB.noticesBlock(); if (nb) pre.appendChild(nb); hint(pre); if (!RB.simpleView()) { main.appendChild(pre); pre = null; } }
     try { RB.views[RB.ui.tab](main); } catch (e) { if (window.console) console.error(e); main.appendChild(h('div', { class: 'empty' }, h('b', null, t('e_generic')))); }
+    if (pre) { var nx = main.querySelector('#nx'); if (nx) nx.after(pre); else main.insertBefore(pre, at ? at.nextSibling : main.firstChild); }
     window.scrollTo(0, y);
   };
 
@@ -151,22 +156,22 @@
     var av = RB.av(RB.mem(me.id), 'lg');
     root.appendChild(h('div', { class: 'card', style: 'display:flex;align-items:center;gap:14px' },
       h('button', { type: 'button', 'aria-label': t('change_photo'), onclick: function () { if (RB.mem(me.id)) RB.photoMenu(RB.mem(me.id)); } }, av),
-      h('div', { style: 'min-width:0;flex:1' }, h('b', { style: 'font-size:19px' }, RB.fullName(m)), h('div', { class: 'chips', style: 'margin-top:4px' }, RB.chip(RB.titleName(me.title), 'acc'), RB.chip(anyTool ? t('area_staff') : t('area_member'), ''))),
-      h('button', { type: 'button', class: 'card-out', id: 'card-out', 'aria-label': t('logout'), title: t('logout'), onclick: askLogout }, RB.icon('out'), h('span', null, t('logout')))));
+      h('div', { style: 'min-width:0;flex:1' }, h('b', { style: 'font-size:19px' }, RB.fullName(m)), h('div', { class: 'chips', style: 'margin-top:4px' }, RB.chip(RB.titleName(me.title), 'acc'), RB.simpleView() ? null : RB.chip(anyTool ? t('area_staff') : t('area_member'), ''))),
+      RB.simpleView() ? null : h('button', { type: 'button', class: 'card-out', id: 'card-out', 'aria-label': t('logout'), title: t('logout'), onclick: askLogout }, RB.icon('out'), h('span', null, t('logout')))));
 
     var shown = false, codeRow = RB.row({ lead: RB.icon('user'), title: t('my_code'), sub: '••••-••••', go: false });
     var csub = codeRow.querySelector('.rt span');
     codeRow.appendChild(h('button', { type: 'button', class: 'btn ghost sm2', onclick: function () {
       shown = !shown; var c = RB.S.code; csub.textContent = shown ? c.slice(0, 4) + '-' + c.slice(4) : '••••-••••'; csub.className = shown ? 'iban' : ''; this.textContent = shown ? t('hide') : t('show');
     } }, t('show')));
-    root.appendChild(h('div', { class: 'list' }, codeRow));
+    var meList = h('div', { class: 'list', id: 'me-list' }, codeRow);
+    root.appendChild(meList);
+    if (RB.simpleView()) { simpleAltro(root, meList, codeRow); return; }
     RB.extrasSection(root);
     root.appendChild(RB.secT(t('push_sec')));
     root.appendChild(h('div', { class: 'list', id: 'push-list' }, RB.pushRow()));
     root.appendChild(RB.secT(t('sos_title')));
-    var emgRow = RB.row({ lead: h('span', { class: 'sos-ic' }, RB.icon('alert')), title: t('sos_title'), sub: RB.emgStatusText(), onclick: function () { RB.emergencyForm(); } });
-    root.appendChild(h('div', { class: 'list', id: 'emg-list' }, emgRow));
-    if (RB.emg.state === null) RB.emgLoad().then(function (r) { var sb = emgRow.querySelector('.rt span'); if (r && sb) sb.textContent = RB.emgStatusText(); });
+    root.appendChild(h('div', { class: 'list', id: 'emg-list' }, emgRow()));
     if (RB.can('emergency_manage')) root.appendChild(h('div', { class: 'list', id: 'sos-manage', style: 'margin-top:10px' }, RB.row({ lead: h('span', { class: 'sos-ic' }, RB.icon('alert')), title: t('sos_manage'), sub: RB.sosCount ? t('sos_open_n', RB.sosCount) : t('sos_manage_sub'), onclick: function () { RB.sosList(); } })));
     root.appendChild(RB.secT(t('dealer')));
     root.appendChild(h('div', { class: 'list', id: 'dealer-list' }, RB.row({ lead: RB.icon('store'), title: RB.dealerName(), sub: t('dealer_sub'), onclick: function () { RB.dealerSheet(); } })));
@@ -201,21 +206,69 @@
 
     /* impostazioni */
     root.appendChild(RB.secT(t('settings')));
+    prefBlock(root, RB.render);
+    root.appendChild(h('div', { class: 'list', style: 'margin-top:22px' }, RB.row({ title: t('logout'), cls: 'act dng', go: false, onclick: askLogout })));
+    root.appendChild(h('p', { class: 'sm', style: 'text-align:center;margin-top:18px' }, '9076 RoadBook · ' + RB.chapterName()));
+  };
+
+  function emgRow() {
+    var row = RB.row({ lead: h('span', { class: 'sos-ic' }, RB.icon('alert')), title: t('sos_title'), sub: RB.emgStatusText(), id: 'emg-row', onclick: function () { RB.emergencyForm(); } });
+    if (RB.emg.state === null) RB.emgLoad().then(function (r) { var sb = row.querySelector('.rt span'); if (r && sb) sb.textContent = RB.emgStatusText(); });
+    return row;
+  }
+
+  /* Altro per i soci: solo ciò che serve, raggruppato per uso; il resto sta in fogli dedicati */
+  function simpleAltro(root, meList, codeRow) {
+    meList.insertBefore(RB.row({ lead: RB.icon('qr'), title: t('x2_card'), sub: t('x2_card_d'), id: 'sa-card', onclick: function () { RB.cardSheet(); } }), codeRow);
+    root.appendChild(h('div', { class: 'list', id: 'push-list', style: 'margin-top:14px' }, RB.pushRow(), emgRow()));
+    root.appendChild(h('div', { class: 'list', id: 'sa-more', style: 'margin-top:14px' },
+      RB.can('members_view') ? RB.row({ lead: RB.icon('soci'), title: t('sa_chapter'), sub: t('sa_chapter_d'), id: 'sa-chapter', onclick: chapterSheet }) : null,
+      RB.row({ lead: RB.icon('store'), title: RB.dealerName(), sub: t('dealer_sub'), id: 'sa-dealer', onclick: function () { RB.dealerSheet(); } }),
+      RB.row({ lead: RB.icon('route'), title: t('x2_stats'), sub: t('x2_stats_d'), onclick: function () { RB.statsSheet(false); } }),
+      RB.row({ lead: RB.icon('quote'), title: t('help_title'), sub: t('help_sub'), id: 'x-help-row', onclick: function () { RB.helpSheet(); } })));
+    root.appendChild(h('div', { class: 'list', style: 'margin-top:14px' },
+      RB.row({ lead: RB.icon('edit'), title: t('sa_prefs'), sub: { it: 'Italiano', en: 'English', fr: 'Français' }[RB.pref.lang] + ' · ' + t('th_' + RB.pref.theme), id: 'sa-prefs', onclick: prefSheet })));
+    root.appendChild(h('div', { class: 'list', style: 'margin-top:22px' }, RB.row({ title: t('logout'), cls: 'act dng', go: false, onclick: askLogout })));
+    root.appendChild(h('p', { class: 'sm', style: 'text-align:center;margin-top:18px' }, '9076 RoadBook · ' + RB.chapterName()));
+  }
+  function prefSheet() {
+    var body = h('div', { id: 'prefs' }), ctl;
+    function draw() { RB.clear(body); prefBlock(body, function () { draw(); RB.render(); }); }
+    draw();
+    ctl = RB.sheet({ title: t('sa_prefs'), content: body, leftLabel: t('close') });
+    return ctl;
+  }
+  /* Il Chapter: direttivo e soci in un solo foglio, con le stesse schede dello staff */
+  function chapterSheet() {
+    var body = h('div', { id: 'chapter' }), box = h('div'), cur = 'dir', ctl;
+    function draw() {
+      RB.clear(box);
+      RB.views[cur === 'dir' ? 'dir' : 'soci'](box);
+      var top = box.querySelector('.top'); if (top) top.remove();
+    }
+    body.appendChild(RB.seg([{ v: 'dir', label: t('tab_dir') }, { v: 'soci', label: t('tab_soci') }], cur, function (v) { cur = v; draw(); }));
+    body.appendChild(h('div', { style: 'height:12px' }));
+    body.appendChild(box); draw();
+    ctl = RB.sheet({ title: t('sa_chapter'), content: body, full: true, leftLabel: t('close') });
+    ctl.refresh = draw;
+    return ctl;
+  }
+
+  /* lingua, 8 colori, aspetto e suoni: in Altro per lo staff, in un foglio per i soci */
+  function prefBlock(root, again) {
     root.appendChild(h('div', { class: 'list' }, h('div', { class: 'field' }, h('span', null, t('language')),
-      RB.seg([{ v: 'it', label: 'Italiano' }, { v: 'en', label: 'English' }, { v: 'fr', label: 'Français' }], RB.pref.lang, function (v) { RB.pref.lang = v; RB.savePref(); RB.applyPref(); RB.render(); }))));
+      RB.seg([{ v: 'it', label: 'Italiano' }, { v: 'en', label: 'English' }, { v: 'fr', label: 'Français' }], RB.pref.lang, function (v) { RB.pref.lang = v; RB.savePref(); RB.applyPref(); again(); }))));
     var sw = h('div', { class: 'sw8 nine' });
     RB.THEMES.forEach(function (th) {
       var col = { arancio: 'hsl(26 100% 46%)', rosso: 'hsl(3 80% 50%)', rosa: 'hsl(335 78% 54%)', viola: 'hsl(278 58% 52%)', indaco: 'hsl(240 68% 58%)', blu: 'hsl(211 100% 46%)', verde: 'hsl(142 62% 34%)', grafite: 'hsl(220 9% 36%)' }[th];
       sw.appendChild(h('button', { type: 'button', 'data-t': th, class: RB.pref.theme === th ? 'on' : '', 'aria-label': t('th_' + th), title: t('th_' + th), style: col ? 'background:' + col : null,
-        onclick: function () { RB.pref.theme = th; RB.savePref(); RB.applyPref(); RB.feel('ok'); RB.render(); } }));
+        onclick: function () { RB.pref.theme = th; RB.savePref(); RB.applyPref(); RB.feel('ok'); again(); } }));
     });
     root.appendChild(h('div', { class: 'list', style: 'margin-top:12px' }, h('div', { class: 'field' }, h('span', null, t('color') + ' · ' + t('th_' + RB.pref.theme))), sw));
     root.appendChild(h('div', { class: 'list', style: 'margin-top:12px' }, h('div', { class: 'field' }, h('span', null, t('appearance')),
       RB.seg([{ v: 'auto', label: t('ap_auto') }, { v: 'light', label: t('ap_light') }, { v: 'dark', label: t('ap_dark') }], RB.pref.ap, function (v) { RB.pref.ap = v; RB.savePref(); RB.applyPref(); })),
       h('div', { class: 'pass' }, h('span', null, t('sounds')), RB.toggle(RB.pref.sound, function (on) { RB.pref.sound = on; RB.savePref(); if (on) RB.sound('ok'); }))));
-    root.appendChild(h('div', { class: 'list', style: 'margin-top:22px' }, RB.row({ title: t('logout'), cls: 'act dng', go: false, onclick: askLogout })));
-    root.appendChild(h('p', { class: 'sm', style: 'text-align:center;margin-top:18px' }, '9076 RoadBook · ' + RB.chapterName()));
-  };
+  }
 
   function chapterForm() {
     var c = (RB.S.d.settings && RB.S.d.settings.chapter) || {}, logo = c.logo || '';

@@ -108,12 +108,12 @@ async function newPage(browser, vp, level, log, errors) {
   });
   await page.route('**/router.project-osrm.org/**', r => { net.push('osrm'); r.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 'Ok', routes: [{ distance: 400000, legs: r.request().url().split('/driving/')[1].split('?')[0].split(';').slice(1).map(() => ({ duration: 7200 })) }] }), headers: { 'access-control-allow-origin': '*' } }); });
 
-  await page.goto(BASE); await page.waitForSelector('#code'); await page.fill('#code', 'abcd-2345'); await page.click('text=Entra'); await page.waitForSelector('.run');
+  await page.goto(BASE); await page.waitForSelector('#code'); await page.fill('#code', 'abcd-2345'); await page.click('text=Entra'); await page.waitForSelector('.run, #nx');
 
   /* il socio non vede percorso né tappe */
   { const c2 = await newPage(browser, { width: 390, height: 844 }, 1, log, errors);
-    await c2.page.goto(BASE); await c2.page.waitForSelector('#code'); await c2.page.fill('#code', 'abcd-2345'); await c2.page.click('text=Entra'); await c2.page.waitForSelector('.run');
-    await c2.page.click('.run h3'); await c2.page.waitForSelector('.sheet.in .list'); await c2.page.waitForTimeout(500);
+    await c2.page.goto(BASE); await c2.page.waitForSelector('#code'); await c2.page.fill('#code', 'abcd-2345'); await c2.page.click('text=Entra'); await c2.page.waitForSelector('.run, #nx');
+    await c2.page.click(':is(.run h3,.nx .nx-t)'); await c2.page.waitForSelector('.sheet.in .list'); await c2.page.waitForTimeout(500);
     const mt = await c2.page.textContent('.sheet.in'); assert.ok(mt.includes('Piazzale Ostiense') && mt.includes('Frascati'), 'ritrovo e destinazione visibili');
     assert.ok(!mt.includes('Grottaferrata') && !mt.includes('Tappe') && !mt.includes('Navigatore') && !/Apri in/.test(mt), 'niente tappe/navigatore per il socio');
     assert.strictEqual(await c2.page.locator('.sheet.in a[href*="maps"]').evaluateAll(a => a.filter(x => /dir|saddr/.test(x.href)).length), 0); step('socio: solo ritrovo e destinazione, nessun percorso, tappa o navigatore');
@@ -205,7 +205,7 @@ async function newPage(browser, vp, level, log, errors) {
   assert.ok(sv.stops.every(s => s.day >= 1 && s.day <= 2)); assert.strictEqual(sv.meeting.tm, 0); assert.ok(sv.stops.filter(s => s.day === 1 && !s.end && s.lat)[0].tm === 120 && sv.dest.tm > 0 && sv.stops.filter(s => s.end)[0].tm > 120, 'tempi navigatore salvati'); step('salvataggio: giorni, ritrovo con coordinate, tappe per giorno, arrivo e destinazione');
 
   /* dettaglio organizzatore: giorni e navigazione per giorno */
-  await wait(600); await page.click('.run h3:has-text("Raduno Lago")'); await page.waitForSelector('.sheet.in .tl'); await wait(500);
+  await wait(600); await page.click(':is(.run h3,.nx .nx-t):has-text(\"Raduno Lago\")'); await page.waitForSelector('.sheet.in .tl'); await wait(500);
   tt = await TOP().textContent(); assert.ok(tt.includes('Giorno 1') && tt.includes('Giorno 2')); 
   const hrefs = await TOP().locator('a[href]').evaluateAll(a => a.map(x => x.href));
   assert.ok(hrefs.some(h => h.includes('google.com/maps/dir') && h.includes('origin=41.824428%2C12.462984'))); assert.ok(hrefs.filter(h => h.includes('google.com/maps/dir')).length === 2 && !hrefs.some(h => h.includes('maps.apple.com'))); step('dettaglio: percorso per giorno con Google Maps');
@@ -261,7 +261,7 @@ async function newPage(browser, vp, level, log, errors) {
   /* reset contenuti (amministratore): parola di conferma in minuscolo/misto e sempre "Sei sicuro?" */
   await ctx.close();
   ({ ctx, page, st } = await newPage(browser, { width: 390, height: 844 }, 'adm', log, errors));
-  await page.goto(BASE); await page.waitForSelector('#code'); await page.fill('#code', 'abcd-2345'); await page.click('text=Entra'); await page.waitForSelector('.run');
+  await page.goto(BASE); await page.waitForSelector('#code'); await page.fill('#code', 'abcd-2345'); await page.click('text=Entra'); await page.waitForSelector('.run, #nx');
   await page.click('.tabs >> text=Altro'); await page.waitForSelector('#reset-open'); await page.click('#reset-open'); await page.waitForSelector('#reset-box .pass');
   await page.locator('#reset-box .pass[data-part="notices"] .sw').click(); await wait(300);
   await page.fill('#rs-confirm', 'ReSeT '); await page.click('#rs-go'); await page.waitForSelector('.sheet.in .ask');

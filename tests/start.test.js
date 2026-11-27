@@ -88,7 +88,7 @@ async function run(devName) {
     page.on('pageerror', e => errors.push(devName + ' pageerror: ' + e.message));
     page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource|favicon|net::ERR|CORS request did not succeed/.test(m.text())) errors.push(devName + ' console: ' + m.text()); });
     const st = backend(page, who, started, log, multi, sign);
-    await page.goto(BASE); await page.fill('#code', 'ABCD2345'); await page.click('button.btn.pri'); await page.waitForSelector('.run');
+    await page.goto(BASE); await page.fill('#code', 'ABCD2345'); await page.click('button.btn.pri'); await page.waitForSelector('.run, #nx');
     return { ctx, page, log, st };
   }
   async function noOverflow(page, label) {
@@ -111,7 +111,7 @@ async function run(devName) {
   assert.equal(log.filter(l => l.fn === 'rc_run_start').length, 1); assert.equal(log.find(l => l.fn === 'rc_run_start').body.p_id, ID(50));
   await page.waitForSelector('.run .chip:has-text("In corso")', { state: 'attached' }); /* su schermi bassi le etichette sono nascoste per scelta */ assert.equal(await page.locator('#start-alert').count(), 0, 'A3 avviso a chi ha fatto partire'); ok('A3 partenza, stato In corso, nessun avviso a chi parte');
   /* modulo: scelta dell'incaricato, inviato al salvataggio */
-  await page.locator('.run h3').first().click(); await page.waitForSelector('.sheet.in #run-started'); ok('A4 dettaglio: partito alle');
+  await page.locator(':is(.run h3,.nx .nx-t)').first().click(); await page.waitForSelector('.sheet.in #run-started'); ok('A4 dettaglio: partito alle');
   await page.locator('.sheet.in .sb.r').last().click(); await page.waitForSelector('#rf-starter');
   assert((await page.locator('#rf-starter').innerText()).includes('Anna Conti')); await page.click('#rf-starter'); await page.waitForSelector('.sheet.in .search input');
   await page.locator('.sheet.in .row:has-text("Luca Gialli")').last().click(); await page.waitForFunction(() => /Luca Gialli/.test(document.getElementById('rf-starter').innerText));
@@ -142,7 +142,7 @@ async function run(devName) {
   await page.click('#start-block .start-btn'); await page.waitForSelector('.sheet.in .ask'); await ask(page).locator('.btn.pri').click();
   await page.waitForFunction(() => !document.getElementById('start-block'), null, { timeout: 6000 }); assert.equal(log.filter(l => l.fn === 'rc_run_start').length, 1); ok('D2 partenza giorno 2');
   /* modulo: orario di partenza del giorno 3 */
-  await page.locator('.run h3').first().click(); await page.waitForSelector('.sheet.in .day-start'); assert.equal(await page.locator('.sheet.in .day-start').count(), 2); ok('D3 orari dei giorni nel dettaglio');
+  await page.locator(':is(.run h3,.nx .nx-t)').first().click(); await page.waitForSelector('.sheet.in .day-start'); assert.equal(await page.locator('.sheet.in .day-start').count(), 2); ok('D3 orari dei giorni nel dettaglio');
   await page.locator('.sheet.in .sb.r').last().click(); await page.waitForSelector('.kchip[data-day="3"]'); await page.click('.kchip[data-day="3"]'); await page.waitForSelector('#rf-ds');
   await page.fill('#rf-ds', '07:45'); await page.locator('.sheet:has(#rf-ds) .sb.r').click(); await page.waitForTimeout(800);
   const sv2 = log.filter(l => l.fn === 'rc_run_save').pop(); assert(sv2 && sv2.body.p.day_starts['3'] === '07:45' && sv2.body.p.day_starts['2'], devName + ' day_starts ' + JSON.stringify(sv2 && sv2.body.p.day_starts)); ok('D4 orario del giorno 3 salvato');
@@ -161,7 +161,7 @@ async function run(devName) {
   await page.click('#halt-block .halt-b[data-min="0"]'); await page.waitForFunction(() => !document.getElementById('halt-block'), null, { timeout: 5000 }); ok('E3 si riparte ora: sosta chiusa');
   await page.evaluate(() => window.RB.haltUndoBar(window.RB.runs()[0])); await page.waitForSelector('#halt-undo.in'); await page.click('#halt-undo-b');
   await page.waitForSelector('#halt-block'); assert(log.some(l => l.fn === 'rc_run_halt' && l.body.p_action === 'undo')); ok('E4 Annulla riapre la sosta');
-  await page.locator('.run h3').first().click(); await page.waitForSelector('.sheet.in #halt-list .row'); ok('E5 diario soste');
+  await page.locator(':is(.run h3,.nx .nx-t)').first().click(); await page.waitForSelector('.sheet.in #halt-list .row'); ok('E5 diario soste');
   await ctx.close();
   ({ ctx, page, log, st } = await login('socio', true));
   await page.click('#start-ack'); await page.waitForFunction(() => !document.getElementById('start-alert'));
@@ -171,15 +171,15 @@ async function run(devName) {
   await ctx.close();
   /* F. Iscrizioni chiuse: «Chiedi di partecipare» con conferma, richiesta in attesa, ritiro */
   ({ ctx, page, log, st } = await login('socio', false, false, {}));
-  const seg = page.locator('.run .seg button[data-v=si]'); assert(/Chiedi/.test(await seg.innerText()), devName + ' etichetta richiesta'); ok('F1 dopo la scadenza: Chiedi di partecipare');
+  const seg = page.locator(':is(.run,.nx) .seg button[data-v=si]'); assert(/Chiedi/.test(await seg.innerText()), devName + ' etichetta richiesta'); ok('F1 dopo la scadenza: Chiedi di partecipare');
   await seg.click(); await page.waitForSelector('.sheet.in .ask'); assert(/approvata dal direttivo/.test(await page.locator('.sheet.in .ask').last().innerText())); await ask(page).locator('.btn.pri').click();
-  await page.waitForSelector('.run .req-wait[data-pending=join]'); assert(log.some(l => l.fn === 'rc_signup' && l.body.p_status === 'si')); ok('F2 richiesta inviata e in attesa');
-  await page.locator('.run .req-wait .lnk').click(); await page.waitForSelector('.sheet.in .ask'); await ask(page).locator('.btn.pri').click();
-  await page.waitForSelector('.run .seg button[data-v=si]'); assert(log.some(l => l.fn === 'rc_signup' && l.body.p_status === 'ritira')); ok('F3 ritiro della richiesta');
+  await page.waitForSelector(':is(.run,.nx) .req-wait[data-pending=join]'); assert(log.some(l => l.fn === 'rc_signup' && l.body.p_status === 'si')); ok('F2 richiesta inviata e in attesa');
+  await page.locator(':is(.run,.nx) .req-wait .lnk').click(); await page.waitForSelector('.sheet.in .ask'); await ask(page).locator('.btn.pri').click();
+  await page.waitForSelector(':is(.run,.nx) .seg button[data-v=si]'); assert(log.some(l => l.fn === 'rc_signup' && l.body.p_status === 'ritira')); ok('F3 ritiro della richiesta');
   await ctx.close();
   ({ ctx, page, log, st } = await login('socio', false, false, { mineSi: true }));
-  await page.click('.run .seg button[data-v=no]'); await page.waitForSelector('.sheet.in .ask'); assert(/resti iscritto/.test(await page.locator('.sheet.in .ask').last().innerText()));
-  await ask(page).locator('.btn.pri').click(); await page.waitForSelector('.run .req-wait[data-pending=cancel]'); ok('F4 annullamento dopo la scadenza = richiesta');
+  await page.click(':is(.run,.nx) .seg button[data-v=no]'); await page.waitForSelector('.sheet.in .ask'); assert(/resti iscritto/.test(await page.locator('.sheet.in .ask').last().innerText()));
+  await ask(page).locator('.btn.pri').click(); await page.waitForSelector(':is(.run,.nx) .req-wait[data-pending=cancel]'); ok('F4 annullamento dopo la scadenza = richiesta');
   await ctx.close();
   /* G. Direttivo: richieste da approvare */
   ({ ctx, page, log, st } = await login('dir', false, false, { reqs: true }));
